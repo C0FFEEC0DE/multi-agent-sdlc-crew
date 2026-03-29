@@ -1,8 +1,7 @@
 # Claude Code — Cheatsheet
 
 ## Model
-- `/model` — change model
-- Current: `minimax-m2.5:cloud`
+- Current default: `minimax-m2.5:cloud`
 
 ## Navigation
 - `Read path/to/file` — read file
