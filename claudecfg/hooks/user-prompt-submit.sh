@@ -20,7 +20,7 @@ if grep -Eiq '(bug|fix|defect|баг|ошиб|исправ)' <<<"$prompt"; then
     task_type="bugfix"
 elif grep -Eiq '(refactor|rename|cleanup|tech debt|рефактор|почист|переимен)' <<<"$prompt"; then
     task_type="refactor"
-elif grep -Eiq '(feature|implement|add support|integrat|new capability|фич|добав|интеграц|подключ|модел|pyrit|openrouter)' <<<"$prompt"; then
+elif grep -Eiq '(feature|implement|add support|integrat|new capability|фич|добав|интеграц|подключ|pyrit|openrouter)' <<<"$prompt"; then
     task_type="feature"
 elif grep -Eiq '(review|audit|ревью|аудит|проверь)' <<<"$prompt"; then
     task_type="review"
