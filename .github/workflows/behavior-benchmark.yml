@@ -14,10 +14,10 @@ on:
         required: false
         default: "16"
         type: string
-      model:
-        description: "Optional OpenRouter model override"
+      timeout_seconds:
+        description: "Per-task Claude timeout in seconds"
         required: false
-        default: ""
+        default: "420"
         type: string
 
 jobs:
@@ -43,23 +43,24 @@ jobs:
         env:
           INPUT_TASK_GLOB: ${{ inputs.task_glob }}
           INPUT_MAX_TURNS: ${{ inputs.max_turns }}
-          INPUT_MODEL: ${{ inputs.model }}
-          VAR_MODEL: ${{ vars.OPENROUTER_MODEL }}
+          INPUT_TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}
+          VAR_OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL }}
+          VAR_BENCHMARK_TIMEOUT_SECONDS: ${{ vars.BEHAVIOR_BENCHMARK_TIMEOUT_SECONDS }}
         run: |
           task_glob="${INPUT_TASK_GLOB:-bench/tasks/*.json}"
           max_turns="${INPUT_MAX_TURNS:-16}"
-          model="${INPUT_MODEL:-${VAR_MODEL:-nvidia/nemotron-3-super-120b-a12b:free}}"
+          model="${VAR_OPENROUTER_MODEL:-}"
+          timeout_seconds="${INPUT_TIMEOUT_SECONDS:-${VAR_BENCHMARK_TIMEOUT_SECONDS:-420}}"
+
+          if [ -z "$model" ]; then
+            echo "OPENROUTER_MODEL GitHub Actions variable is required" >&2
+            exit 1
+          fi
 
           echo "task_glob=$task_glob" >> "$GITHUB_OUTPUT"
           echo "max_turns=$max_turns" >> "$GITHUB_OUTPUT"
           echo "model=$model" >> "$GITHUB_OUTPUT"
-
-      - name: Install Claude configuration
-        shell: bash
-        run: |
-          mkdir -p "$HOME/.claude"
-          cp -R claudecfg/* "$HOME/.claude/"
-          find "$HOME/.claude/hooks" -type f -name "*.sh" -exec chmod +x {} \;
+          echo "timeout_seconds=$timeout_seconds" >> "$GITHUB_OUTPUT"
 
       - name: Install Claude Code CLI and pytest
         shell: bash
@@ -71,6 +72,11 @@ jobs:
           python3 -m pip install --upgrade pip pytest
           claude --version
 
+      - name: Install Claude configuration
+        shell: bash
+        run: |
+          bash claudecfg/install.sh
+
       - name: Run behavioral benchmark
         shell: bash
         env:
@@ -79,8 +85,8 @@ jobs:
           TASK_GLOB: ${{ steps.cfg.outputs.task_glob }}
           MAX_TURNS: ${{ steps.cfg.outputs.max_turns }}
           BENCH_FAIL_FAST: "1"
-          CLAUDE_TIMEOUT_SECONDS: "300"
-          CLAUDE_MODEL: ${{ steps.cfg.outputs.model }}
+          CLAUDE_TIMEOUT_SECONDS: ${{ steps.cfg.outputs.timeout_seconds }}
+          OPENROUTER_MODEL: ${{ steps.cfg.outputs.model }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           ANTHROPIC_BASE_URL: https://openrouter.ai/api
           ANTHROPIC_AUTH_TOKEN: ${{ secrets.OPENROUTER_API_KEY }}
@@ -108,6 +114,7 @@ jobs:
                 def pct($value): (($value * 1000 | round) / 10 | tostring) + "%";
                 "- Model: `${{ steps.cfg.outputs.model }}`",
                 "- Max turns: `${{ steps.cfg.outputs.max_turns }}`",
+                "- Timeout seconds: `${{ steps.cfg.outputs.timeout_seconds }}`",
                 "- Task glob: `${{ steps.cfg.outputs.task_glob }}`",
                 "",
                 "| Task | Status | Changed Files | Notes |",

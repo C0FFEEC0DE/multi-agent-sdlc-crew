@@ -23,9 +23,10 @@ def env_or_default(name: str, default: str) -> str:
 
 
 CLAUDE_BIN = env_or_default("CLAUDE_BIN", "claude")
-CLAUDE_MODEL = env_or_default(
-    "CLAUDE_MODEL", env_or_default("OPENROUTER_MODEL", "nvidia/nemotron-3-super-120b-a12b:free")
-)
+OPENROUTER_MODEL = os.environ["OPENROUTER_MODEL"].strip()
+if not OPENROUTER_MODEL:
+    raise RuntimeError("OPENROUTER_MODEL must be set")
+
 MAX_TURNS = env_or_default("MAX_TURNS", "16")
 CLAUDE_TIMEOUT_SECONDS = int(env_or_default("CLAUDE_TIMEOUT_SECONDS", "180"))
 
@@ -128,7 +129,7 @@ def run_claude(
         "-p",
         prompt,
         "--model",
-        CLAUDE_MODEL,
+        OPENROUTER_MODEL,
         "--max-turns",
         MAX_TURNS,
         "--permission-mode",
@@ -536,7 +537,7 @@ def main() -> int:
 
     runtime_seconds = round(time.monotonic() - started_at, 3)
     notes = (
-        f"Claude model={CLAUDE_MODEL}. "
+        f"Claude model={OPENROUTER_MODEL}. "
         f"Exit code: {exit_code}. "
         f"Changed files: {', '.join(changed_files) if changed_files else 'none'}. "
         f"Failures: {', '.join(failures) if failures else 'none'}. "

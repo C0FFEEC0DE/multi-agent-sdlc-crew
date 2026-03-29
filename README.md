@@ -160,8 +160,8 @@ This harness verifies that key hooks block dangerous commands, classify prompts 
 
 That workflow:
 
-- installs `claudecfg/*` into `~/.claude`
 - installs the Claude Code CLI
+- runs `claudecfg/install.sh` to install the repo config into `~/.claude`
 - copies each benchmark fixture into an isolated task workdir
 - runs the real `claude -p` inside that workdir
 - checks that required tasks actually changed files, kept docs/code scope rules, and still pass verification
@@ -171,7 +171,7 @@ That workflow:
 
 This is now the only real Claude Code workflow in the repository.
 
-Recommended model:
+Required benchmark model variable:
 
 - `OPENROUTER_MODEL=nvidia/nemotron-3-super-120b-a12b:free`
 

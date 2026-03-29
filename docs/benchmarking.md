@@ -28,7 +28,7 @@ The runner invokes Claude Code with `--permission-mode acceptEdits` so isolated 
 The GitHub workflow default is `16` turns per task so CI stays bounded; raise it manually in `workflow_dispatch` when you want a slower debug run.
 The runner also injects an explicit workflow override into the prompt so bugfix, feature, refactor, and docs tasks are not misclassified as review-only work just because the final summary must mention review outcome.
 The shell stop guards now fall back to the benchmark session transcript when a runtime omits `last_assistant_message` from `Stop` or `SubagentStop` payloads, so valid summaries are still recognized in live CI runs.
-The benchmark runner now mirrors that fallback for Claude CLI results: if `.result` is empty but the session transcript contains a valid multiline summary, the task can still pass. GitHub CI also enables fail-fast, so the live benchmark stops after the first failed task instead of burning time on the rest of the matrix. The live workflow currently gives each task up to `300` seconds of wall-clock runtime before the runner times it out.
+The benchmark runner now mirrors that fallback for Claude CLI results: if `.result` is empty but the session transcript contains a valid multiline summary, the task can still pass. GitHub CI also enables fail-fast, so the live benchmark stops after the first failed task instead of burning time on the rest of the matrix. The live workflow currently gives each task up to `420` seconds of wall-clock runtime before the runner times it out, and `workflow_dispatch` can override that with `timeout_seconds`.
 The benchmark harness also now exercises the same project-local Claude settings as the repository by copying `.claude/` into each fixture workdir. Root-level read-only tool calls such as `Read(.)`, `Glob(.)`, and `Grep(.)` are allowed so models do not waste turns on harmless repository scans.
 Benchmark tasks may also declare `forbidden_doc_patterns`; the runner scans changed documentation files and fails the task if the edited docs mention forbidden hallucinated paths or commands.
 
@@ -40,8 +40,8 @@ The behavioral benchmark workflow is:
 
 It:
 
-1. installs `claudecfg/*` into `~/.claude`
-2. installs the Claude Code CLI
+1. installs the Claude Code CLI
+2. runs `claudecfg/install.sh` so CI uses the same repo installer as local setup
 3. copies the repository `.claude/` directory into each isolated fixture workdir so project-local config is exercised during the benchmark
 4. runs `scripts/run-benchmark.sh` in `command` mode
 5. uses `scripts/bench_runner_claude_code.py` as the per-task runner
@@ -56,11 +56,18 @@ Repository settings:
 2. Add `OPENROUTER_API_KEY`
 3. `Settings -> Secrets and variables -> Actions -> Variables`
 4. Add `OPENROUTER_MODEL`
+5. Optionally add `BEHAVIOR_BENCHMARK_TIMEOUT_SECONDS` to override the benchmark per-task timeout
 
-Recommended model:
+Required benchmark model:
 
 ```text
 nvidia/nemotron-3-super-120b-a12b:free
+```
+
+Recommended benchmark timeout:
+
+```text
+420
 ```
 
 ## Local Usage
@@ -72,7 +79,7 @@ export OPENROUTER_API_KEY=...
 export ANTHROPIC_BASE_URL=https://openrouter.ai/api
 export ANTHROPIC_AUTH_TOKEN="$OPENROUTER_API_KEY"
 export ANTHROPIC_API_KEY=
-export CLAUDE_MODEL="${CLAUDE_MODEL:-nvidia/nemotron-3-super-120b-a12b:free}"
+export OPENROUTER_MODEL="${OPENROUTER_MODEL:-nvidia/nemotron-3-super-120b-a12b:free}"
 export BENCH_RUNNER_CMD="python3 scripts/bench_runner_claude_code.py"
 bash scripts/run-benchmark.sh --output-dir /tmp/claude-bench --mode command
 bash scripts/assert-benchmark-summary.sh /tmp/claude-bench/summary.json

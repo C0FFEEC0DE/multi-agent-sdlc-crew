@@ -111,7 +111,7 @@ for task_file in "${task_files[@]}"; do
     echo "Fixture: $fixture_name"
     echo "Task file: $task_file"
     echo "Workdir: $task_workdir"
-    echo "Model: ${CLAUDE_MODEL:-${OPENROUTER_MODEL:-<unset>}}"
+    echo "Model: ${OPENROUTER_MODEL:-<unset>}"
 
     if [ "$MODE" = "mock" ]; then
         "$RUNNER_CMD"
