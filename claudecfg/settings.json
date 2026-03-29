@@ -15,6 +15,7 @@
       "Grep(./**)",
       "Bash(python:*)",
       "Bash(python3:*)",
+      "Bash(pytest:*)",
       "Bash(pip:*)",
       "Bash(make:*)",
       "Bash(cmake:*)",
