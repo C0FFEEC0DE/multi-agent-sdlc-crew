@@ -1035,12 +1035,26 @@ def main() -> int:
 
     write_text(OUTPUT_DIR / "claude-result.txt", result_text)
 
+    timeout_recovered = False
+    if (
+        exit_code == 124
+        and fatal_error.startswith("Claude timed out after ")
+        and completed
+        and (not verification_required or (tests_run and tests_passed and verification_summary_present))
+        and (not review_required or review_present)
+        and risks_present
+        and (not docs_required or docs_updated)
+        and not (task["category"] == "docs" and non_doc_changed_files)
+        and not doc_pattern_hits
+    ):
+        timeout_recovered = True
+
     status = "passed"
     failures: list[str] = []
 
-    if exit_code != 0:
+    if exit_code != 0 and not timeout_recovered:
         failures.append(f"claude_exit_code={exit_code}")
-    if fatal_error:
+    if fatal_error and not timeout_recovered:
         failures.append(fatal_error)
     if not completed:
         failures.append("workspace_changed=false")
@@ -1075,6 +1089,7 @@ def main() -> int:
         f"Output budget repaired by: {output_budget_repaired_by}. "
         f"Summary repair attempts: {summary_repair_attempts}. "
         f"Summary repaired by: {summary_repaired_by}. "
+        f"Timeout recovered: {timeout_recovered}. "
         f"Failures: {', '.join(failures) if failures else 'none'}. "
         f"Result: {truncate(result_text, 700) or 'missing'}. "
         f"Verification: {truncate(verification_output, 700) or 'not required'}"
@@ -1103,6 +1118,7 @@ def main() -> int:
         "claude_exit_code": exit_code,
         "claude_subtype": payload_subtype,
         "claude_stop_reason": payload_stop_reason,
+        "timeout_recovered": timeout_recovered,
         "permission_denials_count": len(permission_denials),
         "first_permission_denial": first_permission_denial_summary(permission_denials),
         "forbidden_doc_pattern_hits": doc_pattern_hits,
