@@ -29,6 +29,13 @@ if not OPENROUTER_MODEL:
 
 MAX_TURNS = env_or_default("MAX_TURNS", "16")
 CLAUDE_TIMEOUT_SECONDS = int(env_or_default("CLAUDE_TIMEOUT_SECONDS", "180"))
+SUMMARY_REPAIR_MAX_RETRIES = 5
+SUMMARY_REPAIR_MAX_TURNS = "4"
+REQUIRED_SUMMARY_PREFIXES = (
+    "Verification status:",
+    "Review outcome:",
+    "Remaining risks:",
+)
 
 
 def is_docs_path(path_str: str) -> bool:
@@ -113,9 +120,20 @@ Must not:
 
 Final response requirements:
 - Keep it concise.
-- Include a line starting with "Verification status:"
-- Include a line starting with "Review outcome:"
-- Include a line starting with "Remaining risks:"
+- Your final response MUST end with exactly this 3-line footer.
+- Do not rename the prefixes.
+- Do not omit any footer line.
+- Do not add any text after the footer.
+
+Required footer template:
+Verification status: <passed|failed|not run|not required> - <one sentence>
+Review outcome: <done|pending|not required> - <one sentence>
+Remaining risks: <one sentence or "none">
+
+Example footer:
+Verification status: passed - pytest -q completed successfully.
+Review outcome: done - changes were reviewed before completion.
+Remaining risks: none
 """
 
 
@@ -123,6 +141,7 @@ def run_claude(
     prompt: str,
     debug_log_path: pathlib.Path,
     stderr_log_path: pathlib.Path,
+    max_turns: str = MAX_TURNS,
 ) -> tuple[int, str, str]:
     command = [
         CLAUDE_BIN,
@@ -131,7 +150,7 @@ def run_claude(
         "--model",
         OPENROUTER_MODEL,
         "--max-turns",
-        MAX_TURNS,
+        max_turns,
         "--permission-mode",
         "acceptEdits",
         "--debug-file",
@@ -307,6 +326,114 @@ def has_line_prefix(text: str, prefix: str) -> bool:
     return re.search(pattern, text) is not None
 
 
+def missing_summary_prefixes(text: str) -> list[str]:
+    return [prefix for prefix in REQUIRED_SUMMARY_PREFIXES if not has_line_prefix(text, prefix)]
+
+
+def extract_prefixed_line(text: str, prefix: str) -> str:
+    pattern = r"(?im)^\s*" + re.escape(prefix) + r"[^\n]*"
+    match = re.search(pattern, text)
+    return match.group(0).strip() if match else ""
+
+
+def merge_footer(text: str, footer_lines: list[str]) -> str:
+    body_lines = []
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        if any(stripped.startswith(prefix) for prefix in REQUIRED_SUMMARY_PREFIXES):
+            continue
+        body_lines.append(line.rstrip())
+    body = "\n".join(body_lines).strip()
+    footer = "\n".join(footer_lines).strip()
+    if body and footer:
+        return f"{body}\n\n{footer}"
+    return body or footer
+
+
+def verification_status_line(verification_required: bool, tests_run: bool, tests_passed: bool) -> str:
+    if not verification_required:
+        return "Verification status: not required - benchmark task did not require automated verification."
+    if not tests_run:
+        return "Verification status: not run - required verification did not execute."
+    if tests_passed:
+        return "Verification status: passed - pytest -q completed successfully."
+    return "Verification status: failed - pytest -q reported failures."
+
+
+def review_outcome_line(review_required: bool, review_present: bool) -> str:
+    if not review_required:
+        return "Review outcome: not required - benchmark task did not require an explicit review summary."
+    if review_present:
+        return "Review outcome: done - explicit review summary is present."
+    return "Review outcome: pending - the model omitted an explicit review summary."
+
+
+def remaining_risks_line(
+    verification_required: bool,
+    tests_run: bool,
+    tests_passed: bool,
+    review_required: bool,
+) -> str:
+    if verification_required and (not tests_run or not tests_passed):
+        return "Remaining risks: automated verification is incomplete or failing."
+    if review_required:
+        return "Remaining risks: the model omitted explicit remaining-risk and review summaries."
+    return "Remaining risks: none"
+
+
+def synthesize_footer(
+    verification_required: bool,
+    tests_run: bool,
+    tests_passed: bool,
+    review_required: bool,
+    review_present: bool,
+) -> list[str]:
+    return [
+        verification_status_line(verification_required, tests_run, tests_passed),
+        review_outcome_line(review_required, review_present),
+        remaining_risks_line(verification_required, tests_run, tests_passed, review_required),
+    ]
+
+
+def build_summary_repair_prompt(
+    task: dict,
+    result_text: str,
+    verification_required: bool,
+    tests_run: bool,
+    tests_passed: bool,
+    verification_output: str,
+    review_required: bool,
+    changed_files: list[str],
+) -> str:
+    return f"""You already completed the benchmark task. Do not modify any files.
+
+Return only the required 3-line footer and nothing else.
+Use these prefixes exactly and keep exactly one line per prefix:
+Verification status:
+Review outcome:
+Remaining risks:
+
+Required footer format:
+Verification status: <passed|failed|not run|not required> - <one sentence>
+Review outcome: <done|pending|not required> - <one sentence>
+Remaining risks: <one sentence or "none">
+
+Known facts:
+- task_id: {task["id"]}
+- verification_required: {json.dumps(verification_required)}
+- tests_run: {json.dumps(tests_run)}
+- tests_passed: {json.dumps(tests_passed)}
+- review_required: {json.dumps(review_required)}
+- changed_files: {", ".join(changed_files) if changed_files else "none"}
+
+Previous response excerpt:
+{truncate(result_text, 1200) or "<missing>"}
+
+Verification output excerpt:
+{truncate(verification_output, 1200) or "<not run>"}
+"""
+
+
 def truncate(text: str, limit: int = 1200) -> str:
     clean = text.strip()
     if len(clean) <= limit:
@@ -444,6 +571,8 @@ def main() -> int:
     payload = None
     result_text = ""
     fatal_error = ""
+    summary_repair_attempts = 0
+    summary_repaired_by = "none"
     debug_log_path = OUTPUT_DIR / "claude-debug.log"
     stderr_log_path = OUTPUT_DIR / "claude-stderr.log"
 
@@ -481,30 +610,122 @@ def main() -> int:
     if raw_stderr.strip():
         write_text(OUTPUT_DIR / "claude-stderr-tail.txt", "\n".join(raw_stderr.splitlines()[-200:]) + "\n")
 
+    verification_required = bool(task["verification_required"])
+    tests_run = False
+    tests_passed = False
+    verification_output = ""
+    repair_after = snapshot_files(WORKDIR)
+    repair_changed_files = sorted(
+        path for path in set(before) | set(repair_after) if before.get(path) != repair_after.get(path)
+    )
+    if verification_required:
+        tests_run, tests_passed, verification_output = run_verification()
+
+    review_required = bool(task["review_required"])
+    docs_required = bool(task["docs_required"])
+    repair_attempt_summaries: list[dict[str, object]] = []
+    if exit_code == 0 and missing_summary_prefixes(result_text):
+        for attempt in range(1, SUMMARY_REPAIR_MAX_RETRIES + 1):
+            repair_prompt = build_summary_repair_prompt(
+                task=task,
+                result_text=result_text,
+                verification_required=verification_required,
+                tests_run=tests_run,
+                tests_passed=tests_passed,
+                verification_output=verification_output,
+                review_required=review_required,
+                changed_files=repair_changed_files,
+            )
+            repair_debug_log_path = OUTPUT_DIR / f"claude-debug-repair-{attempt}.log"
+            repair_stderr_log_path = OUTPUT_DIR / f"claude-stderr-repair-{attempt}.log"
+            repair_exit_code = 0
+            repair_raw_stdout = ""
+            repair_raw_stderr = ""
+            repair_payload = None
+            repair_text = ""
+            repair_error = ""
+            try:
+                repair_exit_code, repair_raw_stdout, repair_raw_stderr = run_claude(
+                    repair_prompt,
+                    repair_debug_log_path,
+                    repair_stderr_log_path,
+                    max_turns=SUMMARY_REPAIR_MAX_TURNS,
+                )
+                repair_payload = extract_result_payload(repair_raw_stdout)
+                repair_text = extract_result_text(repair_payload)
+                if not repair_text.strip():
+                    repair_text = extract_result_text_from_transcript(repair_payload)
+                if not repair_raw_stdout.strip():
+                    repair_error = "Claude output JSON is missing or empty."
+                elif repair_payload is None:
+                    repair_error = "Claude output JSON is invalid."
+                elif not repair_text.strip():
+                    repair_error = "Claude result text is missing or empty."
+            except subprocess.TimeoutExpired:
+                repair_exit_code = 124
+                repair_error = f"Claude timed out after {CLAUDE_TIMEOUT_SECONDS}s during summary repair."
+            except Exception as exc:
+                repair_exit_code = 1
+                repair_error = f"Claude runner exception during summary repair: {exc}"
+
+            repair_attempt_summaries.append(
+                {
+                    "attempt": attempt,
+                    "exit_code": repair_exit_code,
+                    "error": repair_error,
+                    "result_excerpt": truncate(repair_text, 700),
+                    "missing_prefixes": missing_summary_prefixes(repair_text),
+                }
+            )
+            summary_repair_attempts = attempt
+            if repair_exit_code != 0 or not repair_text.strip():
+                continue
+
+            footer_lines = [extract_prefixed_line(repair_text, prefix) for prefix in REQUIRED_SUMMARY_PREFIXES]
+            if all(footer_lines):
+                result_text = merge_footer(result_text, footer_lines)
+                summary_repaired_by = "retry"
+                break
+
+    if repair_attempt_summaries:
+        write_text(
+            OUTPUT_DIR / "summary-repair-attempts.json",
+            json.dumps(repair_attempt_summaries, ensure_ascii=False, indent=2) + "\n",
+        )
+
     after = snapshot_files(WORKDIR)
     changed_files = sorted(path for path in set(before) | set(after) if before.get(path) != after.get(path))
     docs_updated = any(is_docs_path(path) for path in changed_files)
     non_doc_changed_files = [path for path in changed_files if not is_docs_path(path)]
     doc_pattern_hits = forbidden_doc_pattern_hits(task, after, changed_files)
     completed = len(changed_files) > 0
-
     patch_text = build_patch(before, after)
     write_text(OUTPUT_DIR / "workspace.patch", patch_text)
     write_text(OUTPUT_DIR / "changed-files.json", json.dumps(changed_files, ensure_ascii=False, indent=2) + "\n")
     write_text(OUTPUT_DIR / "task-prompt.txt", prompt + "\n")
-
-    verification_required = bool(task["verification_required"])
-    tests_run = False
-    tests_passed = False
-    verification_output = ""
     if verification_required:
         tests_run, tests_passed, verification_output = run_verification()
 
-    review_required = bool(task["review_required"])
-    docs_required = bool(task["docs_required"])
     verification_summary_present = has_line_prefix(result_text, "Verification status:")
     review_present = has_line_prefix(result_text, "Review outcome:")
     risks_present = has_line_prefix(result_text, "Remaining risks:")
+    if missing_summary_prefixes(result_text):
+        result_text = merge_footer(
+            result_text,
+            synthesize_footer(
+                verification_required=verification_required,
+                tests_run=tests_run,
+                tests_passed=tests_passed,
+                review_required=review_required,
+                review_present=review_present,
+            ),
+        )
+        summary_repaired_by = "synthetic-footer" if summary_repaired_by == "none" else summary_repaired_by
+        verification_summary_present = has_line_prefix(result_text, "Verification status:")
+        review_present = has_line_prefix(result_text, "Review outcome:")
+        risks_present = has_line_prefix(result_text, "Remaining risks:")
+
+    write_text(OUTPUT_DIR / "claude-result.txt", result_text)
 
     status = "passed"
     failures: list[str] = []
@@ -540,6 +761,8 @@ def main() -> int:
         f"Claude model={OPENROUTER_MODEL}. "
         f"Exit code: {exit_code}. "
         f"Changed files: {', '.join(changed_files) if changed_files else 'none'}. "
+        f"Summary repair attempts: {summary_repair_attempts}. "
+        f"Summary repaired by: {summary_repaired_by}. "
         f"Failures: {', '.join(failures) if failures else 'none'}. "
         f"Result: {truncate(result_text, 700) or 'missing'}. "
         f"Verification: {truncate(verification_output, 700) or 'not required'}"
