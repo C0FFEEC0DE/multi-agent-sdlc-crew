@@ -4,7 +4,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIR=""
-TASK_GLOB="bench/tasks/*.json"
+TASK_GLOB="bench/tasks/lite/*.json"
 MODE="${BENCH_MODE:-}"
 SOURCE_REF="${BENCH_SOURCE_REF:-working-tree}"
 FAIL_FAST="${BENCH_FAIL_FAST:-0}"
@@ -111,7 +111,8 @@ for task_file in "${task_files[@]}"; do
     echo "Fixture: $fixture_name"
     echo "Task file: $task_file"
     echo "Workdir: $task_workdir"
-    echo "Model: ${OPENROUTER_MODEL:-<unset>}"
+    echo "Model: ${OLLAMA_MODEL:-${OPENROUTER_MODEL:-<unset>}}"
+    echo "Max output tokens: ${CLAUDE_CODE_MAX_OUTPUT_TOKENS:-<unset>}"
 
     if [ "$MODE" = "mock" ]; then
         "$RUNNER_CMD"

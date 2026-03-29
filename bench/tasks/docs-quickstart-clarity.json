@@ -5,9 +5,11 @@
   "review_required": false,
   "docs_required": true,
   "verification_required": false,
-  "prompt": "Improve the quickstart documentation for the text-report fixture, clarify the command examples using only files and commands that actually exist in this fixture, and avoid changing source code.",
+  "prompt": "Improve the quickstart documentation for the text-report fixture by editing README.md, clarify the command examples using only files and commands that actually exist in this fixture, and avoid changing source code. Add a short quickstart section that tells the reader to inspect reporter.py and run pytest -q, and make it explicit that no extra install or clone steps are needed inside this fixture.",
   "success_criteria": [
+    "README.md is updated with a clearer quickstart section",
     "Documentation is clearer and easier to follow",
+    "Quickstart mentions only files and commands that exist in this fixture, including reporter.py and pytest -q",
     "No code changes are required",
     "Final report accurately states that verification was not required"
   ],

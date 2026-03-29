@@ -7,7 +7,7 @@ on:
       task_glob:
         description: "Task glob relative to repository root"
         required: false
-        default: "bench/tasks/*.json"
+        default: "bench/tasks/lite/*.json"
         type: string
       max_turns:
         description: "Maximum Claude Code turns per task"
@@ -18,6 +18,11 @@ on:
         description: "Per-task Claude timeout in seconds"
         required: false
         default: "420"
+        type: string
+      max_output_tokens:
+        description: "Claude Code max output tokens per request"
+        required: false
+        default: "4096"
         type: string
 
 jobs:
@@ -44,16 +49,19 @@ jobs:
           INPUT_TASK_GLOB: ${{ inputs.task_glob }}
           INPUT_MAX_TURNS: ${{ inputs.max_turns }}
           INPUT_TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}
-          VAR_OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL }}
+          INPUT_MAX_OUTPUT_TOKENS: ${{ inputs.max_output_tokens }}
+          VAR_OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
           VAR_BENCHMARK_TIMEOUT_SECONDS: ${{ vars.BEHAVIOR_BENCHMARK_TIMEOUT_SECONDS }}
+          VAR_BENCHMARK_MAX_OUTPUT_TOKENS: ${{ vars.BEHAVIOR_BENCHMARK_MAX_OUTPUT_TOKENS }}
         run: |
-          task_glob="${INPUT_TASK_GLOB:-bench/tasks/*.json}"
+          task_glob="${INPUT_TASK_GLOB:-bench/tasks/lite/*.json}"
           max_turns="${INPUT_MAX_TURNS:-16}"
-          model="${VAR_OPENROUTER_MODEL:-}"
+          model="${VAR_OLLAMA_MODEL:-}"
           timeout_seconds="${INPUT_TIMEOUT_SECONDS:-${VAR_BENCHMARK_TIMEOUT_SECONDS:-420}}"
+          max_output_tokens="${INPUT_MAX_OUTPUT_TOKENS:-${VAR_BENCHMARK_MAX_OUTPUT_TOKENS:-4096}}"
 
           if [ -z "$model" ]; then
-            echo "OPENROUTER_MODEL GitHub Actions variable is required" >&2
+            echo "OLLAMA_MODEL GitHub Actions variable is required" >&2
             exit 1
           fi
 
@@ -61,6 +69,7 @@ jobs:
           echo "max_turns=$max_turns" >> "$GITHUB_OUTPUT"
           echo "model=$model" >> "$GITHUB_OUTPUT"
           echo "timeout_seconds=$timeout_seconds" >> "$GITHUB_OUTPUT"
+          echo "max_output_tokens=$max_output_tokens" >> "$GITHUB_OUTPUT"
 
       - name: Install Claude Code CLI and pytest
         shell: bash
@@ -86,14 +95,15 @@ jobs:
           MAX_TURNS: ${{ steps.cfg.outputs.max_turns }}
           BENCH_FAIL_FAST: "1"
           CLAUDE_TIMEOUT_SECONDS: ${{ steps.cfg.outputs.timeout_seconds }}
-          OPENROUTER_MODEL: ${{ steps.cfg.outputs.model }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          ANTHROPIC_BASE_URL: https://openrouter.ai/api
-          ANTHROPIC_AUTH_TOKEN: ${{ secrets.OPENROUTER_API_KEY }}
+          CLAUDE_CODE_MAX_OUTPUT_TOKENS: ${{ steps.cfg.outputs.max_output_tokens }}
+          OLLAMA_MODEL: ${{ steps.cfg.outputs.model }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          ANTHROPIC_BASE_URL: https://ollama.com
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.OLLAMA_API_KEY }}
           ANTHROPIC_API_KEY: ""
         run: |
-          if [ -z "${OPENROUTER_API_KEY:-}" ]; then
-            echo "OPENROUTER_API_KEY secret is required" >&2
+          if [ -z "${OLLAMA_API_KEY:-}" ]; then
+            echo "OLLAMA_API_KEY secret is required" >&2
             exit 1
           fi
           bash scripts/run-benchmark.sh \
@@ -115,6 +125,7 @@ jobs:
                 "- Model: `${{ steps.cfg.outputs.model }}`",
                 "- Max turns: `${{ steps.cfg.outputs.max_turns }}`",
                 "- Timeout seconds: `${{ steps.cfg.outputs.timeout_seconds }}`",
+                "- Max output tokens: `${{ steps.cfg.outputs.max_output_tokens }}`",
                 "- Task glob: `${{ steps.cfg.outputs.task_glob }}`",
                 "",
                 "| Task | Status | Changed Files | Notes |",

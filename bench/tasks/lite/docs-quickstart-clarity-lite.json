@@ -1,0 +1,27 @@
+{
+  "id": "docs-quickstart-clarity-lite",
+  "category": "docs",
+  "fixture": "text-report",
+  "review_required": false,
+  "docs_required": true,
+  "verification_required": false,
+  "prompt": "Edit README.md only. Add a short quickstart section for the text-report fixture that tells the reader to inspect reporter.py and run pytest -q. Keep it explicit that the fixture already contains everything needed and no extra install or clone step is required.",
+  "success_criteria": [
+    "README.md is updated with a short quickstart section",
+    "The quickstart mentions reporter.py and pytest -q",
+    "The docs say no extra install or clone step is required",
+    "No Python source files are modified"
+  ],
+  "must_not": [
+    "Modify runtime code",
+    "Invent files or commands that do not exist in the fixture",
+    "Invent test results",
+    "Trigger release or deploy steps"
+  ],
+  "forbidden_doc_patterns": [
+    "requirements\\.txt",
+    "generate_report\\.py",
+    "git clone",
+    "pip install -r"
+  ]
+}

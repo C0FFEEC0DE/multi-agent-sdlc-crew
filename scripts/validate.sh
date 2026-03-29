@@ -107,7 +107,7 @@ echo ""
 echo "--- Checking benchmark tasks ---"
 TASK_IDS=()
 shopt -s nullglob
-for task_file in "$REPO_ROOT"/bench/tasks/*.json; do
+while IFS= read -r task_file; do
     task_id="$(jq -r '.id // empty' "$task_file")"
     fixture="$(jq -r '.fixture // empty' "$task_file")"
 
@@ -135,7 +135,7 @@ for task_file in "$REPO_ROOT"/bench/tasks/*.json; do
     fi
 
     echo "OK: $task_file"
-done
+done < <(find "$REPO_ROOT/bench/tasks" -type f -name "*.json" | sort)
 shopt -u nullglob
 echo ""
 

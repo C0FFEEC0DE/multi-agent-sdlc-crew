@@ -23,12 +23,15 @@ def env_or_default(name: str, default: str) -> str:
 
 
 CLAUDE_BIN = env_or_default("CLAUDE_BIN", "claude")
-OPENROUTER_MODEL = os.environ["OPENROUTER_MODEL"].strip()
-if not OPENROUTER_MODEL:
-    raise RuntimeError("OPENROUTER_MODEL must be set")
+MODEL_NAME = env_or_default("OLLAMA_MODEL", os.environ.get("OPENROUTER_MODEL", ""))
+if not MODEL_NAME:
+    raise RuntimeError("OLLAMA_MODEL must be set")
 
 MAX_TURNS = env_or_default("MAX_TURNS", "16")
 CLAUDE_TIMEOUT_SECONDS = int(env_or_default("CLAUDE_TIMEOUT_SECONDS", "180"))
+CLAUDE_CODE_MAX_OUTPUT_TOKENS = env_or_default("CLAUDE_CODE_MAX_OUTPUT_TOKENS", "")
+OUTPUT_TOKEN_BUDGET_RETRIES = 3
+PROVIDER_ERROR_RETRIES = 2
 SUMMARY_REPAIR_MAX_RETRIES = 5
 SUMMARY_REPAIR_MAX_TURNS = "4"
 REQUIRED_SUMMARY_PREFIXES = (
@@ -142,13 +145,14 @@ def run_claude(
     debug_log_path: pathlib.Path,
     stderr_log_path: pathlib.Path,
     max_turns: str = MAX_TURNS,
+    max_output_tokens: str | None = None,
 ) -> tuple[int, str, str]:
     command = [
         CLAUDE_BIN,
         "-p",
         prompt,
         "--model",
-        OPENROUTER_MODEL,
+        MODEL_NAME,
         "--max-turns",
         max_turns,
         "--permission-mode",
@@ -158,12 +162,17 @@ def run_claude(
         "--output-format",
         "json",
     ]
+    env = os.environ.copy()
+    effective_max_output_tokens = (max_output_tokens or "").strip()
+    if effective_max_output_tokens:
+        env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = effective_max_output_tokens
     completed = subprocess.run(
         command,
         cwd=WORKDIR,
         capture_output=True,
         text=True,
         timeout=CLAUDE_TIMEOUT_SECONDS,
+        env=env,
     )
     write_text(stderr_log_path, completed.stderr)
     return completed.returncode, completed.stdout, completed.stderr
@@ -183,6 +192,249 @@ def extract_result_text(payload: dict | None) -> str:
     if not isinstance(payload, dict):
         return ""
     return str(payload.get("result", "") or "")
+
+
+def parse_affordable_max_tokens(text: str) -> tuple[int, int] | None:
+    match = re.search(
+        r"requested up to\s+(\d+)\s+tokens,\s+but can only afford\s+(\d+)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+    requested = int(match.group(1))
+    affordable = int(match.group(2))
+    return requested, affordable
+
+
+def adjusted_output_token_budget(affordable_tokens: int) -> int | None:
+    if affordable_tokens <= 0:
+        return None
+    # Leave a little headroom under the provider-reported budget.
+    return max(256, affordable_tokens - min(128, max(1, affordable_tokens // 10)))
+
+
+def is_retryable_provider_error(text: str) -> bool:
+    lowered = text.lower()
+    if "api error: 403" in lowered and "daily limit" in lowered:
+        return False
+    retryable_markers = (
+        "provider returned error",
+        "internalerror.algo.invalidparameter",
+        "tool_call_ids did not have response messages",
+        "invalid_parameter_error",
+    )
+    return any(marker in lowered for marker in retryable_markers)
+
+
+def try_budget_retry(
+    prompt: str,
+    exit_code: int,
+    raw_stdout: str,
+    raw_stderr: str,
+    payload: dict | None,
+    result_text: str,
+    fatal_error: str,
+) -> tuple[int, str, str, dict | None, str, str, list[dict[str, object]], str]:
+    current_output_budget = CLAUDE_CODE_MAX_OUTPUT_TOKENS.strip()
+    retry_summaries: list[dict[str, object]] = []
+    retry_source = "none"
+
+    for attempt in range(1, OUTPUT_TOKEN_BUDGET_RETRIES + 1):
+        affordability = parse_affordable_max_tokens(result_text)
+        if exit_code == 0 or affordability is None:
+            break
+
+        requested_tokens, affordable_tokens = affordability
+        next_budget = adjusted_output_token_budget(affordable_tokens)
+        if next_budget is None:
+            break
+        next_budget_str = str(next_budget)
+        if current_output_budget and next_budget >= int(current_output_budget):
+            break
+
+        retry_debug_log_path = OUTPUT_DIR / f"claude-debug-budget-retry-{attempt}.log"
+        retry_stderr_log_path = OUTPUT_DIR / f"claude-stderr-budget-retry-{attempt}.log"
+        retry_exit_code = 0
+        retry_raw_stdout = ""
+        retry_raw_stderr = ""
+        retry_payload = None
+        retry_result_text = ""
+        retry_error = ""
+
+        try:
+            retry_exit_code, retry_raw_stdout, retry_raw_stderr = run_claude(
+                prompt,
+                retry_debug_log_path,
+                retry_stderr_log_path,
+                max_output_tokens=next_budget_str,
+            )
+            retry_payload = extract_result_payload(retry_raw_stdout)
+            retry_result_text = extract_result_text(retry_payload)
+            if not retry_result_text.strip():
+                retry_result_text = extract_result_text_from_transcript(retry_payload)
+            if not retry_raw_stdout.strip():
+                retry_error = "Claude output JSON is missing or empty."
+            elif retry_payload is None:
+                retry_error = "Claude output JSON is invalid."
+            elif not retry_result_text.strip():
+                retry_error = "Claude result text is missing or empty."
+        except subprocess.TimeoutExpired as exc:
+            retry_exit_code = 124
+            retry_raw_stdout = exc.stdout or ""
+            retry_raw_stderr = exc.stderr or ""
+            write_text(retry_stderr_log_path, retry_raw_stderr)
+            retry_payload = extract_result_payload(retry_raw_stdout)
+            retry_result_text = extract_result_text(retry_payload)
+            if not retry_result_text.strip():
+                retry_result_text = extract_result_text_from_transcript(retry_payload)
+            retry_error = f"Claude timed out after {CLAUDE_TIMEOUT_SECONDS}s during output-token retry."
+        except Exception as exc:
+            retry_exit_code = 1
+            retry_error = f"Claude runner exception during output-token retry: {exc}"
+
+        retry_summaries.append(
+            {
+                "attempt": attempt,
+                "requested_tokens": requested_tokens,
+                "affordable_tokens": affordable_tokens,
+                "retry_budget": next_budget,
+                "exit_code": retry_exit_code,
+                "error": retry_error,
+                "result_excerpt": truncate(retry_result_text, 700),
+            }
+        )
+
+        exit_code = retry_exit_code
+        raw_stdout = retry_raw_stdout
+        raw_stderr = retry_raw_stderr
+        payload = retry_payload
+        result_text = retry_result_text
+        fatal_error = retry_error
+        current_output_budget = next_budget_str
+        retry_source = "output-budget"
+
+        if exit_code == 0 and result_text.strip():
+            break
+
+    return (
+        exit_code,
+        raw_stdout,
+        raw_stderr,
+        payload,
+        result_text,
+        fatal_error,
+        retry_summaries,
+        retry_source,
+    )
+
+
+def try_provider_retry(
+    prompt: str,
+    exit_code: int,
+    raw_stdout: str,
+    raw_stderr: str,
+    payload: dict | None,
+    result_text: str,
+    fatal_error: str,
+) -> tuple[int, str, str, dict | None, str, str, list[dict[str, object]], str]:
+    retry_summaries: list[dict[str, object]] = []
+    retry_source = "none"
+
+    for attempt in range(1, PROVIDER_ERROR_RETRIES + 1):
+        if exit_code == 0 or not is_retryable_provider_error(result_text):
+            break
+
+        retry_debug_log_path = OUTPUT_DIR / f"claude-debug-provider-retry-{attempt}.log"
+        retry_stderr_log_path = OUTPUT_DIR / f"claude-stderr-provider-retry-{attempt}.log"
+        retry_exit_code = 0
+        retry_raw_stdout = ""
+        retry_raw_stderr = ""
+        retry_payload = None
+        retry_result_text = ""
+        retry_error = ""
+
+        try:
+            retry_exit_code, retry_raw_stdout, retry_raw_stderr = run_claude(
+                prompt,
+                retry_debug_log_path,
+                retry_stderr_log_path,
+            )
+            retry_payload = extract_result_payload(retry_raw_stdout)
+            retry_result_text = extract_result_text(retry_payload)
+            if not retry_result_text.strip():
+                retry_result_text = extract_result_text_from_transcript(retry_payload)
+            if not retry_raw_stdout.strip():
+                retry_error = "Claude output JSON is missing or empty."
+            elif retry_payload is None:
+                retry_error = "Claude output JSON is invalid."
+            elif not retry_result_text.strip():
+                retry_error = "Claude result text is missing or empty."
+        except subprocess.TimeoutExpired as exc:
+            retry_exit_code = 124
+            retry_raw_stdout = exc.stdout or ""
+            retry_raw_stderr = exc.stderr or ""
+            write_text(retry_stderr_log_path, retry_raw_stderr)
+            retry_payload = extract_result_payload(retry_raw_stdout)
+            retry_result_text = extract_result_text(retry_payload)
+            if not retry_result_text.strip():
+                retry_result_text = extract_result_text_from_transcript(retry_payload)
+            retry_error = f"Claude timed out after {CLAUDE_TIMEOUT_SECONDS}s during provider retry."
+        except Exception as exc:
+            retry_exit_code = 1
+            retry_error = f"Claude runner exception during provider retry: {exc}"
+
+        (
+            retry_exit_code,
+            retry_raw_stdout,
+            retry_raw_stderr,
+            retry_payload,
+            retry_result_text,
+            retry_error,
+            budget_retry_summaries,
+            budget_retry_source,
+        ) = try_budget_retry(
+            prompt=prompt,
+            exit_code=retry_exit_code,
+            raw_stdout=retry_raw_stdout,
+            raw_stderr=retry_raw_stderr,
+            payload=retry_payload,
+            result_text=retry_result_text,
+            fatal_error=retry_error,
+        )
+
+        retry_summaries.append(
+            {
+                "attempt": attempt,
+                "exit_code": retry_exit_code,
+                "error": retry_error,
+                "budget_retry_attempts": len(budget_retry_summaries),
+                "budget_retry_source": budget_retry_source,
+                "result_excerpt": truncate(retry_result_text, 700),
+            }
+        )
+
+        exit_code = retry_exit_code
+        raw_stdout = retry_raw_stdout
+        raw_stderr = retry_raw_stderr
+        payload = retry_payload
+        result_text = retry_result_text
+        fatal_error = retry_error
+        retry_source = "provider-error"
+
+        if exit_code == 0 and result_text.strip():
+            break
+
+    return (
+        exit_code,
+        raw_stdout,
+        raw_stderr,
+        payload,
+        result_text,
+        fatal_error,
+        retry_summaries,
+        retry_source,
+    )
 
 
 def safe_session_id(raw: str) -> str:
@@ -573,6 +825,10 @@ def main() -> int:
     fatal_error = ""
     summary_repair_attempts = 0
     summary_repaired_by = "none"
+    output_budget_retry_attempts = 0
+    output_budget_repaired_by = "none"
+    provider_retry_attempts = 0
+    provider_repaired_by = "none"
     debug_log_path = OUTPUT_DIR / "claude-debug.log"
     stderr_log_path = OUTPUT_DIR / "claude-stderr.log"
 
@@ -600,6 +856,58 @@ def main() -> int:
         fatal_error = f"Claude timed out after {CLAUDE_TIMEOUT_SECONDS}s."
     except Exception as exc:
         fatal_error = f"Claude runner exception: {exc}"
+
+    (
+        exit_code,
+        raw_stdout,
+        raw_stderr,
+        payload,
+        result_text,
+        fatal_error,
+        output_budget_retry_summaries,
+        output_budget_retry_source,
+    ) = try_budget_retry(
+        prompt=prompt,
+        exit_code=exit_code,
+        raw_stdout=raw_stdout,
+        raw_stderr=raw_stderr,
+        payload=payload,
+        result_text=result_text,
+        fatal_error=fatal_error,
+    )
+    if output_budget_retry_summaries:
+        output_budget_retry_attempts = len(output_budget_retry_summaries)
+        output_budget_repaired_by = output_budget_retry_source
+        write_text(
+            OUTPUT_DIR / "output-budget-retry-attempts.json",
+            json.dumps(output_budget_retry_summaries, ensure_ascii=False, indent=2) + "\n",
+        )
+
+    (
+        exit_code,
+        raw_stdout,
+        raw_stderr,
+        payload,
+        result_text,
+        fatal_error,
+        provider_retry_summaries,
+        provider_retry_source,
+    ) = try_provider_retry(
+        prompt=prompt,
+        exit_code=exit_code,
+        raw_stdout=raw_stdout,
+        raw_stderr=raw_stderr,
+        payload=payload,
+        result_text=result_text,
+        fatal_error=fatal_error,
+    )
+    if provider_retry_summaries:
+        provider_retry_attempts = len(provider_retry_summaries)
+        provider_repaired_by = provider_retry_source
+        write_text(
+            OUTPUT_DIR / "provider-retry-attempts.json",
+            json.dumps(provider_retry_summaries, ensure_ascii=False, indent=2) + "\n",
+        )
 
     write_text(OUTPUT_DIR / "claude-result.json", raw_stdout)
     write_text(OUTPUT_DIR / "claude-result.txt", result_text)
@@ -758,9 +1066,13 @@ def main() -> int:
 
     runtime_seconds = round(time.monotonic() - started_at, 3)
     notes = (
-        f"Claude model={OPENROUTER_MODEL}. "
+        f"Claude model={MODEL_NAME}. "
         f"Exit code: {exit_code}. "
         f"Changed files: {', '.join(changed_files) if changed_files else 'none'}. "
+        f"Provider retry attempts: {provider_retry_attempts}. "
+        f"Provider repaired by: {provider_repaired_by}. "
+        f"Output budget retry attempts: {output_budget_retry_attempts}. "
+        f"Output budget repaired by: {output_budget_repaired_by}. "
         f"Summary repair attempts: {summary_repair_attempts}. "
         f"Summary repaired by: {summary_repaired_by}. "
         f"Failures: {', '.join(failures) if failures else 'none'}. "
