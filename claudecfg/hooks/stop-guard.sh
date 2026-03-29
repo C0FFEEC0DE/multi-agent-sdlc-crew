@@ -27,7 +27,7 @@ if [ "$code_changed" = "true" ] && [ -z "$last_message" ]; then
 fi
 
 if [ "$code_changed" = "true" ] && message_reports_no_changes "$last_message"; then
-    clear_loop_block "stop"
+    emit_loop_aware_block "stop" "Final response after code or config changes must describe the actual changes instead of saying no changes were made.$(stop_safe_no_change_footer_hint)" "$last_message"
     exit 0
 fi
 

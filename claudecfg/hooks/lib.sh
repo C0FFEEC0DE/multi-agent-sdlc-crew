@@ -348,7 +348,21 @@ emit_permission_request_deny() {
 }
 
 stop_safe_no_change_footer_hint() {
-    printf ' If this reply did not introduce additional changes, add a stop-safe footer such as: No changes were made. Verification status: no changes to verify. Review outcome: pending. Remaining risks: none.'
+    printf ' If this reply did not introduce additional changes, still report the actual verification, review, changed files, and remaining risks instead of using a no-change shortcut after code or config changes.'
+}
+
+message_has_line_prefix() {
+    local message="$1"
+    local prefix="$2"
+    local line=""
+
+    while IFS= read -r line; do
+        if [[ "$line" == "$prefix"* ]]; then
+            return 0
+        fi
+    done <<<"$message"
+
+    return 1
 }
 
 extract_subagent_label() {
@@ -597,25 +611,38 @@ is_remote_shell_bootstrap_command() {
 message_mentions_verification_status() {
     local message="$1"
 
-    grep -Eiq '(verification|verified|verify|validate|validated|no changes to verify|nothing to verify|test|tests|pytest|coverage|lint|build|compiled|compile|pass(ed)?|fail(ed)?|проверк|вериф|тест|линт|сборк)' <<<"$message"
+    message_has_line_prefix "$message" "Verification status:" \
+        || message_has_line_prefix "$message" "Verification:" \
+        || message_has_line_prefix "$message" "Verification result:" \
+        || message_has_line_prefix "$message" "Test status:" \
+        || message_has_line_prefix "$message" "Tests:"
 }
 
 message_mentions_review_outcome() {
     local message="$1"
 
-    grep -Eiq '(review (pending|complete|completed|done|not run)|reviewed|review outcome|not applicable|n/a|code review|self-review|ревью (в ожидании|готово|сделано|не проводилось)|самопровер|не применимо)' <<<"$message"
+    message_has_line_prefix "$message" "Review outcome:" \
+        || message_has_line_prefix "$message" "Review status:" \
+        || message_has_line_prefix "$message" "Review:"
 }
 
 message_mentions_changed_files() {
     local message="$1"
 
-    grep -Eiq '(files changed|changed files|updated files|modified files|key files changed|key changed files|no files changed|no changes were made|nothing changed|измененн(ые|ых) файл|файлы изменены|файлы:|changed:|без изменений)' <<<"$message"
+    message_has_line_prefix "$message" "Changed files:" \
+        || message_has_line_prefix "$message" "Key files changed:" \
+        || message_has_line_prefix "$message" "Files changed:" \
+        || message_has_line_prefix "$message" "Updated files:" \
+        || message_has_line_prefix "$message" "Modified files:" \
+        || message_has_line_prefix "$message" "No files changed:"
 }
 
 message_mentions_remaining_risks() {
     local message="$1"
 
-    grep -Eiq '(remaining risks|risks:|risk: none|risks: none|no known risks|residual risk|остаточн(ые|ых) риски|риски: нет|риски отсутствуют|remaining risk: none)' <<<"$message"
+    message_has_line_prefix "$message" "Remaining risks:" \
+        || message_has_line_prefix "$message" "Residual risks:" \
+        || message_has_line_prefix "$message" "Risks:"
 }
 
 message_mentions_next_step() {
@@ -633,7 +660,9 @@ message_mentions_concrete_outcome() {
 message_reports_no_changes() {
     local message="$1"
 
-    grep -Eiq '(no changes were made|no files changed|nothing changed|without changes|без изменений|изменений не было)' <<<"$message"
+    message_has_line_prefix "$message" "No changes were made." \
+        || message_has_line_prefix "$message" "No files changed." \
+        || message_has_line_prefix "$message" "Nothing changed."
 }
 
 session_block_reason() {

@@ -1,0 +1,4 @@
+{
+  "session_id": "case-mixed-intent",
+  "prompt": "Please review this fix, update the README, and fix the regression in the hook gate."
+}

@@ -113,6 +113,14 @@
     "state_jq": ".task_type == \"feature\" and .required_subagents == [\"t\", \"cr\"] and .required_subagent_any_of == [[\"e\", \"a\"]]"
   },
   {
+    "name": "user_prompt_submit_classifies_mixed_intent_as_bugfix",
+    "script": "claudecfg/hooks/user-prompt-submit.sh",
+    "stdin": "tests/hooks/fixtures/user_prompt_mixed_intent.json",
+    "expect_exit": 0,
+    "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"bugfix workflow\"))",
+    "state_jq": ".task_type == \"bugfix\" and .required_subagents == [\"t\", \"cr\"] and .required_subagent_any_of == [[\"bug\", \"e\", \"dbg\"]]"
+  },
+  {
     "name": "user_prompt_submit_classifies_bugfix",
     "script": "claudecfg/hooks/user-prompt-submit.sh",
     "stdin": "tests/hooks/fixtures/user_prompt_bugfix.json",
@@ -305,6 +313,14 @@
     "stdout_jq": ".decision == \"block\" and (.reason | contains(\"verification status\"))"
   },
   {
+    "name": "stop_guard_blocks_keyword_only_summary_without_exact_footer_prefixes",
+    "script": "claudecfg/hooks/stop-guard.sh",
+    "stdin": "tests/hooks/fixtures/stop_guard_keyword_only_summary.json",
+    "seed_state": "tests/hooks/fixtures/state_stop_guard_seed.json",
+    "expect_exit": 0,
+    "stdout_jq": ".decision == \"block\" and (.reason | contains(\"verification status\"))"
+  },
+  {
     "name": "stop_guard_blocks_when_review_required_subagent_is_missing",
     "script": "claudecfg/hooks/stop-guard.sh",
     "stdin": "tests/hooks/fixtures/stop_guard_review_missing_required_subagent.json",
@@ -382,11 +398,12 @@
     "expect_exit": 0
   },
   {
-    "name": "stop_guard_allows_no_change_summary_even_if_code_flag_was_set",
+    "name": "stop_guard_blocks_no_change_summary_after_code_changes",
     "script": "claudecfg/hooks/stop-guard.sh",
     "stdin": "tests/hooks/fixtures/stop_guard_no_changes_summary.json",
     "seed_state": "tests/hooks/fixtures/state_stop_guard_seed.json",
-    "expect_exit": 0
+    "expect_exit": 0,
+    "stdout_jq": ".decision == \"block\" and (.reason | contains(\"no changes were made\"))"
   },
   {
     "name": "stop_guard_allows_key_files_changed_label",

@@ -1,4 +1,4 @@
 {
   "session_id": "case-stop-guard",
-  "last_assistant_message": "Review complete. All 98 tests pass. Key files changed: src/attack_manager.py, src/attack_executor.py, src/orchestrator.py, src/dataset_exporter.py, .gitignore, tests/test_agent_workflow.py, tests/test_evaluator.py, tests/test_integration.py. Remaining risks: none."
+  "last_assistant_message": "Verification status: passed - all 98 tests passed.\nReview outcome: done.\nKey files changed: src/attack_manager.py, src/attack_executor.py, src/orchestrator.py, src/dataset_exporter.py, .gitignore, tests/test_agent_workflow.py, tests/test_evaluator.py, tests/test_integration.py.\nRemaining risks: none."
 }

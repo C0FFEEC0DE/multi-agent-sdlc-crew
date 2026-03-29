@@ -1,4 +1,4 @@
 {
   "session_id": "case-stop-guard",
-  "last_assistant_message": "Implemented the fix and updated the files."
+  "last_assistant_message": "Outcome: implemented the fix.\nKey files changed: src/app.py.\nRemaining risks: none."
 }

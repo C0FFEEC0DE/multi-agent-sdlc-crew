@@ -23,7 +23,7 @@ def env_or_default(name: str, default: str) -> str:
 
 
 CLAUDE_BIN = env_or_default("CLAUDE_BIN", "claude")
-MODEL_NAME = env_or_default("OLLAMA_MODEL", os.environ.get("OPENROUTER_MODEL", ""))
+MODEL_NAME = env_or_default("OLLAMA_MODEL", "")
 if not MODEL_NAME:
     raise RuntimeError("OLLAMA_MODEL must be set")
 

@@ -38,6 +38,7 @@ jq -n \
             verification_pass_rate: ($c.rates.verification_pass_rate - $b.rates.verification_pass_rate),
             review_compliance_rate: ($c.rates.review_compliance_rate - $b.rates.review_compliance_rate),
             docs_compliance_rate: ($c.rates.docs_compliance_rate - $b.rates.docs_compliance_rate),
+            execution_coverage_rate: ($c.rates.execution_coverage_rate - $b.rates.execution_coverage_rate),
             policy_violations: ($c.totals.policy_violations - $b.totals.policy_violations),
             tool_failures: ($c.totals.tool_failures - $b.totals.tool_failures),
             median_runtime_seconds: ($c.median_runtime_seconds - $b.median_runtime_seconds)

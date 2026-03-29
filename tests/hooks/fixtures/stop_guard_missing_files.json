@@ -1,4 +1,4 @@
 {
   "session_id": "case-stop-guard",
-  "last_assistant_message": "Verification: pytest -q passed. Review pending. Remaining risks: none."
+  "last_assistant_message": "Verification status: pytest -q passed.\nReview outcome: pending.\nRemaining risks: none."
 }

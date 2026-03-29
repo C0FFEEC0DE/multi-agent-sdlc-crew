@@ -1,4 +1,4 @@
 {
   "session_id": "case-no-verification-commands",
-  "last_assistant_message": "Verification: not run; no test, lint, or build command was detected in this repo. Review pending. Files changed: config.yaml. Remaining risks: none."
+  "last_assistant_message": "Verification status: not run - no test, lint, or build command was detected in this repo.\nReview outcome: pending.\nChanged files: config.yaml.\nRemaining risks: none."
 }

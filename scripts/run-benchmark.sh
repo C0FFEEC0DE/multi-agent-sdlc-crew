@@ -9,6 +9,8 @@ MODE="${BENCH_MODE:-}"
 SOURCE_REF="${BENCH_SOURCE_REF:-working-tree}"
 FAIL_FAST="${BENCH_FAIL_FAST:-0}"
 PROJECT_CLAUDE_DIR="${REPO_ROOT}/.claude"
+configured_task_count=0
+executed_task_count=0
 
 usage() {
     echo "Usage: $0 --output-dir DIR [--task-glob GLOB] [--mode mock|command] [--ref REF]" >&2
@@ -70,6 +72,7 @@ mkdir -p "$OUTPUT_DIR/tasks"
 shopt -s nullglob
 task_files=("$REPO_ROOT"/$TASK_GLOB)
 shopt -u nullglob
+configured_task_count="${#task_files[@]}"
 
 if [ "${#task_files[@]}" -eq 0 ]; then
     echo "No benchmark tasks matched glob: $TASK_GLOB" >&2
@@ -111,7 +114,7 @@ for task_file in "${task_files[@]}"; do
     echo "Fixture: $fixture_name"
     echo "Task file: $task_file"
     echo "Workdir: $task_workdir"
-    echo "Model: ${OLLAMA_MODEL:-${OPENROUTER_MODEL:-<unset>}}"
+    echo "Model: ${OLLAMA_MODEL:-<unset>}"
     echo "Max output tokens: ${CLAUDE_CODE_MAX_OUTPUT_TOKENS:-<unset>}"
 
     if [ "$MODE" = "mock" ]; then
@@ -137,6 +140,7 @@ for task_file in "${task_files[@]}"; do
     fi
 
     result_files+=("$task_output_dir/result.json")
+    executed_task_count=$((executed_task_count + 1))
 
     if [ -f "$task_output_dir/task-summary.txt" ]; then
         cat "$task_output_dir/task-summary.txt"
@@ -169,6 +173,8 @@ jq -s \
     --arg source_ref "$SOURCE_REF" \
     --arg source_sha "$source_sha" \
     --arg task_glob "$TASK_GLOB" \
+    --argjson configured_tasks "$configured_task_count" \
+    --argjson executed_tasks "$executed_task_count" \
     '
     def rate($num; $den):
         if $den == 0 then 0 else ($num / $den) end;
@@ -189,7 +195,9 @@ jq -s \
         source_sha: $source_sha,
         task_glob: $task_glob,
         totals: {
-            tasks: $total,
+            configured_tasks: $configured_tasks,
+            executed_tasks: $executed_tasks,
+            tasks: $executed_tasks,
             passed: ($tasks | map(select(.status == "passed")) | length),
             completed: ($tasks | map(select(.completed == true)) | length),
             verification_required: ($tasks | map(select(.verification_required == true)) | length),
@@ -208,7 +216,8 @@ jq -s \
             verification_rate: rate(($tasks | map(select((.verification_required == false) or (.tests_run == true))) | length); $total),
             verification_pass_rate: rate(($tasks | map(select((.verification_required == false) or (.tests_passed == true))) | length); $total),
             review_compliance_rate: rate(($tasks | map(select((.review_required == false) or (.review_present == true))) | length); $total),
-            docs_compliance_rate: rate(($tasks | map(select((.docs_required == false) or (.docs_updated == true))) | length); $total)
+            docs_compliance_rate: rate(($tasks | map(select((.docs_required == false) or (.docs_updated == true))) | length); $total),
+            execution_coverage_rate: rate($executed_tasks; $configured_tasks)
         },
         median_runtime_seconds: median($tasks | map(.runtime_seconds)),
         tasks: $tasks
@@ -218,6 +227,9 @@ jq -s \
 echo "Benchmark summary written to $OUTPUT_DIR/summary.json"
 jq -r '
     "Benchmark totals:",
+    "- configured tasks: \(.totals.configured_tasks)",
+    "- executed tasks: \(.totals.executed_tasks)",
+    "- execution coverage: \(.rates.execution_coverage_rate)",
     "- tasks: \(.totals.tasks)",
     "- passed: \(.totals.passed)",
     "- tool_failures: \(.totals.tool_failures)",

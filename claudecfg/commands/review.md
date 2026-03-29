@@ -30,4 +30,4 @@ The @code-reviewer agent will:
 - [ ] Error handling exists
 - [ ] Tests exist and pass
 - [ ] No sensitive data in logs
-- This handoff satisfies the required `@cr` gate for `feature`, `bugfix`, `refactor`, and `review` workflows
+- This is the documented entry point for the required `@cr` handoff used by `feature`, `bugfix`, `refactor`, and `review` workflows

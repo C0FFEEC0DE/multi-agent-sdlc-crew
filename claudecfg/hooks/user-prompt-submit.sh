@@ -8,7 +8,7 @@ source "${SCRIPT_DIR}/lib.sh"
 
 ensure_state
 
-stop_safe_hint=" If a later reply in the same session makes no additional changes, use a stop-safe footer such as: No changes were made. Verification status: no changes to verify. Review outcome: pending. Remaining risks: none."
+stop_safe_hint=" If a later reply in the same session makes no additional changes, still report the actual verification, review, changed files, and remaining risks instead of using a no-change shortcut after code or config changes."
 
 prompt="$(json_get '.prompt' | tr '[:upper:]' '[:lower:]')"
 task_type="other"
@@ -16,16 +16,16 @@ required_subagents='[]'
 required_subagent_any_of='[]'
 context_message=""
 
-if grep -Eiq '(review|audit|ревью|аудит|проверь)' <<<"$prompt"; then
-    task_type="review"
-elif grep -Eiq '(docs|readme|document|док|ридми)' <<<"$prompt"; then
-    task_type="docs"
-elif grep -Eiq '(bug|fix|regression|defect|баг|ошиб|исправ)' <<<"$prompt"; then
+if grep -Eiq '(bug|fix|defect|баг|ошиб|исправ)' <<<"$prompt"; then
     task_type="bugfix"
 elif grep -Eiq '(refactor|rename|cleanup|tech debt|рефактор|почист|переимен)' <<<"$prompt"; then
     task_type="refactor"
 elif grep -Eiq '(feature|implement|add support|integrat|new capability|фич|добав|интеграц|подключ|модел|pyrit|openrouter)' <<<"$prompt"; then
     task_type="feature"
+elif grep -Eiq '(review|audit|ревью|аудит|проверь)' <<<"$prompt"; then
+    task_type="review"
+elif grep -Eiq '(docs|readme|document|док|ридми)' <<<"$prompt"; then
+    task_type="docs"
 fi
 
 case "$task_type" in

@@ -46,14 +46,17 @@ Full names also work: `@manager`, `@code-reviewer`, etc.
 
 ### Slash Commands
 
-Commands and skills that invoke specialized agents:
+Slash commands that invoke specialized agents. The hooks still enforce the actual handoff and stop gates; these docs describe the intended entry points.
 
+- `/manager` — planning and coordination session (invokes @manager)
+- `/explore` — codebase exploration session (invokes @explorer)
+- `/bug` — bug-hunting session (invokes @bugbuster)
 - `/debug` — debugging session
 - `/test` — testing session (invokes @tester)
 - `/design` — design session (invokes @architect)
 - `/refactor` — refactoring session (invokes @housekeeper)
 - `/review` — code review (invokes @code-reviewer)
-- `/docs` — documentation skill session (invokes @docwriter)
+- `/docs` — documentation session (invokes @docwriter)
 
 ### Workflows
 
@@ -85,10 +88,9 @@ The profile uses hooks as enforcement points, not markdown alone:
 - `SessionEnd` — index transcript paths and session metadata for later dataset work
 
 `Stop` and `SubagentStop` are enforced by shell guards only. This avoids prompt-hook failures on tool-only turns while still requiring structured final summaries after code/config changes or subagent handoffs. If a repo has no detected `test`, `lint`, or `build` command, `Stop` no longer deadlocks the session, but the final summary must explicitly say that verification was not run and why.
+For code or config changes, the stop-safe summary is line-oriented: include verification status, review outcome, changed files, and remaining risks on explicit summary lines rather than relying on loose keywords alone.
 
-If a later reply in the same session makes no additional changes, use a stop-safe footer such as:
-
-`No changes were made. Verification status: no changes to verify. Review outcome: pending. Remaining risks: none.`
+If a later reply in the same session makes no additional changes after earlier code/config edits, keep reporting the actual verification, review status, changed files, and remaining risks instead of switching to a no-change footer.
 
 ## Usage
 
@@ -119,9 +121,15 @@ Manager can coordinate work, but completion is enforced by hooks. The expected f
 
 ### Use slash command
 ```
+/manager
+/explore
+/bug
 /debug
 /test
 /design
+/refactor
+/review
+/docs
 ```
 
 ## Configuration
@@ -146,6 +154,7 @@ All four workflows run automatically on every push.
 - `bash scripts/validate.sh`
 - shell syntax checks for `claudecfg/hooks/*.sh` and `scripts/*.sh`
 - JSON checks for settings, hook cases, and benchmark metadata
+- slash-command inventory checks across `claudecfg/commands/`, `README.md`, `claudecfg/GUIDE.md`, and `claudecfg/README.md`
 - `git diff --check`
 
 `Hook Tests` runs:
@@ -167,6 +176,7 @@ That workflow:
 - uses the default task suite under `bench/tasks/` so the gate exercises real coding workflows instead of only the lightest smoke cases
 - checks that required tasks actually changed files, kept docs/code scope rules, and still pass verification
 - requires the final Claude response to include `Verification status:`, `Review outcome:`, and `Remaining risks:`
+- reports both configured and executed task counts so fail-fast runs are not mistaken for full-suite coverage
 - uploads per-task Claude logs, results, and workspace patches as artifacts
 - fails unless every benchmark task passes
 
@@ -188,8 +198,8 @@ Hook logs are written under `~/.claude/logs/`. Session metadata and transcript p
 
 - `claudecfg/GUIDE.md` — full cheatsheet
 - `claudecfg/agents/` — agent definitions
-- `claudecfg/commands/` — command definitions
-- `claudecfg/skills/` — skill definitions, including `/docs`
+- `claudecfg/commands/` — slash command definitions
+- `claudecfg/skills/` — reusable slash-skill prompts
 - `docs/benchmarking.md` — behavioral benchmark runner and workflow
 
 ## Uninstall

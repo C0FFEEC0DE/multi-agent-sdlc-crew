@@ -9,13 +9,29 @@ Source configuration directory. Contains:
 - `settings.json` — Claude Code main settings
 - `hooks/` — hook scripts for SDLC gates and session logging
 - `agents/` — agent definitions
-- `commands/` — slash command docs
+- `commands/` — slash command definitions
 - `workflows/` — workflow definitions
 - `skills/` — skill definitions
 - `install.sh` — installation script
 - `GUIDE.md` — complete guide
 
 Repository-level CI and benchmarking live under `.github/workflows/`, `scripts/`, `tests/hooks/`, and `bench/`.
+
+The repository validator also checks that the bundled slash-command file inventory and the published slash-command lists stay in sync.
+
+Current bundled slash commands:
+
+These are the documented entry points for the configured agents; hook enforcement still applies at runtime.
+
+- `/manager`
+- `/explore`
+- `/bug`
+- `/debug`
+- `/test`
+- `/design`
+- `/refactor`
+- `/review`
+- `/docs`
 
 ### `.claude/`
 

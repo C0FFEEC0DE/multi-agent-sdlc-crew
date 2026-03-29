@@ -1,7 +1,7 @@
 #!/bin/bash
 # Validation script for claude-crew repository
-# Checks: JSON validity, shell syntax, agent frontmatter, benchmark metadata,
-# hook test manifests, and broken internal links.
+# Checks: JSON validity, shell syntax, agent frontmatter, slash-command inventory,
+# benchmark metadata, hook test manifests, and broken internal links.
 
 set -euo pipefail
 
@@ -78,6 +78,87 @@ if [ -d "$AGENT_DIR" ]; then
 else
     report_error "Agent directory not found: $AGENT_DIR"
 fi
+echo ""
+
+echo "--- Checking slash command inventory ---"
+declare -A COMMAND_TO_ALIAS=(
+    [manager]="m"
+    [explore]="e"
+    [bug]="bug"
+    [debug]="dbg"
+    [design]="a"
+    [test]="t"
+    [refactor]="hk"
+    [review]="cr"
+    [docs]="doc"
+)
+EXPECTED_COMMANDS=(manager explore bug debug design test refactor review docs)
+
+compare_command_lists() {
+    local file="$1"
+    local label="$2"
+    local start="$3"
+    local end="$4"
+    local actual expected
+
+    if [ ! -f "$file" ]; then
+        report_error "$label not found: $file"
+        return
+    fi
+
+    mapfile -t actual < <(sed -n "/^${start}$/,/^${end}$/p" "$file" | grep -oP '^- `\/\K[^`]+(?=`)' | sort -u || true)
+    mapfile -t expected < <(printf '%s\n' "${EXPECTED_COMMANDS[@]}" | sort -u)
+
+    if ! diff -u <(printf '%s\n' "${expected[@]}") <(printf '%s\n' "${actual[@]}") >/dev/null; then
+        report_error "$label does not match the bundled slash-command inventory: $file"
+    else
+        echo "OK: $label"
+    fi
+}
+
+compare_command_file_inventory() {
+    local actual expected
+
+    mapfile -t actual < <(find "$REPO_ROOT/claudecfg/commands" -maxdepth 1 -type f -name "*.md" -printf '%f\n' | sed 's/\.md$//' | sort -u)
+    mapfile -t expected < <(printf '%s\n' "${EXPECTED_COMMANDS[@]}" | sort -u)
+
+    if ! diff -u <(printf '%s\n' "${expected[@]}") <(printf '%s\n' "${actual[@]}") >/dev/null; then
+        report_error "claudecfg/commands file inventory does not match the bundled slash-command inventory"
+    else
+        echo "OK: claudecfg/commands file inventory"
+    fi
+}
+
+compare_command_file_inventory
+
+for command in "${EXPECTED_COMMANDS[@]}"; do
+    command_file="$REPO_ROOT/claudecfg/commands/$command.md"
+    expected_alias="${COMMAND_TO_ALIAS[$command]}"
+    agent_file="$REPO_ROOT/claudecfg/agents/$expected_alias.md"
+
+    if [ ! -f "$command_file" ]; then
+        report_error "Missing slash command doc: $command_file"
+        continue
+    fi
+
+    if ! head -1 "$command_file" | grep -q "^# /${command}$"; then
+        report_error "Slash command doc header mismatch: $command_file"
+    fi
+
+    if [ ! -f "$agent_file" ]; then
+        report_error "Missing agent file for slash command /$command: $agent_file"
+        continue
+    fi
+
+    agent_alias="$(grep -m1 '^alias:' "$agent_file" | sed 's/^alias:[[:space:]]*//')"
+    if [ "$agent_alias" != "$expected_alias" ]; then
+        report_error "Agent alias mismatch for /$command: expected $expected_alias, found $agent_alias in $agent_file"
+    fi
+done
+
+compare_command_lists "$REPO_ROOT/README.md" "README slash-command list" "### Slash Commands" "### Workflows"
+compare_command_lists "$REPO_ROOT/claudecfg/GUIDE.md" "GUIDE slash-command list" "## Slash Commands" "## Auto-Execution"
+compare_command_lists "$REPO_ROOT/claudecfg/README.md" "claudecfg README slash-command list" "Current bundled slash commands:" "## Installation"
 echo ""
 
 echo "--- Checking hook test manifests ---"
