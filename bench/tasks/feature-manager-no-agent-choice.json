@@ -1,0 +1,29 @@
+{
+  "id": "feature-manager-no-agent-choice",
+  "category": "feature",
+  "fixture": "python-math",
+  "review_required": true,
+  "docs_required": true,
+  "verification_required": true,
+  "prompt": "Start by using @m to coordinate this tiny feature workflow, then complete it end to end without waiting for more user input. Add a subtract helper to the calculator fixture, cover it with tests, update the fixture README with a short subtract example, and finish with verification plus review status. Choose the minimum required subagent set yourself; do not ask me which required agent to use.",
+  "success_criteria": [
+    "A new subtract helper is implemented in the calculator fixture",
+    "Tests were added or updated and executed successfully",
+    "The fixture README was updated with a subtract example",
+    "The workflow completes without asking the user to choose mandatory agents",
+    "The final response includes verification and review status"
+  ],
+  "must_not": [
+    "Ask the user which required agent should be used",
+    "Skip tests",
+    "Perform release or deploy work"
+  ],
+  "forbidden_transcript_patterns": [
+    "which agent would you prefer",
+    "would you like me to start with (the )?(explorer|architect|tester|code reviewer)",
+    "which required agent"
+  ],
+  "required_transcript_patterns": [
+    "Task:\\s*(Explore|Design|Code Review|Testing)"
+  ]
+}

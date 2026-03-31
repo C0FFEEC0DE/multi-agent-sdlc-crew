@@ -19,10 +19,9 @@
   "last_test_command": "pytest -q",
   "last_lint_command": "",
   "last_build_command": "",
-  "subagent_start_count": 3,
+  "subagent_start_count": 2,
   "subagents_started": [
     "e",
-    "t",
     "cr"
   ],
   "required_subagents": [

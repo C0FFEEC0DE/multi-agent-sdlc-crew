@@ -8,8 +8,10 @@ set -euo pipefail
 }
 
 summary_file="$1"
+max_recovered_tasks="${BENCH_MAX_RECOVERED_TASKS:-}"
+max_summary_repaired="${BENCH_MAX_SUMMARY_REPAIRED_TASKS:-}"
 
-jq -e '
+gate_expr='
     .totals.configured_tasks > 0
     and .totals.executed_tasks > 0
     and .totals.executed_tasks <= .totals.configured_tasks
@@ -17,4 +19,17 @@ jq -e '
     and .totals.passed == .totals.tasks
     and .totals.tool_failures == 0
     and .totals.policy_violations == 0
-' "$summary_file" >/dev/null
+'
+
+if [ -n "$max_recovered_tasks" ]; then
+    gate_expr="$gate_expr and .totals.recovered_tasks <= \$max_recovered_tasks"
+fi
+
+if [ -n "$max_summary_repaired" ]; then
+    gate_expr="$gate_expr and .totals.summary_repaired <= \$max_summary_repaired"
+fi
+
+jq -e "$gate_expr" \
+    --argjson max_recovered_tasks "${max_recovered_tasks:-0}" \
+    --argjson max_summary_repaired "${max_summary_repaired:-0}" \
+    "$summary_file" >/dev/null

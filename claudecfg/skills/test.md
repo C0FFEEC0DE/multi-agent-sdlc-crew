@@ -27,3 +27,5 @@ Invokes @tester (Paranoid) who will:
 3. Use AAA pattern (Arrange, Act, Assert)
 4. Cover edge cases
 5. Report pass/fail, coverage, and gaps
+
+In feature, bugfix, and refactor workflows, use this when successful verification has not already been recorded or when you want an explicit tester handoff anyway.

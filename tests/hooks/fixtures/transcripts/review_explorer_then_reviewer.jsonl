@@ -1,0 +1,3 @@
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Manager(Review all workflows)\n  Done (12 tool uses · 18.4k tokens · 1m 02s)"}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Explorer(Map workflow files)\n  Read(claudecfg/workflows/new-feature.md)\n  Read(claudecfg/workflows/refactor.md)"}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Code Reviewer(Review all workflows)\n  Read(claudecfg/workflows/new-feature.md)\n  Read(claudecfg/workflows/refactor.md)"}]}}

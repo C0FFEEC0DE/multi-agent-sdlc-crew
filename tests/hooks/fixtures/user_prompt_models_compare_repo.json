@@ -1,0 +1,4 @@
+{
+  "session_id": "case-models-compare-repo",
+  "prompt": "Сравни модели для этого репо: qwen2.5-coder:32b или llama3.3:70b?"
+}

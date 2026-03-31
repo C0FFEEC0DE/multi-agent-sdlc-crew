@@ -47,6 +47,7 @@
       "required": [
         "tasks",
         "passed",
+        "clean_passed",
         "completed",
         "verification_required",
         "tests_run",
@@ -55,12 +56,17 @@
         "review_present",
         "docs_required",
         "docs_updated",
+        "recovered_tasks",
+        "timeout_recovered",
+        "max_turns_recovered",
+        "summary_repaired",
         "policy_violations",
         "tool_failures"
       ],
       "properties": {
         "tasks": { "type": "integer", "minimum": 0 },
         "passed": { "type": "integer", "minimum": 0 },
+        "clean_passed": { "type": "integer", "minimum": 0 },
         "completed": { "type": "integer", "minimum": 0 },
         "verification_required": { "type": "integer", "minimum": 0 },
         "tests_run": { "type": "integer", "minimum": 0 },
@@ -69,6 +75,10 @@
         "review_present": { "type": "integer", "minimum": 0 },
         "docs_required": { "type": "integer", "minimum": 0 },
         "docs_updated": { "type": "integer", "minimum": 0 },
+        "recovered_tasks": { "type": "integer", "minimum": 0 },
+        "timeout_recovered": { "type": "integer", "minimum": 0 },
+        "max_turns_recovered": { "type": "integer", "minimum": 0 },
+        "summary_repaired": { "type": "integer", "minimum": 0 },
         "policy_violations": { "type": "integer", "minimum": 0 },
         "tool_failures": { "type": "integer", "minimum": 0 }
       },
@@ -78,19 +88,25 @@
       "type": "object",
       "required": [
         "task_pass_rate",
+        "clean_pass_rate",
         "completion_rate",
         "verification_rate",
         "verification_pass_rate",
         "review_compliance_rate",
-        "docs_compliance_rate"
+        "docs_compliance_rate",
+        "recovered_task_rate",
+        "summary_repair_rate"
       ],
       "properties": {
         "task_pass_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "clean_pass_rate": { "type": "number", "minimum": 0, "maximum": 1 },
         "completion_rate": { "type": "number", "minimum": 0, "maximum": 1 },
         "verification_rate": { "type": "number", "minimum": 0, "maximum": 1 },
         "verification_pass_rate": { "type": "number", "minimum": 0, "maximum": 1 },
         "review_compliance_rate": { "type": "number", "minimum": 0, "maximum": 1 },
-        "docs_compliance_rate": { "type": "number", "minimum": 0, "maximum": 1 }
+        "docs_compliance_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "recovered_task_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "summary_repair_rate": { "type": "number", "minimum": 0, "maximum": 1 }
       },
       "additionalProperties": false
     },

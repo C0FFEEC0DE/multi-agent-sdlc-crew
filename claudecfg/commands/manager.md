@@ -2,13 +2,13 @@
 
 **This command invokes @manager agent.**
 
-Run a coordination and planning session with the Manager agent.
+Run a manager-led orchestration session.
 
 ## When to use
 - Multi-step task
 - Need to break work into roles
 - Unsure about execution order
-- Want a concrete implementation plan before touching code
+- Want the workflow coordinated through verification and review
 
 ## Usage
 ```text
@@ -19,11 +19,15 @@ Run a coordination and planning session with the Manager agent.
 The @manager agent will:
 1. Clarify the goal and constraints
 2. Break the work into concrete steps
-3. Suggest which specialist agents should handle each part
-4. Identify verification and review checkpoints
-5. Return an execution-ready plan
+3. Choose and invoke the minimum specialist agents needed
+4. Track verification and review checkpoints
+5. Continue orchestration until completion or a concrete blocker
 
 ## Important
-- Use this for coordination, not for final implementation
-- Prefer concrete next steps over vague strategy
+- Use this for end-to-end orchestration by default
+- Use plan-only mode only when the user explicitly asks for planning without execution
+- Prefer concrete agent handoffs and workflow progress over vague strategy
+- Start the first required specialist handoff early instead of staying in manager-only analysis for multiple turns
+- For broad review scopes, normally hand off to `@e` before `@cr` so the reviewer gets a mapped target area instead of doing all discovery inline
+- Do not expose hook mechanics, footer formatting repair, or prefix-matching chatter in user-facing updates
 - Call out blockers and assumptions explicitly

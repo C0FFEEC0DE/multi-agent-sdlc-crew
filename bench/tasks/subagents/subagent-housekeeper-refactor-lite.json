@@ -1,0 +1,38 @@
+{
+  "id": "subagent-housekeeper-refactor-lite",
+  "agent_alias": "hk",
+  "category": "refactor",
+  "fixture": "text-report",
+  "review_required": true,
+  "docs_required": false,
+  "verification_required": true,
+  "prompt": "Start by using @hk for this tiny bounded refactor. Remove the duplicated normalization logic shared by render_title() and render_subtitle() without changing behavior, run pytest -q, and finish with the required footer.",
+  "success_criteria": [
+    "Duplication between render_title() and render_subtitle() is reduced",
+    "Behavior stays unchanged",
+    "pytest -q is run successfully",
+    "The transcript shows Veles-style warning or cleanup output",
+    "The final response includes verification and review status"
+  ],
+  "must_not": [
+    "Change public output format",
+    "Skip pytest -q",
+    "Perform release or deploy work"
+  ],
+  "forbidden_transcript_patterns": [
+    "I see the issue",
+    "markdown bold syntax",
+    "prefix match",
+    "footer repair",
+    "shell guard",
+    "stop-guard",
+    "subagent-stop-guard",
+    "hook mechanics",
+    "exact line prefixes",
+    "my formatting is breaking"
+  ],
+  "required_transcript_patterns": [
+    "Task:\\s*Veles",
+    "Warnings:"
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "id": "subagent-code-reviewer-note-lite",
+  "agent_alias": "cr",
+  "category": "review",
+  "fixture": "text-report",
+  "review_required": true,
+  "docs_required": true,
+  "verification_required": false,
+  "prompt": "Start by using @cr for this tiny review task. Review reporter.py and README.md, then add a concise REVIEW.md note that records the most important finding or explicitly says there are no material findings. Keep source code unchanged and finish with the required footer.",
+  "success_criteria": [
+    "A REVIEW.md file is added with a concise review note",
+    "Runtime code stays unchanged",
+    "The transcript shows reviewer-style findings output",
+    "The final response includes review status in the required footer"
+  ],
+  "must_not": [
+    "Modify reporter.py",
+    "Invent review findings",
+    "Perform release or deploy work"
+  ],
+  "forbidden_transcript_patterns": [
+    "I see the issue",
+    "markdown bold syntax",
+    "prefix match",
+    "footer repair",
+    "shell guard",
+    "stop-guard",
+    "subagent-stop-guard",
+    "hook mechanics",
+    "exact line prefixes",
+    "my formatting is breaking"
+  ],
+  "required_transcript_patterns": [
+    "Task:\\s*Code Review",
+    "Findings:"
+  ]
+}

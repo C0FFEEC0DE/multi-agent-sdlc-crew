@@ -13,6 +13,11 @@ if reason="$(session_block_reason)"; then
     exit 2
 fi
 
+if reason="$(session_manager_idle_reason)"; then
+    echo "Do not go idle yet: ${reason}" >&2
+    exit 2
+fi
+
 if reason="$(session_agent_enforcement_reason)"; then
     echo "Do not go idle yet: ${reason}" >&2
     exit 2

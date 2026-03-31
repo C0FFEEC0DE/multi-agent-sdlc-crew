@@ -1,0 +1,2 @@
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Manager(Review all workflows)\n  Done (10 tool uses · 22.8k tokens · 1m 24s)"}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Code Reviewer(Code review all workflows)\n  Read(scripts/test-hooks.sh)\n  Read(scripts/assert-benchmark-summary.sh)"}]}}

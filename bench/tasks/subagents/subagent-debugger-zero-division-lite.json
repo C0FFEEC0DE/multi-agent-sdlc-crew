@@ -1,0 +1,39 @@
+{
+  "id": "subagent-debugger-zero-division-lite",
+  "agent_alias": "dbg",
+  "category": "bugfix",
+  "fixture": "python-math",
+  "review_required": true,
+  "docs_required": true,
+  "verification_required": true,
+  "prompt": "Start by using @dbg for this small debugging task. Reproduce the current zero-division behavior in the calculator fixture, then fix divide() so it raises ValueError(\"division by zero\"), update the tests, document the behavior in README.md, run pytest -q, and finish with the required footer.",
+  "success_criteria": [
+    "The zero-division bug is reproduced and fixed",
+    "Tests are updated and pass",
+    "README.md documents the changed behavior",
+    "The transcript shows debugger-style reproduction and root-cause output",
+    "The final response includes verification and review status"
+  ],
+  "must_not": [
+    "Skip reproduction or root-cause explanation",
+    "Skip pytest -q",
+    "Perform release or deploy work"
+  ],
+  "forbidden_transcript_patterns": [
+    "I see the issue",
+    "markdown bold syntax",
+    "prefix match",
+    "footer repair",
+    "shell guard",
+    "stop-guard",
+    "subagent-stop-guard",
+    "hook mechanics",
+    "exact line prefixes",
+    "my formatting is breaking"
+  ],
+  "required_transcript_patterns": [
+    "Task:\\s*Debug",
+    "Reproduction:",
+    "Root cause:"
+  ]
+}

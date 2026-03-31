@@ -199,6 +199,7 @@ jq -s \
             executed_tasks: $executed_tasks,
             tasks: $executed_tasks,
             passed: ($tasks | map(select(.status == "passed")) | length),
+            clean_passed: ($tasks | map(select(.status == "passed" and (.recovered_nonzero_exit != true) and ((.summary_repaired_by // "none") == "none"))) | length),
             completed: ($tasks | map(select(.completed == true)) | length),
             verification_required: ($tasks | map(select(.verification_required == true)) | length),
             tests_run: ($tasks | map(select(.tests_run == true)) | length),
@@ -207,16 +208,23 @@ jq -s \
             review_present: ($tasks | map(select(.review_present == true)) | length),
             docs_required: ($tasks | map(select(.docs_required == true)) | length),
             docs_updated: ($tasks | map(select(.docs_updated == true)) | length),
+            recovered_tasks: ($tasks | map(select(.recovered_nonzero_exit == true)) | length),
+            timeout_recovered: ($tasks | map(select(.timeout_recovered == true)) | length),
+            max_turns_recovered: ($tasks | map(select(.max_turns_recovered == true)) | length),
+            summary_repaired: ($tasks | map(select((.summary_repaired_by // "none") != "none")) | length),
             policy_violations: ($tasks | map(.policy_violations) | add),
             tool_failures: ($tasks | map(.tool_failures) | add)
         },
         rates: {
             task_pass_rate: rate(($tasks | map(select(.status == "passed")) | length); $total),
+            clean_pass_rate: rate(($tasks | map(select(.status == "passed" and (.recovered_nonzero_exit != true) and ((.summary_repaired_by // "none") == "none"))) | length); $total),
             completion_rate: rate(($tasks | map(select(.completed == true)) | length); $total),
             verification_rate: rate(($tasks | map(select((.verification_required == false) or (.tests_run == true))) | length); $total),
             verification_pass_rate: rate(($tasks | map(select((.verification_required == false) or (.tests_passed == true))) | length); $total),
             review_compliance_rate: rate(($tasks | map(select((.review_required == false) or (.review_present == true))) | length); $total),
             docs_compliance_rate: rate(($tasks | map(select((.docs_required == false) or (.docs_updated == true))) | length); $total),
+            recovered_task_rate: rate(($tasks | map(select(.recovered_nonzero_exit == true)) | length); $total),
+            summary_repair_rate: rate(($tasks | map(select((.summary_repaired_by // "none") != "none")) | length); $total),
             execution_coverage_rate: rate($executed_tasks; $configured_tasks)
         },
         median_runtime_seconds: median($tasks | map(.runtime_seconds)),
@@ -232,6 +240,12 @@ jq -r '
     "- execution coverage: \(.rates.execution_coverage_rate)",
     "- tasks: \(.totals.tasks)",
     "- passed: \(.totals.passed)",
+    "- clean_passed: \(.totals.clean_passed)",
+    "- recovered_tasks: \(.totals.recovered_tasks)",
+    "- summary_repaired: \(.totals.summary_repaired)",
     "- tool_failures: \(.totals.tool_failures)",
-    "- task_pass_rate: \(.rates.task_pass_rate)"
+    "- task_pass_rate: \(.rates.task_pass_rate)",
+    "- clean_pass_rate: \(.rates.clean_pass_rate)",
+    "- recovered_task_rate: \(.rates.recovered_task_rate)",
+    "- summary_repair_rate: \(.rates.summary_repair_rate)"
 ' "$OUTPUT_DIR/summary.json"

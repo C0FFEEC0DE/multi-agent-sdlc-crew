@@ -24,6 +24,16 @@ on:
         required: false
         default: "1024"
         type: string
+      max_recovered_tasks:
+        description: "Optional strict-mode cap for recovered tasks; leave empty to report only"
+        required: false
+        default: ""
+        type: string
+      max_summary_repaired_tasks:
+        description: "Optional strict-mode cap for summary-repaired tasks; leave empty to report only"
+        required: false
+        default: ""
+        type: string
 
 jobs:
   benchmark:
@@ -50,15 +60,21 @@ jobs:
           INPUT_MAX_TURNS: ${{ inputs.max_turns }}
           INPUT_TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}
           INPUT_MAX_OUTPUT_TOKENS: ${{ inputs.max_output_tokens }}
+          INPUT_MAX_RECOVERED_TASKS: ${{ inputs.max_recovered_tasks }}
+          INPUT_MAX_SUMMARY_REPAIRED_TASKS: ${{ inputs.max_summary_repaired_tasks }}
           VAR_OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
           VAR_BENCHMARK_TIMEOUT_SECONDS: ${{ vars.BEHAVIOR_BENCHMARK_TIMEOUT_SECONDS }}
           VAR_BENCHMARK_MAX_OUTPUT_TOKENS: ${{ vars.BEHAVIOR_BENCHMARK_MAX_OUTPUT_TOKENS }}
+          VAR_BENCHMARK_MAX_RECOVERED_TASKS: ${{ vars.BEHAVIOR_BENCHMARK_MAX_RECOVERED_TASKS }}
+          VAR_BENCHMARK_MAX_SUMMARY_REPAIRED_TASKS: ${{ vars.BEHAVIOR_BENCHMARK_MAX_SUMMARY_REPAIRED_TASKS }}
         run: |
           task_glob="${INPUT_TASK_GLOB:-bench/tasks/lite/*.json}"
           max_turns="${INPUT_MAX_TURNS:-8}"
           model="${VAR_OLLAMA_MODEL:-}"
           timeout_seconds="${INPUT_TIMEOUT_SECONDS:-${VAR_BENCHMARK_TIMEOUT_SECONDS:-240}}"
           max_output_tokens="${INPUT_MAX_OUTPUT_TOKENS:-${VAR_BENCHMARK_MAX_OUTPUT_TOKENS:-1024}}"
+          max_recovered_tasks="${INPUT_MAX_RECOVERED_TASKS:-${VAR_BENCHMARK_MAX_RECOVERED_TASKS:-}}"
+          max_summary_repaired_tasks="${INPUT_MAX_SUMMARY_REPAIRED_TASKS:-${VAR_BENCHMARK_MAX_SUMMARY_REPAIRED_TASKS:-}}"
 
           if [ -z "$model" ]; then
             echo "OLLAMA_MODEL GitHub Actions variable is required" >&2
@@ -70,6 +86,8 @@ jobs:
           echo "model=$model" >> "$GITHUB_OUTPUT"
           echo "timeout_seconds=$timeout_seconds" >> "$GITHUB_OUTPUT"
           echo "max_output_tokens=$max_output_tokens" >> "$GITHUB_OUTPUT"
+          echo "max_recovered_tasks=$max_recovered_tasks" >> "$GITHUB_OUTPUT"
+          echo "max_summary_repaired_tasks=$max_summary_repaired_tasks" >> "$GITHUB_OUTPUT"
 
       - name: Install Claude Code CLI and pytest
         shell: bash
@@ -84,7 +102,7 @@ jobs:
       - name: Install Claude configuration
         shell: bash
         run: |
-          bash claudecfg/install.sh
+          bash ./install.sh
 
       - name: Run behavioral benchmark
         shell: bash
@@ -115,37 +133,57 @@ jobs:
       - name: Render benchmark summary
         if: always()
         shell: bash
+        env:
+          MAX_RECOVERED_TASKS: ${{ steps.cfg.outputs.max_recovered_tasks }}
+          MAX_SUMMARY_REPAIRED_TASKS: ${{ steps.cfg.outputs.max_summary_repaired_tasks }}
         run: |
           if [ -f bench-output/summary.json ]; then
+            max_recovered_display="${MAX_RECOVERED_TASKS:-report-only}"
+            max_summary_repaired_display="${MAX_SUMMARY_REPAIRED_TASKS:-report-only}"
             {
               echo "## Behavior Benchmark"
               echo ""
+              echo "- Model: \`${{ steps.cfg.outputs.model }}\`"
+              echo "- Max turns: \`${{ steps.cfg.outputs.max_turns }}\`"
+              echo "- Timeout seconds: \`${{ steps.cfg.outputs.timeout_seconds }}\`"
+              echo "- Max output tokens: \`${{ steps.cfg.outputs.max_output_tokens }}\`"
+              echo "- Max recovered tasks allowed: \`${max_recovered_display}\`"
+              echo "- Max summary-repaired tasks allowed: \`${max_summary_repaired_display}\`"
               jq -r '
                 def pct($value): (($value * 1000 | round) / 10 | tostring) + "%";
-                "- Model: `${{ steps.cfg.outputs.model }}`",
-                "- Max turns: `${{ steps.cfg.outputs.max_turns }}`",
-                "- Timeout seconds: `${{ steps.cfg.outputs.timeout_seconds }}`",
-                "- Max output tokens: `${{ steps.cfg.outputs.max_output_tokens }}`",
                 "- Task glob: `${{ steps.cfg.outputs.task_glob }}`",
                 "- Configured tasks: `\(.totals.configured_tasks)`",
                 "- Executed tasks: `\(.totals.executed_tasks)`",
                 "- Execution coverage: \(pct(.rates.execution_coverage_rate))",
+                "- Clean pass rate: \(pct(.rates.clean_pass_rate))",
+                "- Recovered task rate: \(pct(.rates.recovered_task_rate))",
+                "- Summary repair rate: \(pct(.rates.summary_repair_rate))",
                 "",
                 "| Task | Status | Changed Files | Notes |",
                 "| --- | --- | --- | --- |",
                 (.tasks[] | "| `\(.task_id)` | `\(.status)` | \((.changed_files // []) | join(", ")) | \(.notes | gsub("\n"; " ") | .[0:180]) |"),
                 "",
                 "- Pass rate: \(pct(.rates.task_pass_rate))",
+                "- Clean pass rate: \(pct(.rates.clean_pass_rate))",
                 "- Verification pass rate: \(pct(.rates.verification_pass_rate))",
                 "- Review compliance: \(pct(.rates.review_compliance_rate))",
                 "- Docs compliance: \(pct(.rates.docs_compliance_rate))",
+                "- Recovered tasks: `\(.totals.recovered_tasks)`",
+                "- Summary repaired tasks: `\(.totals.summary_repaired)`",
                 (
                   [.tasks[] | select(.status != "passed") | "- `\(.task_id)`: \((.failures // []) | join(", ")) | \(.notes | gsub("\n"; " ") | .[0:220])"] as $failed
+                  | [.tasks[] | select((.recovered_nonzero_exit == true) or ((.summary_repaired_by // "none") != "none")) | "- `\(.task_id)`: recovered=\(.recovered_nonzero_exit // false), summary_repaired_by=`\(.summary_repaired_by // "none")`, exit=`\(.claude_exit_code)` | \(.notes | gsub("\n"; " ") | .[0:220])"] as $recovered
                   | if ($failed | length) > 0 then
                       "",
                       "### Failed Tasks",
                       "",
                       ($failed[])
+                    else empty end,
+                    if ($recovered | length) > 0 then
+                      "",
+                      "### Recovered Tasks",
+                      "",
+                      ($recovered[])
                     else
                       empty
                     end
@@ -156,12 +194,15 @@ jobs:
 
       - name: Enforce benchmark gate
         shell: bash
+        env:
+          BENCH_MAX_RECOVERED_TASKS: ${{ steps.cfg.outputs.max_recovered_tasks }}
+          BENCH_MAX_SUMMARY_REPAIRED_TASKS: ${{ steps.cfg.outputs.max_summary_repaired_tasks }}
         run: |
           bash scripts/assert-benchmark-summary.sh bench-output/summary.json
 
       - name: Upload benchmark artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: behavior-benchmark-${{ github.run_id }}
           path: |

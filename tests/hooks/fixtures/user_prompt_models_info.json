@@ -1,0 +1,4 @@
+{
+  "session_id": "case-models-info",
+  "prompt": "Какая модель Ollama лучше для кодинга: qwen2.5-coder:32b или llama3.3:70b?"
+}

@@ -1,0 +1,7 @@
+{
+  "session_id": "case-permission-denied-benchmark-ci",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "find . -type f \\( -name \"*.py\" -o -name \"README.md\" \\) 2>/dev/null | head -20"
+  }
+}

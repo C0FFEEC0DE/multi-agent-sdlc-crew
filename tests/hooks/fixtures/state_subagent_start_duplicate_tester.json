@@ -23,6 +23,15 @@
   "subagents_started": [
     "t"
   ],
+  "subagent_events": [
+    {
+      "index": 1,
+      "role": "t"
+    }
+  ],
+  "subagent_instance_count_by_role": {
+    "t": 1
+  },
   "required_subagents": [],
   "required_subagent_any_of": [],
   "stop_block_count": 0,

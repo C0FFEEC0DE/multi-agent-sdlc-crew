@@ -28,4 +28,4 @@ The @tester agent will:
 - Don't test internals — only API
 - Mock external dependencies
 - 100% coverage is not the goal
-- This is the documented entry point for the required `@t` handoff used by `feature`, `bugfix`, and `refactor` workflows
+- This is the documented entry point for the fallback `@t` handoff used by `feature`, `bugfix`, and `refactor` workflows when successful verification has not already been recorded

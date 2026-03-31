@@ -647,6 +647,49 @@ def synthesize_footer(
     ]
 
 
+def completed_task_recovery_mode(
+    *,
+    exit_code: int,
+    payload_subtype: str,
+    fatal_error: str,
+    completed: bool,
+    verification_required: bool,
+    tests_run: bool,
+    tests_passed: bool,
+    verification_summary_present: bool,
+    review_required: bool,
+    review_present: bool,
+    risks_present: bool,
+    docs_required: bool,
+    docs_updated: bool,
+    category: str,
+    non_doc_changed_files: list[str],
+    doc_pattern_hits: list[str],
+) -> str:
+    if not completed:
+        return "none"
+    if verification_required and not (tests_run and tests_passed and verification_summary_present):
+        return "none"
+    if review_required and not review_present:
+        return "none"
+    if not risks_present:
+        return "none"
+    if docs_required and not docs_updated:
+        return "none"
+    if category == "docs" and non_doc_changed_files:
+        return "none"
+    if doc_pattern_hits:
+        return "none"
+
+    if exit_code == 124 and fatal_error.startswith("Claude timed out after "):
+        return "timeout"
+
+    if exit_code != 0 and payload_subtype == "error_max_turns":
+        return "max_turns"
+
+    return "none"
+
+
 def build_summary_repair_prompt(
     task: dict,
     result_text: str,
@@ -750,6 +793,91 @@ def forbidden_doc_pattern_hits(task: dict, after: dict[str, str], changed_files:
     return hits
 
 
+def is_assistant_like_transcript_event(event: dict) -> bool:
+    event_type = str(event.get("type", "") or "").strip().lower()
+    if event_type in {"assistant", "result"}:
+        return True
+
+    message = event.get("message")
+    if isinstance(message, dict):
+        role = str(message.get("role", "") or "").strip().lower()
+        if role == "assistant":
+            return True
+
+    return False
+
+
+def transcript_text_entries(
+    payload: dict | None,
+    *,
+    assistant_only: bool = False,
+) -> tuple[bool, list[tuple[str, str]]]:
+    transcript_path = resolve_transcript_path(payload)
+    if transcript_path is None or not transcript_path.exists():
+        return False, []
+
+    entries: list[tuple[str, str]] = []
+    try:
+        with transcript_path.open(encoding="utf-8") as handle:
+            for index, line in enumerate(handle, start=1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(event, dict):
+                    continue
+                if assistant_only and not is_assistant_like_transcript_event(event):
+                    continue
+                text = transcript_candidate_text(event)
+                if not text:
+                    continue
+                entries.append((f"{transcript_path.name}:{index}", text.strip()))
+    except OSError:
+        return False, []
+
+    return True, entries
+
+
+def forbidden_transcript_pattern_hits(task: dict, payload: dict | None) -> tuple[bool, list[str]]:
+    patterns = task.get("forbidden_transcript_patterns", [])
+    if not isinstance(patterns, list) or not patterns:
+        return False, []
+
+    scanned, entries = transcript_text_entries(payload, assistant_only=True)
+    if not scanned:
+        return False, []
+
+    hits: list[str] = []
+    for source, text in entries:
+        for pattern in patterns:
+            if not isinstance(pattern, str) or not pattern.strip():
+                continue
+            if re.search(pattern, text, re.IGNORECASE | re.MULTILINE):
+                hits.append(f"{source}: /{pattern}/ -> {truncate(text, 200)}")
+    return True, hits
+
+
+def required_transcript_pattern_misses(task: dict, payload: dict | None) -> tuple[bool, list[str]]:
+    patterns = task.get("required_transcript_patterns", [])
+    if not isinstance(patterns, list) or not patterns:
+        return False, []
+
+    scanned, entries = transcript_text_entries(payload, assistant_only=True)
+    if not scanned:
+        return False, ["<assistant transcript unavailable>"]
+
+    misses: list[str] = []
+    for pattern in patterns:
+        if not isinstance(pattern, str) or not pattern.strip():
+            continue
+        if not any(re.search(pattern, text, re.IGNORECASE | re.MULTILINE) for _, text in entries):
+            misses.append(pattern)
+    return True, misses
+
+
 def build_task_summary(
     task: dict,
     prompt: str,
@@ -767,6 +895,10 @@ def build_task_summary(
     stderr_text: str,
     debug_log_text: str,
     patch_text: str,
+    transcript_scanned: bool,
+    transcript_pattern_hits: list[str],
+    required_transcript_scanned: bool,
+    required_transcript_misses: list[str],
 ) -> str:
     lines = [
         f"Task: {task['id']}",
@@ -783,6 +915,10 @@ def build_task_summary(
         f"Claude stop reason: {payload_stop_reason or '<missing>'}",
         f"Permission denials: {len(permission_denials)}",
         f"First permission denial: {first_permission_denial_summary(permission_denials)}",
+        f"Transcript scanned: {transcript_scanned}",
+        f"Forbidden transcript hits: {'; '.join(transcript_pattern_hits) if transcript_pattern_hits else 'none'}",
+        f"Required assistant transcript scanned: {required_transcript_scanned}",
+        f"Required assistant transcript misses: {'; '.join(required_transcript_misses) if required_transcript_misses else 'none'}",
         f"stdout bytes: {len(raw_json.encode('utf-8'))}",
         f"stderr bytes: {len(stderr_text.encode('utf-8'))}",
         "",
@@ -1006,13 +1142,13 @@ def main() -> int:
     docs_updated = any(is_docs_path(path) for path in changed_files)
     non_doc_changed_files = [path for path in changed_files if not is_docs_path(path)]
     doc_pattern_hits = forbidden_doc_pattern_hits(task, after, changed_files)
+    transcript_scanned, transcript_pattern_hits = forbidden_transcript_pattern_hits(task, payload)
+    required_transcript_scanned, required_transcript_misses = required_transcript_pattern_misses(task, payload)
     completed = len(changed_files) > 0
     patch_text = build_patch(before, after)
     write_text(OUTPUT_DIR / "workspace.patch", patch_text)
     write_text(OUTPUT_DIR / "changed-files.json", json.dumps(changed_files, ensure_ascii=False, indent=2) + "\n")
     write_text(OUTPUT_DIR / "task-prompt.txt", prompt + "\n")
-    if verification_required:
-        tests_run, tests_passed, verification_output = run_verification()
 
     verification_summary_present = has_line_prefix(result_text, "Verification status:")
     review_present = has_line_prefix(result_text, "Review outcome:")
@@ -1035,26 +1171,34 @@ def main() -> int:
 
     write_text(OUTPUT_DIR / "claude-result.txt", result_text)
 
-    timeout_recovered = False
-    if (
-        exit_code == 124
-        and fatal_error.startswith("Claude timed out after ")
-        and completed
-        and (not verification_required or (tests_run and tests_passed and verification_summary_present))
-        and (not review_required or review_present)
-        and risks_present
-        and (not docs_required or docs_updated)
-        and not (task["category"] == "docs" and non_doc_changed_files)
-        and not doc_pattern_hits
-    ):
-        timeout_recovered = True
+    recovery_mode = completed_task_recovery_mode(
+        exit_code=exit_code,
+        payload_subtype=payload_subtype,
+        fatal_error=fatal_error,
+        completed=completed,
+        verification_required=verification_required,
+        tests_run=tests_run,
+        tests_passed=tests_passed,
+        verification_summary_present=verification_summary_present,
+        review_required=review_required,
+        review_present=review_present,
+        risks_present=risks_present,
+        docs_required=docs_required,
+        docs_updated=docs_updated,
+        category=task["category"],
+        non_doc_changed_files=non_doc_changed_files,
+        doc_pattern_hits=doc_pattern_hits,
+    )
+    timeout_recovered = recovery_mode == "timeout"
+    max_turns_recovered = recovery_mode == "max_turns"
+    recovered_nonzero_exit = recovery_mode != "none"
 
     status = "passed"
     failures: list[str] = []
 
-    if exit_code != 0 and not timeout_recovered:
+    if exit_code != 0 and not recovered_nonzero_exit:
         failures.append(f"claude_exit_code={exit_code}")
-    if fatal_error and not timeout_recovered:
+    if fatal_error and not recovered_nonzero_exit:
         failures.append(fatal_error)
     if not completed:
         failures.append("workspace_changed=false")
@@ -1074,6 +1218,10 @@ def main() -> int:
         failures.append("docs_task_changed_non_docs")
     if doc_pattern_hits:
         failures.append("docs_forbidden_content")
+    if transcript_pattern_hits:
+        failures.append("transcript_forbidden_content")
+    if required_transcript_misses:
+        failures.append("transcript_required_content_missing")
 
     if failures:
         status = "failed"
@@ -1090,6 +1238,11 @@ def main() -> int:
         f"Summary repair attempts: {summary_repair_attempts}. "
         f"Summary repaired by: {summary_repaired_by}. "
         f"Timeout recovered: {timeout_recovered}. "
+        f"Max-turns recovered: {max_turns_recovered}. "
+        f"Transcript scanned: {transcript_scanned}. "
+        f"Forbidden transcript hits: {'; '.join(transcript_pattern_hits) if transcript_pattern_hits else 'none'}. "
+        f"Required assistant transcript scanned: {required_transcript_scanned}. "
+        f"Required assistant transcript misses: {'; '.join(required_transcript_misses) if required_transcript_misses else 'none'}. "
         f"Failures: {', '.join(failures) if failures else 'none'}. "
         f"Result: {truncate(result_text, 700) or 'missing'}. "
         f"Verification: {truncate(verification_output, 700) or 'not required'}"
@@ -1119,9 +1272,17 @@ def main() -> int:
         "claude_subtype": payload_subtype,
         "claude_stop_reason": payload_stop_reason,
         "timeout_recovered": timeout_recovered,
+        "max_turns_recovered": max_turns_recovered,
+        "recovered_nonzero_exit": recovered_nonzero_exit,
+        "summary_repaired_by": summary_repaired_by,
+        "summary_repair_attempts": summary_repair_attempts,
         "permission_denials_count": len(permission_denials),
         "first_permission_denial": first_permission_denial_summary(permission_denials),
         "forbidden_doc_pattern_hits": doc_pattern_hits,
+        "transcript_scanned": transcript_scanned,
+        "forbidden_transcript_pattern_hits": transcript_pattern_hits,
+        "required_transcript_scanned": required_transcript_scanned,
+        "required_transcript_pattern_misses": required_transcript_misses,
         "fatal_error": fatal_error,
         "failures": failures,
     }
@@ -1146,6 +1307,10 @@ def main() -> int:
             stderr_text=raw_stderr,
             debug_log_text=debug_log_text,
             patch_text=patch_text,
+            transcript_scanned=transcript_scanned,
+            transcript_pattern_hits=transcript_pattern_hits,
+            required_transcript_scanned=required_transcript_scanned,
+            required_transcript_misses=required_transcript_misses,
         ),
     )
     if fatal_error:

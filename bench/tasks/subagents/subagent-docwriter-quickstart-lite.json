@@ -1,0 +1,42 @@
+{
+  "id": "subagent-docwriter-quickstart-lite",
+  "agent_alias": "doc",
+  "category": "docs",
+  "fixture": "text-report",
+  "review_required": false,
+  "docs_required": true,
+  "verification_required": false,
+  "prompt": "Start by using @doc for this tiny docs task. Update README.md so the quickstart explicitly tells the reader to inspect reporter.py and run pytest -q, while making it clear that no extra install or clone steps are needed inside this fixture. Keep it docs-only and finish with the required footer.",
+  "success_criteria": [
+    "README.md has a clearer quickstart note",
+    "The run stays docs-only",
+    "The transcript shows docwriter-style coverage output",
+    "The final response includes the required footer"
+  ],
+  "must_not": [
+    "Modify source code",
+    "Invent files, commands, or setup steps",
+    "Perform release or deploy work"
+  ],
+  "forbidden_doc_patterns": [
+    "requirements\\.txt",
+    "pip install -r",
+    "git clone"
+  ],
+  "required_transcript_patterns": [
+    "Task:\\s*Docs",
+    "Coverage:"
+  ],
+  "forbidden_transcript_patterns": [
+    "I see the issue",
+    "markdown bold syntax",
+    "prefix match",
+    "footer repair",
+    "shell guard",
+    "stop-guard",
+    "subagent-stop-guard",
+    "hook mechanics",
+    "exact line prefixes",
+    "my formatting is breaking"
+  ]
+}

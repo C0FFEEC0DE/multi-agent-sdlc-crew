@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `PermissionDenied` hook support so auto-mode classifier denials can retry through the normal approval path when the command is not hard-denied by profile policy
 - Auto-execution configuration for project folders (`~/projects/**`, `~/code/**`, `~/repos/**`, `~/work/**`)
 - Extended Bash permissions for common dev tools (rm, mkdir, cp, mv, cargo, go, etc.)
 - `@debugger` agent for debugging sessions
@@ -23,6 +24,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - README status badges for repository workflows
 
 ### Changed
+- Behavior Benchmark recovery metrics now remain visible in `summary.json` and the GitHub summary without failing CI by default; strict recovery caps only apply when explicitly set through GitHub variables or `workflow_dispatch`
+- Benchmark transcript regression coverage now includes a reusable forbidden meta-chatter pattern set and limits forbidden transcript scans to assistant-like entries so user prompts do not trigger false positives
+- Golden subagent regression coverage is now explicit: every canonical agent alias must have at least one focused benchmark task with `agent_alias` plus non-empty required/forbidden transcript assertions, and the contract is documented in `docs/agent-contracts.md`
+- `PermissionDenied` retry behavior now disables retries in benchmark headless runs so denied shell commands do not consume turn budget during automated benchmark tasks
+- Tightened prompt classification so benchmark `Workflow override` and `workflow_category` markers take priority over keyword heuristics, preventing `fixture`/similar text from misclassifying refactor tasks as bugfix work
+- Moved the canonical installer entrypoint to repository root `./install.sh` and kept `claudecfg/install.sh` as a compatibility wrapper
 - Fixed agent types to use specialized types instead of `general-purpose`
 - Reworked workflows around hook-gated execution instead of manager auto-execution promises
 - Moved release/deploy out of the default profile into an optional manual checklist
@@ -37,6 +44,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added role-based subagent enforcement for `feature`, `bugfix`, `refactor`, `review`, and `docs` workflows before completion, with alias normalization and workflow-specific required roles
 - Extended `SubagentStart` normalization to prefer alias, name, and subagent-type fields from snake_case and camelCase payloads before generic runtime types
 - Updated workflow context and stop feedback with a stop-safe no-op footer for later replies in already dirty sessions
+- Switched manager-led workflow enforcement to track manager activation via `manager_mode` instead of incorrectly requiring `@m` as a specialist subagent handoff
+- Added an early-specialist-handoff guard so manager-led workflows cannot go idle before delegating to at least one specialist role
 - Reworked benchmark automation so the main acceptance path now uses the real Claude Code CLI instead of a one-shot OpenRouter worker
 - Improved GitHub Actions observability with readable Claude diagnostics in workflow logs, step summaries, and benchmark task artifacts
 - Expanded `Behavior Benchmark` live logs with per-task metadata, prompt excerpts, raw Claude JSON excerpts, patch excerpts, and structured result dumps
@@ -55,6 +64,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Made the `bugfix-zero-division` benchmark contract explicitly require a `README.md` update so docs compliance is unambiguous for the first bugfix gate
 - Added task-level `forbidden_doc_patterns` support to the benchmark runner so docs tasks can fail on hallucinated files, commands, or clone steps in generated README changes
 - Tightened `docs-quickstart-clarity` to forbid invented files or install steps such as `requirements.txt`, `generate_report.py`, `git clone`, and `pip install -r`
+- Updated review guidance so broad workflow, subsystem, and multi-file reviews should normally map the area with `@explorer` before `@code-reviewer`, while keeping `@cr` as the only enforced review gate
 
 ### Fixed
 - New Feature workflow missing implementation and test steps
@@ -66,6 +76,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Fixed false `@general-purpose` role recording when specialized subagents were invoked through generic runtime payload fields
 - Reduced stop-loop UX friction by surfacing a ready-to-use no-change footer in stop-guard feedback
 - Fixed live `SubagentStop` and `Stop` false blocks caused by missing `last_assistant_message` in runtime hook payloads despite valid assistant summaries in the session transcript
+- Fixed false review gating when runtimes recorded specialist launches only in transcript lines such as `Skill(/review)` or `Code Reviewer(...)`
+- Fixed stop-loop false blocks when manager-led workflows were backgrounded before the first specialist handoff completed
 
 ## [1.0.0] - 2026-03-19
 

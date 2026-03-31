@@ -1,0 +1,4 @@
+{
+  "session_id": "case-models-feature",
+  "prompt": "Please add support for selecting Ollama models and integrate OpenRouter fallback."
+}

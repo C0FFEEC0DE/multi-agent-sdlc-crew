@@ -49,6 +49,30 @@
     "stdout_jq": ".hookSpecificOutput.decision.behavior == \"deny\" and (.hookSpecificOutput.decision.message | contains(\"remote shell bootstrap\"))"
   },
   {
+    "name": "permission_denied_retries_non_hard_denied_command",
+    "script": "claudecfg/hooks/permission-denied.sh",
+    "stdin": "tests/hooks/fixtures/permission_denied_retry_safe_git_push.json",
+    "expect_exit": 0,
+    "stdout_jq": ".retry == true"
+  },
+  {
+    "name": "permission_denied_does_not_retry_hard_denied_command",
+    "script": "claudecfg/hooks/permission-denied.sh",
+    "stdin": "tests/hooks/fixtures/permission_denied_no_retry_sudo.json",
+    "expect_exit": 0,
+    "stdout_jq": ".retry == false"
+  },
+  {
+    "name": "permission_denied_does_not_retry_in_benchmark_ci_mode",
+    "script": "claudecfg/hooks/permission-denied.sh",
+    "stdin": "tests/hooks/fixtures/permission_denied_no_retry_benchmark_ci.json",
+    "env": {
+      "BENCH_TASK_ID": "bugfix-zero-division-lite"
+    },
+    "expect_exit": 0,
+    "stdout_jq": ".retry == false"
+  },
+  {
     "name": "subagent_stop_blocks_without_assistant_message",
     "script": "claudecfg/hooks/subagent-stop-guard.sh",
     "stdin": "tests/hooks/fixtures/subagent_stop_no_message.json",
@@ -109,8 +133,54 @@
     "script": "claudecfg/hooks/user-prompt-submit.sh",
     "stdin": "tests/hooks/fixtures/user_prompt_feature.json",
     "expect_exit": 0,
-    "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"feature workflow\"))",
-    "state_jq": ".task_type == \"feature\" and .required_subagents == [\"t\", \"cr\"] and .required_subagent_any_of == [[\"e\", \"a\"]]"
+    "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"successful verification or @t\"))",
+    "state_jq": ".task_type == \"feature\" and ((.required_subagents | sort) == [\"cr\", \"t\"]) and .required_subagent_any_of == [[\"e\", \"a\"]]"
+  },
+  {
+    "name": "user_prompt_submit_leaves_informational_model_question_as_other",
+    "script": "claudecfg/hooks/user-prompt-submit.sh",
+    "stdin": "tests/hooks/fixtures/user_prompt_models_info.json",
+    "expect_exit": 0,
+    "state_jq": ".task_type == \"other\" and .manager_mode == \"none\" and .required_subagents == [] and .required_subagent_any_of == []"
+  },
+  {
+    "name": "user_prompt_submit_keeps_model_integration_request_as_feature",
+    "script": "claudecfg/hooks/user-prompt-submit.sh",
+    "stdin": "tests/hooks/fixtures/user_prompt_models_feature.json",
+    "expect_exit": 0,
+    "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"successful verification or @t\"))",
+    "state_jq": ".task_type == \"feature\" and ((.required_subagents | sort) == [\"cr\", \"t\"]) and .required_subagent_any_of == [[\"e\", \"a\"]]"
+  },
+  {
+    "name": "user_prompt_submit_classifies_model_advice_plus_repo_change_as_feature",
+    "script": "claudecfg/hooks/user-prompt-submit.sh",
+    "stdin": "tests/hooks/fixtures/user_prompt_models_mixed_feature.json",
+    "expect_exit": 0,
+    "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"successful verification or @t\"))",
+    "state_jq": ".task_type == \"feature\" and ((.required_subagents | sort) == [\"cr\", \"t\"]) and .required_subagent_any_of == [[\"e\", \"a\"]]"
+  },
+  {
+    "name": "user_prompt_submit_leaves_model_comparison_for_repo_as_other",
+    "script": "claudecfg/hooks/user-prompt-submit.sh",
+    "stdin": "tests/hooks/fixtures/user_prompt_models_compare_repo.json",
+    "expect_exit": 0,
+    "state_jq": ".task_type == \"other\" and .required_subagents == [] and .required_subagent_any_of == []"
+  },
+  {
+    "name": "user_prompt_submit_supports_manager_plan_only_for_model_integration",
+    "script": "claudecfg/hooks/user-prompt-submit.sh",
+    "stdin": "tests/hooks/fixtures/user_prompt_models_manager_plan_only.json",
+    "expect_exit": 0,
+    "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"Plan-only manager mode is active\"))",
+    "state_jq": ".task_type == \"feature\" and .manager_mode == \"plan_only\" and .required_subagents == [] and .required_subagent_any_of == []"
+  },
+  {
+    "name": "user_prompt_submit_classifies_model_config_review_as_review",
+    "script": "claudecfg/hooks/user-prompt-submit.sh",
+    "stdin": "tests/hooks/fixtures/user_prompt_models_review.json",
+    "expect_exit": 0,
+    "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"@cr\"))",
+    "state_jq": ".task_type == \"review\" and .required_subagents == [\"cr\"] and .required_subagent_any_of == []"
   },
   {
     "name": "user_prompt_submit_leaves_model_question_as_other",
@@ -124,24 +194,32 @@
     "script": "claudecfg/hooks/user-prompt-submit.sh",
     "stdin": "tests/hooks/fixtures/user_prompt_mixed_intent.json",
     "expect_exit": 0,
-    "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"bugfix workflow\"))",
-    "state_jq": ".task_type == \"bugfix\" and .required_subagents == [\"t\", \"cr\"] and .required_subagent_any_of == [[\"bug\", \"e\", \"dbg\"]]"
+    "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"successful verification or @t\"))",
+    "state_jq": ".task_type == \"bugfix\" and ((.required_subagents | sort) == [\"cr\", \"t\"]) and .required_subagent_any_of == [[\"bug\", \"e\", \"dbg\"]]"
   },
   {
     "name": "user_prompt_submit_classifies_bugfix",
     "script": "claudecfg/hooks/user-prompt-submit.sh",
     "stdin": "tests/hooks/fixtures/user_prompt_bugfix.json",
     "expect_exit": 0,
-    "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"@t, @cr, and one of @bug/@e/@dbg\"))",
-    "state_jq": ".task_type == \"bugfix\" and .required_subagents == [\"t\", \"cr\"] and .required_subagent_any_of == [[\"bug\", \"e\", \"dbg\"]]"
+    "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"successful verification or @t, plus @cr and one of @bug/@e/@dbg\"))",
+    "state_jq": ".task_type == \"bugfix\" and ((.required_subagents | sort) == [\"cr\", \"t\"]) and .required_subagent_any_of == [[\"bug\", \"e\", \"dbg\"]]"
   },
   {
     "name": "user_prompt_submit_classifies_refactor",
     "script": "claudecfg/hooks/user-prompt-submit.sh",
     "stdin": "tests/hooks/fixtures/user_prompt_refactor.json",
     "expect_exit": 0,
-    "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"@t, @cr, and one of @a/@e/@hk\"))",
-    "state_jq": ".task_type == \"refactor\" and .required_subagents == [\"t\", \"cr\"] and .required_subagent_any_of == [[\"a\", \"e\", \"hk\"]]"
+    "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"successful verification or @t, plus @cr and one of @a/@e/@hk\"))",
+    "state_jq": ".task_type == \"refactor\" and ((.required_subagents | sort) == [\"cr\", \"t\"]) and .required_subagent_any_of == [[\"a\", \"e\", \"hk\"]]"
+  },
+  {
+    "name": "user_prompt_submit_prefers_benchmark_refactor_override_over_bugfix_regex_hits",
+    "script": "claudecfg/hooks/user-prompt-submit.sh",
+    "stdin": "tests/hooks/fixtures/user_prompt_benchmark_refactor_override.json",
+    "expect_exit": 0,
+    "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"Treat this as a refactor workflow.\")) and (.hookSpecificOutput.additionalContext | contains(\"@a/@e/@hk\"))",
+    "state_jq": ".task_type == \"refactor\" and ((.required_subagents | sort) == [\"cr\", \"t\"]) and .required_subagent_any_of == [[\"a\", \"e\", \"hk\"]]"
   },
   {
     "name": "user_prompt_submit_classifies_review",
@@ -158,6 +236,22 @@
     "expect_exit": 0,
     "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"@doc\"))",
     "state_jq": ".task_type == \"docs\" and .required_subagents == [\"doc\"] and .required_subagent_any_of == []"
+  },
+  {
+    "name": "user_prompt_submit_enables_manager_led_orchestration_for_feature",
+    "script": "claudecfg/hooks/user-prompt-submit.sh",
+    "stdin": "tests/hooks/fixtures/user_prompt_manager_feature.json",
+    "expect_exit": 0,
+    "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"Manager-led orchestration is active\")) and (.hookSpecificOutput.additionalContext | contains(\"successful verification or @t, plus @cr and one of @e/@a\"))",
+    "state_jq": ".task_type == \"feature\" and .manager_mode == \"orchestrate\" and ((.required_subagents | sort) == [\"cr\", \"t\"]) and .required_subagent_any_of == [[\"e\", \"a\"]]"
+  },
+  {
+    "name": "user_prompt_submit_supports_explicit_manager_plan_only_mode",
+    "script": "claudecfg/hooks/user-prompt-submit.sh",
+    "stdin": "tests/hooks/fixtures/user_prompt_manager_plan_only.json",
+    "expect_exit": 0,
+    "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"Plan-only manager mode is active\"))",
+    "state_jq": ".task_type == \"feature\" and .manager_mode == \"plan_only\" and .required_subagents == [] and .required_subagent_any_of == []"
   },
   {
     "name": "subagent_start_canonicalizes_code_reviewer_alias",
@@ -206,7 +300,16 @@
     "seed_state": "tests/hooks/fixtures/state_subagent_start_duplicate_tester.json",
     "expect_exit": 0,
     "stdout_jq": ".hookSpecificOutput.hookEventName == \"SubagentStart\" and (.hookSpecificOutput.additionalContext | contains(\"@t\"))",
-    "state_jq": ".subagent_start_count == 2 and .subagents_started == [\"t\"]"
+    "state_jq": ".subagent_start_count == 2 and .subagents_started == [\"t\"] and .subagent_instance_count_by_role.t == 2 and (.subagent_events | length) == 2"
+  },
+  {
+    "name": "subagent_start_tracks_parallel_same_role_instances_with_distinct_scope",
+    "script": "claudecfg/hooks/subagent-start.sh",
+    "stdin": "tests/hooks/fixtures/subagent_start_second_explorer_scope.json",
+    "seed_state": "tests/hooks/fixtures/state_subagent_start_first_explorer_scope.json",
+    "expect_exit": 0,
+    "stdout_jq": ".hookSpecificOutput.hookEventName == \"SubagentStart\" and (.hookSpecificOutput.additionalContext | contains(\"Parallel same-role handoffs are allowed\"))",
+    "state_jq": ".subagent_start_count == 2 and .subagents_started == [\"e\"] and .subagent_instance_count_by_role.e == 2 and (.subagent_events | length) == 2 and .subagent_events[0].purpose == \"Trace workflow A\" and .subagent_events[1].purpose == \"Trace workflow B\""
   },
   {
     "name": "subagent_start_supports_tool_input_agent_name",
@@ -279,7 +382,7 @@
     "stdin": "tests/hooks/fixtures/task_completed_incomplete.json",
     "seed_state": "tests/hooks/fixtures/state_task_incomplete.json",
     "expect_exit": 2,
-    "stderr_regex": "no successful verification command"
+    "stderr_regex": "no successful test command"
   },
   {
     "name": "task_completed_blocks_after_failed_build",
@@ -295,13 +398,72 @@
     "stdin": "tests/hooks/fixtures/task_completed_feature_required_roles.json",
     "seed_state": "tests/hooks/fixtures/state_feature_missing_required_subagents.json",
     "expect_exit": 2,
-    "stderr_regex": "Missing required roles: @t, @cr"
+    "stderr_regex": "Missing required roles: @cr"
   },
   {
     "name": "task_completed_allows_when_feature_required_roles_are_satisfied",
     "script": "claudecfg/hooks/task-completed.sh",
     "stdin": "tests/hooks/fixtures/task_completed_feature_roles_satisfied.json",
     "seed_state": "tests/hooks/fixtures/state_feature_required_subagents_satisfied.json",
+    "expect_exit": 0
+  },
+  {
+    "name": "task_completed_allows_when_feature_architect_branch_is_satisfied",
+    "script": "claudecfg/hooks/task-completed.sh",
+    "stdin": "tests/hooks/fixtures/task_completed_feature_architect_roles_satisfied.json",
+    "seed_state": "tests/hooks/fixtures/state_feature_architect_required_subagents_satisfied.json",
+    "expect_exit": 0
+  },
+  {
+    "name": "task_completed_allows_when_bugfix_bug_branch_is_satisfied",
+    "script": "claudecfg/hooks/task-completed.sh",
+    "stdin": "tests/hooks/fixtures/task_completed_bugfix_bug_roles_satisfied.json",
+    "seed_state": "tests/hooks/fixtures/state_bugfix_bug_required_subagents_satisfied.json",
+    "expect_exit": 0
+  },
+  {
+    "name": "task_completed_allows_when_bugfix_debugger_branch_is_satisfied",
+    "script": "claudecfg/hooks/task-completed.sh",
+    "stdin": "tests/hooks/fixtures/task_completed_bugfix_dbg_roles_satisfied.json",
+    "seed_state": "tests/hooks/fixtures/state_bugfix_dbg_required_subagents_satisfied.json",
+    "expect_exit": 0
+  },
+  {
+    "name": "task_completed_blocks_when_bugfix_branch_is_missing_even_with_verification",
+    "script": "claudecfg/hooks/task-completed.sh",
+    "stdin": "tests/hooks/fixtures/task_completed_bugfix_missing_branch.json",
+    "seed_state": "tests/hooks/fixtures/state_bugfix_missing_branch_verified.json",
+    "expect_exit": 2,
+    "stderr_regex": "Missing one-of groups: @bug/@e/@dbg"
+  },
+  {
+    "name": "task_completed_allows_when_refactor_housekeeper_branch_is_satisfied",
+    "script": "claudecfg/hooks/task-completed.sh",
+    "stdin": "tests/hooks/fixtures/task_completed_refactor_hk_roles_satisfied.json",
+    "seed_state": "tests/hooks/fixtures/state_refactor_hk_required_subagents_satisfied.json",
+    "expect_exit": 0
+  },
+  {
+    "name": "task_completed_blocks_when_feature_lacks_successful_verification_and_tester_handoff",
+    "script": "claudecfg/hooks/task-completed.sh",
+    "stdin": "tests/hooks/fixtures/task_completed_feature_missing_tester_without_verification.json",
+    "seed_state": "tests/hooks/fixtures/state_feature_missing_tester_without_verification.json",
+    "expect_exit": 2,
+    "stderr_regex": "Missing required roles: @t"
+  },
+  {
+    "name": "task_completed_blocks_when_only_lint_passed_but_tests_are_detected",
+    "script": "claudecfg/hooks/task-completed.sh",
+    "stdin": "tests/hooks/fixtures/task_completed_feature_required_roles.json",
+    "seed_state": "tests/hooks/fixtures/state_feature_only_lint_with_tests_detected.json",
+    "expect_exit": 2,
+    "stderr_regex": "detected test command \\(pytest\\), but no successful test command"
+  },
+  {
+    "name": "task_completed_allows_when_docs_docwriter_branch_is_satisfied",
+    "script": "claudecfg/hooks/task-completed.sh",
+    "stdin": "tests/hooks/fixtures/task_completed_docs_doc_roles_satisfied.json",
+    "seed_state": "tests/hooks/fixtures/state_docs_doc_required_subagents_satisfied.json",
     "expect_exit": 0
   },
   {
@@ -334,6 +496,35 @@
     "seed_state": "tests/hooks/fixtures/state_review_missing_code_reviewer.json",
     "expect_exit": 0,
     "stdout_jq": ".decision == \"block\" and (.reason | contains(\"@cr\"))"
+  },
+  {
+    "name": "stop_guard_allows_manager_backgrounded_review_without_specialist_yet",
+    "script": "claudecfg/hooks/stop-guard.sh",
+    "stdin": "tests/hooks/fixtures/stop_guard_manager_backgrounded_review.json",
+    "seed_state": "tests/hooks/fixtures/state_review_manager_backgrounded.json",
+    "expect_exit": 0,
+    "state_jq": ".stop_block_count == 0 and .stop_block_reason == \"\" and .stop_block_message == \"\""
+  },
+  {
+    "name": "stop_guard_allows_review_when_skill_transcript_proves_code_reviewer_started",
+    "script": "claudecfg/hooks/stop-guard.sh",
+    "stdin": "tests/hooks/fixtures/stop_guard_review_skill_transcript.json",
+    "seed_state": "tests/hooks/fixtures/state_review_manager_transcript_skill.json",
+    "expect_exit": 0
+  },
+  {
+    "name": "stop_guard_allows_review_when_agent_transcript_proves_code_reviewer_started",
+    "script": "claudecfg/hooks/stop-guard.sh",
+    "stdin": "tests/hooks/fixtures/stop_guard_review_agent_transcript.json",
+    "seed_state": "tests/hooks/fixtures/state_review_manager_agent_transcript.json",
+    "expect_exit": 0
+  },
+  {
+    "name": "stop_guard_allows_broad_review_when_explorer_then_reviewer_are_in_transcript",
+    "script": "claudecfg/hooks/stop-guard.sh",
+    "stdin": "tests/hooks/fixtures/stop_guard_review_explorer_then_reviewer.json",
+    "seed_state": "tests/hooks/fixtures/state_review_manager_explorer_then_reviewer.json",
+    "expect_exit": 0
   },
   {
     "name": "stop_guard_blocks_review_only_without_verification_status",
@@ -472,5 +663,20 @@
     "seed_state": "tests/hooks/fixtures/state_failed_lint_after_tests.json",
     "expect_exit": 2,
     "stderr_regex": "latest lint/static-check command failed"
+  },
+  {
+    "name": "teammate_idle_blocks_manager_led_workflow_without_specialist_handoff",
+    "script": "claudecfg/hooks/teammate-idle.sh",
+    "stdin": "tests/hooks/fixtures/task_completed_feature_required_roles.json",
+    "seed_state": "tests/hooks/fixtures/state_feature_manager_only_started.json",
+    "expect_exit": 2,
+    "stderr_regex": "Manager-led orchestration has not handed off to any specialist yet"
+  },
+  {
+    "name": "teammate_idle_allows_manager_led_review_when_skill_transcript_shows_specialist",
+    "script": "claudecfg/hooks/teammate-idle.sh",
+    "stdin": "tests/hooks/fixtures/stop_guard_review_skill_transcript.json",
+    "seed_state": "tests/hooks/fixtures/state_review_manager_transcript_skill.json",
+    "expect_exit": 0
   }
 ]

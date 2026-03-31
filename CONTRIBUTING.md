@@ -15,6 +15,7 @@ Thank you for your interest in contributing!
 ## Project Structure
 
 ```
+install.sh        # Repository-level installer entrypoint
 claudecfg/
 ├── agents/         # Agent definitions (*.md)
 ├── commands/       # Slash command documentation
@@ -22,7 +23,7 @@ claudecfg/
 ├── workflows/      # Workflow definitions
 ├── settings.json   # Main configuration
 ├── GUIDE.md        # User guide
-└── install.sh      # Installation script
+└── install.sh      # Compatibility wrapper to ../install.sh
 ```
 
 ## Adding a New Agent

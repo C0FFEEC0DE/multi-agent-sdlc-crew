@@ -12,7 +12,7 @@ Source configuration directory. Contains:
 - `commands/` — slash command definitions
 - `workflows/` — workflow definitions
 - `skills/` — skill definitions
-- `install.sh` — installation script
+- `install.sh` — compatibility wrapper to the repository-level installer
 - `GUIDE.md` — complete guide
 
 Repository-level CI and benchmarking live under `.github/workflows/`, `scripts/`, `tests/hooks/`, and `bench/`.
@@ -40,11 +40,11 @@ Target Claude Code directory (`$HOME/.claude/`). Files are copied here during in
 ## Installation
 
 ```bash
-cd claudecfg
+# from repository root
 ./install.sh
 ```
 
-The script:
+The repository-level script:
 1. Creates backup of current `~/.claude/` directory
 2. Creates `~/.claude/` if missing
 3. Copies all files from `claudecfg/` to `~/.claude/`

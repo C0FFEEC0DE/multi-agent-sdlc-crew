@@ -24,6 +24,8 @@ Need to implement new feature.
 Implement the feature in code.
 
 ### 5. Verify
+If successful verification has not already been recorded in the session:
+
 ```
 @tester run the planned tests and report pass/fail plus coverage gaps
 ```
@@ -40,9 +42,9 @@ Implement the feature in code.
 
 ## Commands
 
-**Get plan:**
+**Manager-led orchestration:**
 ```
 @manager implement new feature: [description]
 ```
 
-Hooks enforce verification before completion.
+Manager should keep the feature workflow moving through exploration, design, implementation, verification, review, and docs. Hooks enforce successful verification before completion. That successful verification also satisfies the tester side of the feature gate; otherwise use `@tester`.

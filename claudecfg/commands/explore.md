@@ -26,4 +26,5 @@ The @explorer agent will:
 ## Important
 - Prefer evidence from files over guesses
 - Keep the result focused on decision-making
+- Do not surface hook, footer, or prefix-matching repair chatter in the user-facing explanation
 - This is the documented entry point for the exploration handoff used by `feature`, `bugfix`, and `refactor` workflows

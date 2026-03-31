@@ -9,16 +9,17 @@ This profile is hook-gated:
 - release/deploy automation is intentionally disabled
 - session metadata is logged for later audit or dataset indexing
 - final completion and subagent handoff are enforced by shell hooks using shared session state for test/lint/build results and summary requirements
-- stop-safe no-op replies in an already dirty session should say: `No changes were made. Verification status: no changes to verify. Review outcome: pending. Remaining risks: none.`
-- feature work requires `@t`, `@cr`, and one of `@e|@a`
-- bugfix work requires `@t`, `@cr`, and one of `@bug|@e|@dbg`
-- refactor work requires `@t`, `@cr`, and one of `@a|@e|@hk`
+- stop-safe no-op replies are only valid when the session made no code or config changes; after code/config edits, keep reporting the actual verification, review outcome, changed files, and remaining risks instead of using a no-change shortcut
+- feature work requires successful verification or `@t`, plus `@cr` and one of `@e|@a`
+- bugfix work requires successful verification or `@t`, plus `@cr` and one of `@bug|@e|@dbg`
+- refactor work requires successful verification or `@t`, plus `@cr` and one of `@a|@e|@hk`
 - review work requires `@cr`; docs work requires `@doc`
+- broad multi-file or workflow review should usually use `@e` before `@cr`, even though only `@cr` is hook-enforced
+- footer and stop-guard formatting are internal protocol details; agents should not expose prefix-matching or footer-repair chatter to the user
 
 ## Quick Start
 
 ```bash
-cd claudecfg
 ./install.sh
 ```
 
@@ -38,9 +39,10 @@ Commands `/debug`, `/test`, `/design`, `/refactor`, `/review` and the `/docs` sk
 - `@t` — Tester (design, run, and verify tests)
 - `@cr` — Code Reviewer (review)
 - `@doc` — Docwriter (documentation)
-- `@hk` — Housekeeper (cleanup)
+- `@hk` — Veles (cleanup)
 
 Subagent handoffs normalize aliases, names, and subagent-type fields from both snake_case and camelCase payloads before generic runtime types are considered.
+Transcript fallback also recognizes slash-skill loads and agent launch lines like `Code Reviewer(...)` when runtimes omit explicit `SubagentStart`.
 
 ## Docs
 
@@ -52,5 +54,7 @@ Repository CI now includes:
 - status badges in `README.md`
 - `Validate`, `Hook Tests`, and `Security Scan` on every push and PR
 - `Behavior Benchmark` on every push, plus manual runs with model and task-glob overrides, using real `claude -p` inside isolated benchmark fixtures
+
+Agent-level regressions are covered by the golden suite in `bench/tasks/subagents/`. Use `docs/agent-contracts.md` for the contract matrix and the expected benchmark/hook layers for each agent.
 
 OpenRouter-backed Claude Code is configured via repository secrets/variables. See `docs/benchmarking.md`.

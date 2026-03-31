@@ -16,6 +16,11 @@ if reason="$(session_block_reason)"; then
     exit 0
 fi
 
+if session_background_manager_pending; then
+    clear_loop_block "stop"
+    exit 0
+fi
+
 if reason="$(session_agent_enforcement_reason)"; then
     emit_loop_aware_block "stop" "$reason" "$last_message"
     exit 0

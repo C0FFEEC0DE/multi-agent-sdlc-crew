@@ -46,7 +46,7 @@ while IFS= read -r py_file; do
     else
         echo "OK: $py_file"
     fi
-done < <(find "$REPO_ROOT/scripts" "$REPO_ROOT/bench/fixtures" -type f -name "*.py" | sort)
+done < <(find "$REPO_ROOT/scripts" "$REPO_ROOT/bench/fixtures" "$REPO_ROOT/tests" -type f -name "*.py" | sort)
 echo ""
 
 echo "--- Checking agent frontmatter ---"
@@ -187,10 +187,13 @@ echo ""
 
 echo "--- Checking benchmark tasks ---"
 TASK_IDS=()
+EXPECTED_SUBAGENT_ALIASES=(m e a bug dbg t cr doc hk)
+SUBAGENT_ALIASES_SEEN=()
 shopt -s nullglob
 while IFS= read -r task_file; do
     task_id="$(jq -r '.id // empty' "$task_file")"
     fixture="$(jq -r '.fixture // empty' "$task_file")"
+    agent_alias="$(jq -r '.agent_alias // empty' "$task_file")"
 
     if ! jq -e '
         .id and .category and .fixture and .prompt
@@ -200,6 +203,8 @@ while IFS= read -r task_file; do
         and (.success_criteria | type == "array")
         and (.must_not | type == "array")
         and ((.forbidden_doc_patterns // []) | type == "array")
+        and ((.forbidden_transcript_patterns // []) | type == "array")
+        and ((.required_transcript_patterns // []) | type == "array")
     ' "$task_file" >/dev/null; then
         report_error "Benchmark task has missing required fields: $task_file"
         continue
@@ -207,6 +212,18 @@ while IFS= read -r task_file; do
 
     if [ ! -d "$REPO_ROOT/bench/fixtures/$fixture" ]; then
         report_error "Benchmark task '$task_id' references missing fixture: $fixture"
+    fi
+
+    if [[ "$task_file" == *"/bench/tasks/subagents/"* ]]; then
+        if ! jq -e '
+            .agent_alias
+            and ((.required_transcript_patterns // []) | type == "array" and length > 0)
+            and ((.forbidden_transcript_patterns // []) | type == "array" and length > 0)
+        ' "$task_file" >/dev/null; then
+            report_error "Subagent benchmark task must declare agent_alias plus non-empty required/forbidden transcript patterns: $task_file"
+        else
+            SUBAGENT_ALIASES_SEEN+=("$agent_alias")
+        fi
     fi
 
     if printf '%s\n' "${TASK_IDS[@]}" | grep -Fxq "$task_id"; then
@@ -218,6 +235,12 @@ while IFS= read -r task_file; do
     echo "OK: $task_file"
 done < <(find "$REPO_ROOT/bench/tasks" -type f -name "*.json" | sort)
 shopt -u nullglob
+
+for expected_alias in "${EXPECTED_SUBAGENT_ALIASES[@]}"; do
+    if ! printf '%s\n' "${SUBAGENT_ALIASES_SEEN[@]}" | grep -Fxq "$expected_alias"; then
+        report_error "Missing golden subagent benchmark coverage for agent alias: $expected_alias"
+    fi
+done
 echo ""
 
 echo "--- Checking internal links ---"

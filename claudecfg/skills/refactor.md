@@ -1,6 +1,6 @@
 # /refactor
 
-Run refactoring session with the Housekeeper agent.
+Run refactoring session with the Veles agent.
 
 ## When to use
 - Code duplication
@@ -22,7 +22,7 @@ Run refactoring session with the Housekeeper agent.
 ```
 
 ## Agent
-Invokes @housekeeper (The Cleaner) who will:
+Invokes @housekeeper (Veles) who will:
 1. Identify refactoring targets
 2. Propose cleanup and safety checkpoints
 3. Ensure verification still passes

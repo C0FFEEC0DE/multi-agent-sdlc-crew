@@ -1,0 +1,38 @@
+{
+  "id": "subagent-bugbuster-zero-division-lite",
+  "agent_alias": "bug",
+  "category": "bugfix",
+  "fixture": "python-math",
+  "review_required": true,
+  "docs_required": true,
+  "verification_required": true,
+  "prompt": "Start by using @bug for this small bugfix task. Investigate division-by-zero handling in calculator.py, then fix divide() so it raises ValueError(\"division by zero\"), update the tests, document the behavior in README.md, run pytest -q, and finish with the required footer.",
+  "success_criteria": [
+    "divide() raises a clear ValueError on zero division",
+    "Tests are updated and pass",
+    "README.md documents the changed behavior",
+    "The transcript shows bugbuster-style findings output",
+    "The final response includes verification and review status"
+  ],
+  "must_not": [
+    "Skip pytest -q",
+    "Leave the bug undocumented",
+    "Perform release or deploy work"
+  ],
+  "forbidden_transcript_patterns": [
+    "I see the issue",
+    "markdown bold syntax",
+    "prefix match",
+    "footer repair",
+    "shell guard",
+    "stop-guard",
+    "subagent-stop-guard",
+    "hook mechanics",
+    "exact line prefixes",
+    "my formatting is breaking"
+  ],
+  "required_transcript_patterns": [
+    "Task:\\s*Bug Scan",
+    "Findings:"
+  ]
+}

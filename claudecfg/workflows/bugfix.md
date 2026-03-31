@@ -24,6 +24,8 @@ Found a bug → need to fix it.
 Implement the fix in code.
 
 ### 5. Verify
+If successful verification has not already been recorded in the session:
+
 ```
 @tester run regression tests for the fix and report pass/fail
 ```
@@ -40,9 +42,9 @@ Implement the fix in code.
 
 ## Commands
 
-**Get plan:**
+**Manager-led orchestration:**
 ```
 @manager fix bug in [area]
 ```
 
-Hooks enforce the final verification gate before task completion.
+Manager should keep the bugfix workflow moving through investigation, implementation, verification, review, and docs when behavior changed. Hooks enforce successful verification before task completion. That successful verification also satisfies the tester side of the bugfix gate; otherwise use `@tester`.

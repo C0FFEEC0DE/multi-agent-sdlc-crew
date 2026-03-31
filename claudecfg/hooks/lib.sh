@@ -139,6 +139,7 @@ ensure_state() {
             transcript_path: $transcript_path,
             created_at: $created_at,
             task_type: "other",
+            manager_mode: "none",
             edited: false,
             code_changed: false,
             docs_changed: false,
@@ -156,6 +157,8 @@ ensure_state() {
             last_build_command: "",
             subagent_start_count: 0,
             subagents_started: [],
+            subagent_events: [],
+            subagent_instance_count_by_role: {},
             required_subagents: [],
             required_subagent_any_of: [],
             stop_block_count: 0,
@@ -347,6 +350,22 @@ emit_permission_request_deny() {
         }'
 }
 
+emit_permission_denied_retry() {
+    jq -n '{ retry: true }'
+}
+
+emit_permission_denied_no_retry() {
+    jq -n '{ retry: false }'
+}
+
+permission_denied_should_retry() {
+    if [ -n "${BENCH_TASK_ID:-}" ] || [ -n "${BENCH_TASK_FILE:-}" ] || [ -n "${BENCH_WORKDIR:-}" ]; then
+        return 1
+    fi
+
+    return 0
+}
+
 stop_safe_no_change_footer_hint() {
     printf ' If this reply did not introduce additional changes, still report the actual verification, review, changed files, and remaining risks instead of using a no-change shortcut after code or config changes.'
 }
@@ -408,6 +427,18 @@ extract_subagent_label() {
     canonicalize_subagent_label "$raw"
 }
 
+extract_subagent_scope() {
+    jq -r '
+        .tool_input.description
+        // .tool_input.prompt
+        // .tool_input.task
+        // .description
+        // .prompt
+        // .task
+        // empty
+    ' <<<"$HOOK_INPUT" | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//'
+}
+
 canonicalize_subagent_label() {
     local raw="$1"
     local normalized
@@ -465,6 +496,144 @@ array_contains() {
     done
 
     return 1
+}
+
+sorted_unique_lines() {
+    awk 'NF { seen[$0] = 1 } END { for (line in seen) print line }' | sort
+}
+
+transcript_text_content() {
+    local transcript_path="$1"
+
+    if [ -z "$transcript_path" ] || [ ! -f "$transcript_path" ]; then
+        return 0
+    fi
+
+    jq -Rr 'fromjson? | .. | strings?' "$transcript_path" 2>/dev/null || true
+}
+
+transcript_indicates_backgrounded_agent() {
+    local transcript_path text
+
+    transcript_path="$(resolve_transcript_path)"
+    if [ -z "$transcript_path" ] || [ ! -f "$transcript_path" ]; then
+        return 1
+    fi
+
+    text="$(transcript_text_content "$transcript_path" | tr '[:upper:]' '[:lower:]')"
+    grep -Fq 'backgrounded agent' <<<"$text"
+}
+
+infer_started_roles_from_transcript() {
+    local transcript_path text roles=""
+
+    transcript_path="$(resolve_transcript_path)"
+    if [ -z "$transcript_path" ] || [ ! -f "$transcript_path" ]; then
+        return 0
+    fi
+
+    text="$(transcript_text_content "$transcript_path" | tr '[:upper:]' '[:lower:]')"
+    [ -z "$text" ] && return 0
+
+    if grep -Fq 'skill(/manager)' <<<"$text"; then
+        roles="${roles}"$'\n''m'
+    fi
+    if grep -Fq 'skill(/review)' <<<"$text"; then
+        roles="${roles}"$'\n''cr'
+    fi
+    if grep -Fq 'skill(/test)' <<<"$text"; then
+        roles="${roles}"$'\n''t'
+    fi
+    if grep -Fq 'skill(/explore)' <<<"$text"; then
+        roles="${roles}"$'\n''e'
+    fi
+    if grep -Fq 'skill(/design)' <<<"$text"; then
+        roles="${roles}"$'\n''a'
+    fi
+    if grep -Fq 'skill(/bug)' <<<"$text"; then
+        roles="${roles}"$'\n''bug'
+    fi
+    if grep -Fq 'skill(/debug)' <<<"$text"; then
+        roles="${roles}"$'\n''dbg'
+    fi
+    if grep -Fq 'skill(/docs)' <<<"$text"; then
+        roles="${roles}"$'\n''doc'
+    fi
+    if grep -Fq 'skill(/refactor)' <<<"$text"; then
+        roles="${roles}"$'\n''hk'
+    fi
+
+    if grep -Eq '(^|[[:space:]])manager\(' <<<"$text"; then
+        roles="${roles}"$'\n''m'
+    fi
+    if grep -Eq '(^|[[:space:]])code reviewer\(' <<<"$text"; then
+        roles="${roles}"$'\n''cr'
+    fi
+    if grep -Eq '(^|[[:space:]])tester\(' <<<"$text"; then
+        roles="${roles}"$'\n''t'
+    fi
+    if grep -Eq '(^|[[:space:]])explorer\(' <<<"$text"; then
+        roles="${roles}"$'\n''e'
+    fi
+    if grep -Eq '(^|[[:space:]])architect\(' <<<"$text"; then
+        roles="${roles}"$'\n''a'
+    fi
+    if grep -Eq '(^|[[:space:]])bugbuster\(' <<<"$text"; then
+        roles="${roles}"$'\n''bug'
+    fi
+    if grep -Eq '(^|[[:space:]])debugger\(' <<<"$text"; then
+        roles="${roles}"$'\n''dbg'
+    fi
+    if grep -Eq '(^|[[:space:]])docwriter\(' <<<"$text"; then
+        roles="${roles}"$'\n''doc'
+    fi
+    if grep -Eq '(^|[[:space:]])(housekeeper|veles)\(' <<<"$text"; then
+        roles="${roles}"$'\n''hk'
+    fi
+
+    printf "%s\n" "$roles" | sorted_unique_lines
+}
+
+effective_started_roles() {
+    local state explicit_roles inferred_roles
+
+    state="$(state_file)"
+    explicit_roles="$(jq -r '.subagents_started[]? // empty' "$state")"
+    inferred_roles="$(infer_started_roles_from_transcript)"
+
+    printf "%s\n%s\n" "$explicit_roles" "$inferred_roles" | sorted_unique_lines
+}
+
+session_background_manager_pending() {
+    local state task_type manager_mode code_changed started_roles
+
+    state="$(state_file)"
+    task_type="$(jq -r '.task_type // "other"' "$state")"
+    manager_mode="$(jq -r '.manager_mode // "none"' "$state")"
+    code_changed="$(jq -r '.code_changed // false' "$state")"
+
+    case "$task_type" in
+        feature|bugfix|refactor|review|docs)
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+
+    if [ "$manager_mode" != "orchestrate" ] || [ "$code_changed" = "true" ]; then
+        return 1
+    fi
+
+    if ! transcript_indicates_backgrounded_agent; then
+        return 1
+    fi
+
+    started_roles="$(effective_started_roles)"
+    if ! grep -Fxq 'm' <<<"$started_roles"; then
+        return 1
+    fi
+
+    return 0
 }
 
 format_subagent_list() {
@@ -608,6 +777,33 @@ is_remote_shell_bootstrap_command() {
     return 1
 }
 
+command_is_hard_denied_by_profile() {
+    local command="$1"
+
+    if [[ "$command" =~ (^|[[:space:]])sudo($|[[:space:]]) ]]; then
+        return 0
+    fi
+
+    if [[ "$command" =~ (^|[[:space:]])mkfs(\.[^[:space:]]+)?($|[[:space:]]) ]] || [[ "$command" =~ (^|[[:space:]])dd($|[[:space:]]) ]]; then
+        return 0
+    fi
+
+    if [[ "$command" == *"rm -rf /"* || "$command" == *"git reset --hard"* ]] \
+        || { [[ "$command" =~ git[[:space:]]+push ]] && [[ "$command" =~ (^|[[:space:]])(-f|--force|--force-with-lease)($|[[:space:]]) ]]; }; then
+        return 0
+    fi
+
+    if is_release_or_deploy_command "$command"; then
+        return 0
+    fi
+
+    if is_remote_shell_bootstrap_command "$command"; then
+        return 0
+    fi
+
+    return 1
+}
+
 message_mentions_verification_status() {
     local message="$1"
 
@@ -648,7 +844,15 @@ message_mentions_remaining_risks() {
 message_mentions_next_step() {
     local message="$1"
 
-    grep -Eiq '(next step|next steps|next:|follow-up|follow up|pending next|следующ(ий|ие) шаг|дальше:|следующее:)' <<<"$message"
+    message_has_line_prefix "$message" "Next step:" \
+        || message_has_line_prefix "$message" "Next steps:" \
+        || message_has_line_prefix "$message" "Follow-up:" \
+        || message_has_line_prefix "$message" "Follow up:" \
+        || message_has_line_prefix "$message" "Pending next:" \
+        || message_has_line_prefix "$message" "Следующий шаг:" \
+        || message_has_line_prefix "$message" "Следующие шаги:" \
+        || message_has_line_prefix "$message" "Дальше:" \
+        || message_has_line_prefix "$message" "Следующее:"
 }
 
 message_mentions_concrete_outcome() {
@@ -670,7 +874,7 @@ session_block_reason() {
     local detected_test_command detected_lint_command detected_build_command
     local last_test_command last_lint_command last_build_command
     local has_detected_verification="false"
-    local has_successful_verification="false"
+    local has_behavior_verification="false"
 
     state="$(state_file)"
     code_changed="$(jq -r '.code_changed // false' "$state")"
@@ -691,8 +895,10 @@ session_block_reason() {
         has_detected_verification="true"
     fi
 
-    if [ "$tests_ok" = "true" ] || [ "$lint_ok" = "true" ] || [ "$build_ok" = "true" ]; then
-        has_successful_verification="true"
+    if [ "$tests_ok" = "true" ]; then
+        has_behavior_verification="true"
+    elif [ -z "$detected_test_command" ] && { [ "$lint_ok" = "true" ] || [ "$build_ok" = "true" ]; }; then
+        has_behavior_verification="true"
     fi
 
     if [ "$code_changed" = "true" ] && [ "$tests_failed" = "true" ]; then
@@ -710,8 +916,12 @@ session_block_reason() {
         return 0
     fi
 
-    if [ "$code_changed" = "true" ] && [ "$has_detected_verification" = "true" ] && [ "$has_successful_verification" != "true" ]; then
-        printf "Code or config changed, but no successful verification command was recorded in this session. Run a detected test, lint, or build command before stopping."
+    if [ "$code_changed" = "true" ] && [ "$has_detected_verification" = "true" ] && [ "$has_behavior_verification" != "true" ]; then
+        if [ -n "$detected_test_command" ]; then
+            printf "Code or config changed, and this repo has a detected test command (%s), but no successful test command was recorded in this session. Run the detected tests before stopping." "$detected_test_command"
+        else
+            printf "Code or config changed, but no successful verification command was recorded in this session. Run a detected lint or build command before stopping."
+        fi
         return 0
     fi
 
@@ -719,13 +929,25 @@ session_block_reason() {
 }
 
 session_agent_enforcement_reason() {
-    local state task_type started_json group_json group_label missing_groups_text satisfied alias
+    local state task_type manager_mode started_json group_json group_label missing_groups_text satisfied alias
+    local tests_ok lint_ok build_ok detected_test_command successful_verification
     local -a started=() required=() group=() missing=() missing_groups=()
 
     state="$(state_file)"
     task_type="$(jq -r '.task_type // "other"' "$state")"
+    manager_mode="$(jq -r '.manager_mode // "none"' "$state")"
+    tests_ok="$(jq -r '.tests_ok // false' "$state")"
+    lint_ok="$(jq -r '.lint_ok // false' "$state")"
+    build_ok="$(jq -r '.build_ok // false' "$state")"
+    detected_test_command="$(jq -r '.detected_test_command // empty' "$state")"
+    successful_verification="false"
+    if [ "$tests_ok" = "true" ]; then
+        successful_verification="true"
+    elif [ -z "$detected_test_command" ] && { [ "$lint_ok" = "true" ] || [ "$build_ok" = "true" ]; }; then
+        successful_verification="true"
+    fi
 
-    mapfile -t started < <(jq -r '.subagents_started[]? // empty' "$state")
+    mapfile -t started < <(effective_started_roles)
     mapfile -t required < <(jq -r '.required_subagents[]? // empty' "$state")
 
     while IFS= read -r group_json; do
@@ -751,6 +973,9 @@ session_agent_enforcement_reason() {
     fi
 
     for alias in "${required[@]}"; do
+        if [ "$alias" = "t" ] && [ "$successful_verification" = "true" ]; then
+            continue
+        fi
         if ! array_contains "$alias" "${started[@]}"; then
             missing+=("$alias")
         fi
@@ -762,6 +987,9 @@ session_agent_enforcement_reason() {
 
     started_json="$(format_subagent_list "${started[@]}")"
     printf "Agent-enforced workflow requires specific subagent handoffs before completion for %s work." "$task_type"
+    if [ "$manager_mode" = "orchestrate" ]; then
+        printf " Manager-led orchestration is active."
+    fi
     if [ "${#missing[@]}" -gt 0 ]; then
         printf " Missing required roles: %s." "$(format_subagent_list "${missing[@]}")"
     fi
@@ -771,6 +999,32 @@ session_agent_enforcement_reason() {
     fi
     printf " Used so far: %s." "$started_json"
     return 0
+}
+
+session_manager_idle_reason() {
+    local state task_type manager_mode specialist_count
+
+    state="$(state_file)"
+    task_type="$(jq -r '.task_type // "other"' "$state")"
+    manager_mode="$(jq -r '.manager_mode // "none"' "$state")"
+
+    case "$task_type" in
+        feature|bugfix|refactor|review|docs)
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+
+    if [ "$manager_mode" != "orchestrate" ]; then
+        return 1
+    fi
+
+    specialist_count="$(effective_started_roles | grep -Ev '^(|m)$' | wc -l | tr -d ' ')"
+    if [ "$specialist_count" = "0" ]; then
+        printf "Manager-led orchestration has not handed off to any specialist yet. Start the first required specialist handoff before going idle."
+        return 0
+    fi
 
     return 1
 }

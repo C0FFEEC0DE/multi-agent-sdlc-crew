@@ -1,0 +1,39 @@
+{
+  "id": "subagent-explorer-feature-handoff-lite",
+  "agent_alias": "e",
+  "category": "feature",
+  "fixture": "python-math",
+  "review_required": true,
+  "docs_required": true,
+  "verification_required": true,
+  "prompt": "Start by using @e to map this tiny feature workflow, then continue end to end without waiting for more user input. Add a subtract helper to calculator.py, cover it with tests, update README.md with a short subtract example, and finish with verification plus review status. The transcript must include a real explorer-style handoff before implementation, not just the final result.",
+  "success_criteria": [
+    "A subtract helper is implemented in the calculator fixture",
+    "Tests are added or updated and run successfully",
+    "README.md is updated with a subtract example",
+    "The transcript shows an explorer-style handoff before implementation work",
+    "The final response includes verification and review status"
+  ],
+  "must_not": [
+    "Ask the user for more input",
+    "Skip tests",
+    "Perform release or deploy work"
+  ],
+  "forbidden_transcript_patterns": [
+    "I see the issue",
+    "markdown bold syntax",
+    "prefix match",
+    "footer repair",
+    "shell guard",
+    "stop-guard",
+    "subagent-stop-guard",
+    "hook mechanics",
+    "exact line prefixes",
+    "my formatting is breaking"
+  ],
+  "required_transcript_patterns": [
+    "Task:\\s*Explore",
+    "Locations:",
+    "Next step:"
+  ]
+}
