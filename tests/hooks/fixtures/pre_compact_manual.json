@@ -1,0 +1,11 @@
+{
+  "session_id": "test-session-12345",
+  "trigger": "manual",
+  "sessionState": {
+    "sdlcContext": {
+      "classification": "feature",
+      "requiredRoles": ["cr", "e"],
+      "actualRoles": ["cr", "e"]
+    }
+  }
+}

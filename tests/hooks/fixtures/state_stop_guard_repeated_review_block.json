@@ -19,7 +19,7 @@
   "last_test_command": "pytest -q",
   "last_lint_command": "",
   "last_build_command": "",
-  "stop_block_count": 2,
+  "stop_block_count": 3,
   "stop_block_reason": "Final response must mention review outcome or explicitly say review is pending after code or config changes. If this reply did not introduce additional changes, still report the actual verification, review, changed files, and remaining risks instead of using a no-change shortcut after code or config changes.",
   "stop_block_message": "Verification status: pytest -q passed.\nKey files changed: src/app.py.\nRemaining risks: none.",
   "subagent_stop_block_count": 0,

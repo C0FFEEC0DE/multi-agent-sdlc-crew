@@ -1,0 +1,13 @@
+{
+  "session_id": "test-session-12345",
+  "file_path": "CLAUDE.md",
+  "memory_type": "session_start",
+  "load_reason": "session_start",
+  "sessionState": {
+    "sdlcContext": {
+      "classification": null,
+      "requiredRoles": [],
+      "actualRoles": []
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "session_id": "test-session-12345",
+  "source": "user_settings",
+  "file_path": "~/.claude/settings.json",
+  "sessionState": {
+    "sdlcContext": {
+      "classification": "feature",
+      "requiredRoles": ["cr", "e"],
+      "actualRoles": ["cr"]
+    }
+  }
+}

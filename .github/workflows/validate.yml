@@ -17,6 +17,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install test dependencies
+        run: pip install pytest
+
       - name: Run repository validator
         run: bash scripts/validate.sh
 
@@ -29,6 +37,9 @@ jobs:
           jq empty tests/hooks/cases.json
           jq empty bench/tasks/*.json
           jq empty bench/schema/*.json
+
+      - name: Run all pytest tests
+        run: python -m pytest tests/ -v
 
       - name: Check whitespace errors
         run: git diff --check

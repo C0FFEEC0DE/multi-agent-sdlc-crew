@@ -183,6 +183,140 @@ Manager returns the plan without continuing execution.
 @docwriter update the user-facing docs
 ```
 
+## Hooks Schema
+
+Hooks в `settings.json` используют единую структуру для всех событий согласно [официальной документации](https://code.claude.com/docs/en/hooks.md).
+
+### Базовая структура
+
+Все события используют вложенный формат с ключом `hooks`:
+
+```json
+"EventName": [
+  {
+    "hooks": [
+      {
+        "type": "command",
+        "command": "\"$HOME\"/.claude/hooks/script.sh",
+        "async": true
+      }
+    ]
+  }
+]
+```
+
+### Matcher-based события
+
+Некоторые события поддерживают фильтрацию через `matcher`:
+
+```json
+"EventName": [
+  {
+    "matcher": "Bash|Edit",
+    "hooks": [
+      {
+        "type": "command",
+        "command": "\"$HOME\"/.claude/hooks/script.sh"
+      }
+    ]
+  }
+]
+```
+
+**События с matcher:**
+- `InstructionsLoaded` — matcher: `session_start|compact|nested_traversal|path_glob_match|include`
+- `PreToolUse` — matcher: имена инструментов (`Bash`, `Edit`, `Write`)
+- `PermissionRequest` — matcher: имена инструментов
+- `PermissionDenied` — matcher: имена инструментов
+- `PostToolUse` — matcher: имена инструментов или паттерны
+- `PostToolUseFailure` — matcher: имена инструментов
+
+**События без matcher:**
+- `SessionStart`, `SessionEnd`
+- `UserPromptSubmit`
+- `SubagentStart`, `SubagentStop`
+- `Stop`, `TeammateIdle`, `TaskCompleted`
+- `ConfigChange`
+- `PreCompact`, `PostCompact`
+
+### Ключи hook definition
+
+| Ключ | Тип | Обязательный | Описание |
+|------|-----|--------------|----------|
+| `type` | string | да | Должен быть `"command"` |
+| `command` | string | да | Shell команда для выполнения |
+| `async` | boolean | нет | Запуск в фоне (по умолчанию: false) |
+
+### Примеры
+
+**SessionStart (без matcher):**
+```json
+"SessionStart": [
+  {
+    "hooks": [
+      {
+        "type": "command",
+        "command": "\"$HOME\"/.claude/hooks/session-start.sh"
+      }
+    ]
+  }
+]
+```
+
+**PreToolUse для Bash (с matcher):**
+```json
+"PreToolUse": [
+  {
+    "matcher": "Bash",
+    "hooks": [
+      {
+        "type": "command",
+        "command": "\"$HOME\"/.claude/hooks/pre-tool-use.sh"
+      }
+    ]
+  }
+]
+```
+
+**PostToolUse с несколькими инструментами:**
+```json
+"PostToolUse": [
+  {
+    "matcher": "Edit|Write",
+    "hooks": [
+      {
+        "type": "command",
+        "command": "\"$HOME\"/.claude/hooks/post-edit-write.sh"
+      }
+    ]
+  },
+  {
+    "matcher": "Bash",
+    "hooks": [
+      {
+        "type": "command",
+        "command": "\"$HOME\"/.claude/hooks/post-bash.sh"
+      }
+    ]
+  }
+]
+```
+
+**Async hook — PreCompact:**
+```json
+"PreCompact": [
+  {
+    "hooks": [
+      {
+        "type": "command",
+        "command": "\"$HOME\"/.claude/hooks/pre-compact.sh",
+        "async": true
+      }
+    ]
+  }
+]
+```
+
 ## Docs
 - https://docs.anthropic.com/en/docs/claude-code/settings
 - https://code.claude.com/docs/en/hooks

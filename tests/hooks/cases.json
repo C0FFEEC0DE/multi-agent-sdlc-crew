@@ -678,5 +678,65 @@
     "stdin": "tests/hooks/fixtures/stop_guard_review_skill_transcript.json",
     "seed_state": "tests/hooks/fixtures/state_review_manager_transcript_skill.json",
     "expect_exit": 0
+  },
+  {
+    "name": "config_change_tracks_user_settings_modification",
+    "script": "claudecfg/hooks/config-change.sh",
+    "stdin": "tests/hooks/fixtures/config_change_user_settings.json",
+    "expect_exit": 0,
+    "file_assertions": [
+      {
+        "path": "__CASE_HOME__/.claude/logs/config-change.jsonl",
+        "regex": "source.*user_settings"
+      }
+    ]
+  },
+  {
+    "name": "instructions_loaded_logs_session_start",
+    "script": "claudecfg/hooks/instructions-loaded.sh",
+    "stdin": "tests/hooks/fixtures/instructions_loaded_session_start.json",
+    "expect_exit": 0,
+    "file_assertions": [
+      {
+        "path": "__CASE_HOME__/.claude/logs/instructions-loaded.jsonl",
+        "regex": "load_reason.*session_start"
+      }
+    ]
+  },
+  {
+    "name": "pre_compact_logs_manual_compaction",
+    "script": "claudecfg/hooks/pre-compact.sh",
+    "stdin": "tests/hooks/fixtures/pre_compact_manual.json",
+    "expect_exit": 0,
+    "file_assertions": [
+      {
+        "path": "__CASE_HOME__/.claude/logs/pre-compact.jsonl",
+        "regex": "manual"
+      }
+    ]
+  },
+  {
+    "name": "post_compact_logs_compaction_result",
+    "script": "claudecfg/hooks/post-compact.sh",
+    "stdin": "tests/hooks/fixtures/post_compact_manual.json",
+    "expect_exit": 0,
+    "file_assertions": [
+      {
+        "path": "__CASE_HOME__/.claude/logs/post-compact.jsonl",
+        "regex": "manual"
+      }
+    ]
+  },
+  {
+    "name": "session_end_logs_transcript_path",
+    "script": "claudecfg/hooks/session-end.sh",
+    "stdin": "tests/hooks/fixtures/session_end_logout.json",
+    "expect_exit": 0,
+    "file_assertions": [
+      {
+        "path": "__CASE_HOME__/.claude/logs/session-index.jsonl",
+        "regex": "logout"
+      }
+    ]
   }
 ]

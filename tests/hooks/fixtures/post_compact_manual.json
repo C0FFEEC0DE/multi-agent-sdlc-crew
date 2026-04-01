@@ -1,0 +1,5 @@
+{
+  "session_id": "test-session-12345",
+  "trigger": "manual",
+  "compact_summary": "compacted from 150000 to 50000 tokens"
+}
