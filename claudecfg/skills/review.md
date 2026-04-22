@@ -1,3 +1,21 @@
+---
+name: review
+description: Run the code reviewer in an isolated read-only subagent for findings-first review and security checks.
+agent: Code Reviewer
+context: fork
+disable-model-invocation: true
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+paths:
+  - "**/*.py"
+  - "**/*.js"
+  - "**/*.ts"
+  - "**/*.sh"
+  - "**/*.md"
+---
+
 # /review
 
 Run code review with the Code Reviewer agent.

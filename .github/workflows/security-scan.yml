@@ -1,4 +1,4 @@
-name: Security Scan
+name: Security Checks
 
 on:
   push:
@@ -12,7 +12,7 @@ on:
 
 jobs:
   security-scan:
-    name: Security Scan
+    name: Security Checks
     runs-on: ubuntu-latest
 
     steps:

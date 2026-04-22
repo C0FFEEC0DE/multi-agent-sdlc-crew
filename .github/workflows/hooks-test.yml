@@ -1,4 +1,4 @@
-name: Hook Tests
+name: Hook Contracts
 
 on:
   push:
@@ -9,8 +9,8 @@ on:
       - main
 
 jobs:
-  hook-behavior:
-    name: Hook Behavior Tests
+  hook-contracts:
+    name: Hook Contracts
     runs-on: ubuntu-latest
 
     steps:
@@ -18,15 +18,18 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.x'
 
       - name: Install test dependencies
         run: pip install pytest
 
-      - name: Run hook test harness
+      - name: Run isolated hook cases
         run: bash scripts/test-hooks.sh
 
-      - name: Run pytest for hook-related tests
-        run: python -m pytest tests/test_settings_hooks.py -v
+      - name: Run shared-state hook scenarios
+        run: bash scripts/test-hooks.sh tests/hooks/scenarios.json
+
+      - name: Run hook-related pytest checks
+        run: python -m pytest tests/test_settings_hooks.py tests/test_hook_scenarios.py -v

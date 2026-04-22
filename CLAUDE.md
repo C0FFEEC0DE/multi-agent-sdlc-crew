@@ -1,15 +1,16 @@
 # Project Context
 
-This directory contains Claude Code configuration.
+This directory contains Claude Code configuration for the claude-crew repository — a hook-gated SDLC profile with benchmark-driven agent regression coverage.
 
 ## Profile
 
 This profile is hook-gated:
 - discover -> design -> implement -> verify -> review -> docs when behavior changes -> cleanup
 - release/deploy automation is intentionally disabled
-- session metadata is logged for later audit or dataset indexing
+- session metadata is logged to `~/.claude/logs/` for audit/dataset indexing
+- runtime notification events are logged to `notification.jsonl` with automatic log rotation (1MB threshold) to prevent unbounded growth
 - final completion and subagent handoff are enforced by shell hooks using shared session state for test/lint/build results and summary requirements
-- stop-safe no-op replies are only valid when the session made no code or config changes; after code/config edits, keep reporting the actual verification, review outcome, changed files, and remaining risks instead of using a no-change shortcut
+- stop-safe no-op replies are only valid when the session made no code or config changes; after code/config edits, keep reporting the actual verification, review outcome, changed files, and remaining risks
 - final implementation summaries after code/config changes must include exact stop-safe lines for `Verification status:`, `Review outcome:`, `Changed files:` or `No files changed:`, and `Remaining risks:`
 - subagent handoffs must include exact handoff-footer lines for `Outcome:`, `Changed files:` or `No files changed:`, `Verification status:`, and one closure line: `Remaining risks:` or `Next step:`
 - feature work requires successful verification or `@t`, plus `@cr` and one of `@e|@a`
@@ -41,23 +42,45 @@ Commands `/debug`, `/test`, `/design`, `/refactor`, `/review` and the `/docs` sk
 - `@t` — Tester (design, run, and verify tests)
 - `@cr` — Code Reviewer (review)
 - `@doc` — Docwriter (documentation)
-- `@hk` — Veles (cleanup)
+- `@hk` — Veles/Housekeeper (cleanup)
 
 Subagent handoffs normalize aliases, names, and subagent-type fields from both snake_case and camelCase payloads before generic runtime types are considered.
 Transcript fallback also recognizes slash-skill loads and agent launch lines like `Code Reviewer(...)` when runtimes omit explicit `SubagentStart`.
 
 ## Docs
 
-See `claudecfg/GUIDE.md` for full documentation.
+- `claudecfg/GUIDE.md` — quick reference for agents, commands, and navigation
+- `claudecfg/README.md` — agent definitions and philosophy
+- `docs/benchmarking.md` — benchmark architecture, slot-gate mechanism, local usage, and required GitHub setup
+- `docs/agent-contracts.md` — contract matrix for benchmark/hook layers per agent role
+
+Slash skills under `claudecfg/skills/` use YAML frontmatter for routing/tool constraints.
 
 ## Repository Automation
 
-Repository CI now includes:
+Repository CI includes:
 - status badges in `README.md`
 - `Validate`, `Hook Tests`, and `Security Scan` on every push and PR
-- `Behavior Benchmark` on every push, plus manual runs with model and task-glob overrides, using real `claude -p` inside isolated benchmark fixtures
+- `Behavior Benchmark Smoke` on benchmark-related PRs (matrix shards, max 2 parallel)
+- `Behavior Benchmark Subagents Smoke` on benchmark-related PRs with per-role task selection
 
-Agent-level regressions are covered by the golden suite in `bench/tasks/subagents/`. Use `docs/agent-contracts.md` for the contract matrix and the expected benchmark/hook layers for each agent.
-The repository validator also enforces the shared subagent footer markers inside those golden benchmark tasks, so prompt, benchmark, and hook contracts cannot silently drift apart.
+Concurrent benchmark runs are limited by a **two-slot gate** (`scripts/wait-for-benchmark-slot.py`) that prevents CI overload when multiple workflow dispatches fire simultaneously. The gate polls a GitHub API endpoint, waits with fixed-interval retry, and handles HTTP 403 rate-limit errors by reading the `Retry-After` header before retrying.
+
+All benchmark workflows opt into **Node.js 24** via `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` to prepare for the September 2026 Node.js 20 runner deprecation.
+
+Agent-level regressions are covered by the smoke suite under `bench/tasks/subagents/smoke/` (9 tasks, one per agent). The repository validator enforces shared subagent footer markers inside benchmark tasks so prompt, benchmark, and hook contracts cannot silently drift apart.
 
 OpenRouter-backed Claude Code is configured via repository secrets/variables. See `docs/benchmarking.md`.
+
+## Test Commands
+
+```bash
+# Lint
+python -m compileall .
+
+# All tests
+python3 -m pytest tests/ -v
+
+# Benchmark tests only
+python3 -m pytest tests/bench/ -v
+```

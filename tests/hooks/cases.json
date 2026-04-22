@@ -73,6 +73,62 @@
     "stdout_jq": ".retry == false"
   },
   {
+    "name": "notification_hook_logs_payload",
+    "script": "claudecfg/hooks/notification.sh",
+    "stdin": "tests/hooks/fixtures/notification_summary.json",
+    "expect_exit": 0,
+    "file_assertions": [
+      {
+        "path": "__CASE_HOME__/.claude/logs/notification.jsonl",
+        "regex": "\"title\":\"Task update\""
+      },
+      {
+        "path": "__CASE_HOME__/.claude/logs/notification.jsonl",
+        "regex": "\"message\":\"Verification completed\""
+      }
+    ]
+  },
+  {
+    "name": "notification_hook_handles_minimal_payload",
+    "script": "claudecfg/hooks/notification.sh",
+    "stdin": "tests/hooks/fixtures/notification_minimal.json",
+    "expect_exit": 0,
+    "file_assertions": [
+      {
+        "path": "__CASE_HOME__/.claude/logs/notification.jsonl",
+        "regex": "\"session_id\":\"case-notification-minimal\""
+      },
+      {
+        "path": "__CASE_HOME__/.claude/logs/notification.jsonl",
+        "regex": "\"title\":\"\""
+      },
+      {
+        "path": "__CASE_HOME__/.claude/logs/notification.jsonl",
+        "regex": "\"message\":\"\""
+      }
+    ]
+  },
+  {
+    "name": "notification_hook_handles_quoted_payload",
+    "script": "claudecfg/hooks/notification.sh",
+    "stdin": "tests/hooks/fixtures/notification_quoted.json",
+    "expect_exit": 0,
+    "file_assertions": [
+      {
+        "path": "__CASE_HOME__/.claude/logs/notification.jsonl",
+        "regex": "\"session_id\":\"case-notification-quoted\""
+      },
+      {
+        "path": "__CASE_HOME__/.claude/logs/notification.jsonl",
+        "regex": "\"title\":\"Quoted \\\\\"task\\\\\"\""
+      },
+      {
+        "path": "__CASE_HOME__/.claude/logs/notification.jsonl",
+        "regex": "\"message\":\"Line one\\\\nLine two's status\""
+      }
+    ]
+  },
+  {
     "name": "subagent_stop_blocks_without_assistant_message",
     "script": "claudecfg/hooks/subagent-stop-guard.sh",
     "stdin": "tests/hooks/fixtures/subagent_stop_no_message.json",
@@ -144,6 +200,13 @@
     "state_jq": ".task_type == \"other\" and .manager_mode == \"none\" and .required_subagents == [] and .required_subagent_any_of == []"
   },
   {
+    "name": "user_prompt_submit_leaves_creative_model_typo_query_as_other",
+    "script": "claudecfg/hooks/user-prompt-submit.sh",
+    "stdin": "tests/hooks/fixtures/user_prompt_models_creative_typo_info.json",
+    "expect_exit": 0,
+    "state_jq": ".task_type == \"other\" and .manager_mode == \"none\" and .required_subagents == [] and .required_subagent_any_of == []"
+  },
+  {
     "name": "user_prompt_submit_keeps_model_integration_request_as_feature",
     "script": "claudecfg/hooks/user-prompt-submit.sh",
     "stdin": "tests/hooks/fixtures/user_prompt_models_feature.json",
@@ -181,6 +244,14 @@
     "expect_exit": 0,
     "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"@cr\"))",
     "state_jq": ".task_type == \"review\" and .required_subagents == [\"cr\"] and .required_subagent_any_of == []"
+  },
+  {
+    "name": "user_prompt_submit_classifies_model_docs_request_as_docs",
+    "script": "claudecfg/hooks/user-prompt-submit.sh",
+    "stdin": "tests/hooks/fixtures/user_prompt_models_docs.json",
+    "expect_exit": 0,
+    "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"@doc\"))",
+    "state_jq": ".task_type == \"docs\" and .required_subagents == [\"doc\"] and .required_subagent_any_of == []"
   },
   {
     "name": "user_prompt_submit_classifies_mixed_intent_as_bugfix",
@@ -704,6 +775,18 @@
     ]
   },
   {
+    "name": "notification_logs_status_update",
+    "script": "claudecfg/hooks/notification.sh",
+    "stdin": "tests/hooks/fixtures/notification_summary.json",
+    "expect_exit": 0,
+    "file_assertions": [
+      {
+        "path": "__CASE_HOME__/.claude/logs/notification.jsonl",
+        "regex": "Verification completed"
+      }
+    ]
+  },
+  {
     "name": "pre_compact_logs_manual_compaction",
     "script": "claudecfg/hooks/pre-compact.sh",
     "stdin": "tests/hooks/fixtures/pre_compact_manual.json",
@@ -724,6 +807,102 @@
       {
         "path": "__CASE_HOME__/.claude/logs/post-compact.jsonl",
         "regex": "manual"
+      }
+    ]
+  },
+  {
+    "name": "config_change_handles_minimal_payload",
+    "script": "claudecfg/hooks/config-change.sh",
+    "stdin": "tests/hooks/fixtures/config_change_minimal.json",
+    "expect_exit": 0,
+    "file_assertions": [
+      {
+        "path": "__CASE_HOME__/.claude/logs/config-change.jsonl",
+        "regex": "\"session_id\"[[:space:]]*:[[:space:]]*\"case-config-change-minimal\""
+      },
+      {
+        "path": "__CASE_HOME__/.claude/logs/config-change.jsonl",
+        "regex": "\"source\"[[:space:]]*:[[:space:]]*\"\""
+      },
+      {
+        "path": "__CASE_HOME__/.claude/logs/config-change.jsonl",
+        "regex": "\"file_path\"[[:space:]]*:[[:space:]]*\"\""
+      }
+    ]
+  },
+  {
+    "name": "instructions_loaded_handles_minimal_payload",
+    "script": "claudecfg/hooks/instructions-loaded.sh",
+    "stdin": "tests/hooks/fixtures/instructions_loaded_minimal.json",
+    "expect_exit": 0,
+    "file_assertions": [
+      {
+        "path": "__CASE_HOME__/.claude/logs/instructions-loaded.jsonl",
+        "regex": "\"session_id\"[[:space:]]*:[[:space:]]*\"case-instructions-loaded-minimal\""
+      },
+      {
+        "path": "__CASE_HOME__/.claude/logs/instructions-loaded.jsonl",
+        "regex": "\"memory_type\"[[:space:]]*:[[:space:]]*\"\""
+      },
+      {
+        "path": "__CASE_HOME__/.claude/logs/instructions-loaded.jsonl",
+        "regex": "\"load_reason\"[[:space:]]*:[[:space:]]*\"\""
+      }
+    ]
+  },
+  {
+    "name": "pre_compact_handles_minimal_payload",
+    "script": "claudecfg/hooks/pre-compact.sh",
+    "stdin": "tests/hooks/fixtures/pre_compact_minimal.json",
+    "expect_exit": 0,
+    "file_assertions": [
+      {
+        "path": "__CASE_HOME__/.claude/logs/pre-compact.jsonl",
+        "regex": "\"session_id\"[[:space:]]*:[[:space:]]*\"case-pre-compact-minimal\""
+      },
+      {
+        "path": "__CASE_HOME__/.claude/logs/pre-compact.jsonl",
+        "regex": "\"trigger\"[[:space:]]*:[[:space:]]*\"\""
+      }
+    ]
+  },
+  {
+    "name": "post_compact_handles_minimal_payload",
+    "script": "claudecfg/hooks/post-compact.sh",
+    "stdin": "tests/hooks/fixtures/post_compact_minimal.json",
+    "expect_exit": 0,
+    "file_assertions": [
+      {
+        "path": "__CASE_HOME__/.claude/logs/post-compact.jsonl",
+        "regex": "\"session_id\"[[:space:]]*:[[:space:]]*\"case-post-compact-minimal\""
+      },
+      {
+        "path": "__CASE_HOME__/.claude/logs/post-compact.jsonl",
+        "regex": "\"compact_summary\"[[:space:]]*:[[:space:]]*\"\""
+      }
+    ]
+  },
+  {
+    "name": "session_end_handles_minimal_payload",
+    "script": "claudecfg/hooks/session-end.sh",
+    "stdin": "tests/hooks/fixtures/session_end_minimal.json",
+    "expect_exit": 0,
+    "file_assertions": [
+      {
+        "path": "__CASE_HOME__/.claude/logs/session-index.jsonl",
+        "regex": "\"session_id\"[[:space:]]*:[[:space:]]*\"case-session-end-minimal\""
+      },
+      {
+        "path": "__CASE_HOME__/.claude/logs/session-index.jsonl",
+        "regex": "\"cwd\"[[:space:]]*:[[:space:]]*\"\""
+      },
+      {
+        "path": "__CASE_HOME__/.claude/logs/session-index.jsonl",
+        "regex": "\"transcript_path\"[[:space:]]*:[[:space:]]*\"\""
+      },
+      {
+        "path": "__CASE_HOME__/.claude/logs/session-index.jsonl",
+        "regex": "\"reason\"[[:space:]]*:[[:space:]]*\"\""
       }
     ]
   },

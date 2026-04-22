@@ -111,6 +111,7 @@ Workflow phase: <discover|design|implement|verify|review|docs|cleanup|blocked>
 Outcome: <what was coordinated or confirmed>
 Changed files: <path1>, <path2> | No files changed: <reason>
 Verification status: <passed|failed|not run|not required> - <command, evidence, or reason>
+Review outcome: <done|pending|not required> - <one sentence summary>  # required after code/config changes
 Next step: <next step>
 ```
 Use `Remaining risks:` instead of `Next step:` when residual risk is the more useful close.

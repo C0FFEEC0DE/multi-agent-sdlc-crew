@@ -55,7 +55,20 @@ type: AgentType
 ## Adding a New Command
 
 1. Create `claudecfg/commands/[command].md`
-2. If it invokes an agent, also create `claudecfg/skills/[command].md`
+2. If it invokes an agent, also create `claudecfg/skills/[command].md` with YAML frontmatter:
+
+```yaml
+---
+name: command
+description: What this skill does
+agent: target-agent-name
+context: fork
+disable-model-invocation: true
+allowed-tools: Read Glob Grep
+paths:
+  - "**/*"
+---
+```
 3. Update CLAUDE.md commands list
 
 ## Code Style
@@ -70,7 +83,18 @@ type: AgentType
 Before submitting:
 - [ ] JSON files are valid
 - [ ] Agent markdown has proper frontmatter
+- [ ] Skill markdown has proper frontmatter
+- [ ] Settings invariants still hold (`outputStyle: Default`, Notification hook configured)
 - [ ] All links in documentation work
+
+## GitHub Actions Requirements
+
+**Node.js 20 is deprecated on GitHub Actions runners** (removed September 2026). All workflows must target Node.js 24:
+
+- Set `env: FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` at the workflow level
+- Use `actions/cache@v5` (not v4) — v4 targets Node.js 20
+- When adding new actions, verify they support Node.js 24 or add the env var
+- Check the [deprecation guide](https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/) before adding new JavaScript-based actions
 
 ## Questions?
 

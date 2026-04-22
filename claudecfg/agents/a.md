@@ -54,6 +54,8 @@ type: Plan
 - Call out risks, compatibility concerns, and follow-up work
 - Make the design handoff concrete enough that another agent can implement it without guessing
 - If design uncertainty remains, say what code or runtime evidence is still needed
+- Use the Standard Output headings exactly as written; do not replace `Task: Design`, `Solution:`, `Outcome:`, `Changed files:` or `Verification status:` with markdown section titles or prose variants such as `Result:`
+- This exact heading format still applies to docs-only design notes and rollout guidance; do not switch to a docwriter-style summary unless the task explicitly asks for `@doc`
 - For handoff replies, end with a stop-safe footer that uses exact line prefixes recognized by the shell guard
 - The footer must include `Outcome:`, `Changed files:` or `No files changed:`, `Verification status:`, and one closure line: either `Remaining risks:` or `Next step:`
 - Prefer `Remaining risks: none` when there is no meaningful follow-up handoff
@@ -82,3 +84,4 @@ Verification status: <passed|failed|not run|not required> - <command, evidence, 
 Remaining risks: <risks or none>
 ```
 Use `Next step:` instead of `Remaining risks:` when the most useful close is a concrete next action.
+Start the reply with `Task: Design — ...` on the first line.

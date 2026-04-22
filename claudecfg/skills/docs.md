@@ -1,3 +1,22 @@
+---
+name: docs
+description: Run the docwriter in an isolated subagent for README, docs, and user-facing documentation changes.
+agent: Docwriter
+context: fork
+disable-model-invocation: true
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+  - Edit
+  - Write
+paths:
+  - "**/*.md"
+  - "docs/**"
+  - "README*"
+  - "CHANGELOG*"
+---
+
 # /docs
 
 Run documentation session with the Docwriter agent.

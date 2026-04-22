@@ -1,0 +1,7 @@
+{
+  "session_id": "case-notification-quoted",
+  "title": "Quoted \"task\"",
+  "message": "Line one\nLine two's status",
+  "subtype": "status_update",
+  "context": "hook-test"
+}

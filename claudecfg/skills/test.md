@@ -1,3 +1,27 @@
+---
+name: test
+description: Run the tester in an isolated subagent for verification planning, regression tests, and gap analysis.
+agent: Tester
+context: fork
+disable-model-invocation: true
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+  - Edit
+  - Write
+  - Bash(pytest:*)
+  - Bash(npm test:*)
+  - Bash(make test:*)
+  - Bash(uv run pytest:*)
+paths:
+  - "tests/**"
+  - "**/test_*.py"
+  - "**/*_test.py"
+  - "package.json"
+  - "pytest.ini"
+---
+
 # /test
 
 Run testing session with the Tester agent.

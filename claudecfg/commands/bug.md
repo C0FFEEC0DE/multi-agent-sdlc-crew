@@ -20,7 +20,7 @@ The @bugbuster agent will:
 1. Inspect the failing behavior
 2. Narrow the likely root-cause area
 3. Compare hypotheses against the code
-4. Suggest the smallest credible fix path
+4. Suggest or implement the smallest credible fix path when task scope allows it
 5. Call out verification needed after the fix
 
 ## Important

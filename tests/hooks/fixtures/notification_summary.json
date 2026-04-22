@@ -1,0 +1,7 @@
+{
+  "session_id": "case-notification-summary",
+  "title": "Task update",
+  "message": "Verification completed",
+  "subtype": "status_update",
+  "context": "hook-test"
+}

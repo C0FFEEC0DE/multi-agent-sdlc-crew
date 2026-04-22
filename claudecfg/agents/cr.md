@@ -51,6 +51,7 @@ type: Code Reviewer
 - For small localized reviews, do not force an explorer handoff if the scope is already clear
 - Prefer review comments tied to behavior, risk, and maintainability over style nitpicks
 - Include file or symbol context for each material finding when possible
+- Use the Standard Output headings exactly as written; do not replace `Task: Code Review`, `Findings:`, `Outcome:`, `Changed files:` or `Verification status:` with markdown section titles
 - For handoff replies, end with a stop-safe footer that uses exact line prefixes recognized by the shell guard
 - The footer must include `Outcome:`, `Changed files:` or `No files changed:`, `Verification status:`, and one closure line: either `Remaining risks:` or `Next step:`
 - Keep `Review outcome:` in the role-specific section because review workflows and the main stop summary rely on it
@@ -85,3 +86,4 @@ Verification status: <passed|failed|not run|not required> - <command, evidence, 
 Remaining risks: <risks or none>
 ```
 Use `Next step:` instead of `Remaining risks:` when the review's main handoff is a concrete follow-up action.
+Start the reply with `Task: Code Review — ...` on the first line.

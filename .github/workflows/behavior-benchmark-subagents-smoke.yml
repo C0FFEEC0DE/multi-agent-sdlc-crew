@@ -1,0 +1,464 @@
+name: Behavior Benchmark Subagents Smoke
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: behavior-benchmark-subagents-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/behavior-benchmark.yml'
+      - '.github/workflows/behavior-benchmark-subagents-smoke.yml'
+      - 'bench/**'
+      - 'claudecfg/**'
+      - 'scripts/assert-benchmark-summary.sh'
+      - 'scripts/bench_runner_claude_code.py'
+      - 'scripts/build-benchmark-matrix.py'
+      - 'scripts/collect-benchmark-changes.sh'
+      - 'scripts/download-benchmark-summary.py'
+      - 'scripts/merge-benchmark-summaries.py'
+      - 'scripts/render-benchmark-summary.sh'
+      - 'scripts/run-benchmark.sh'
+      - 'scripts/select-benchmark-tasks.py'
+      - 'scripts/wait-for-benchmark-slot.py'
+      - 'CLAUDE.md'
+      - 'install.sh'
+      - 'claudecfg/install.sh'
+  workflow_dispatch:
+    inputs:
+      selection_mode:
+        description: "Task selection mode: all, changed, resume, or auto_resume (finds last failed run automatically)"
+        required: false
+        default: "changed"
+        type: choice
+        options:
+          - changed
+          - all
+          - resume
+          - auto_resume
+      resume_run_id:
+        description: "Previous subagent smoke workflow run id to resume when selection_mode=resume"
+        required: false
+        default: ""
+        type: string
+      max_turns:
+        description: "Maximum Claude Code turns per task"
+        required: false
+        default: "6"
+        type: string
+      timeout_seconds:
+        description: "Per-task Claude timeout in seconds"
+        required: false
+        default: "500"
+        type: string
+      max_output_tokens:
+        description: "Claude Code max output tokens per request"
+        required: false
+        default: "768"
+        type: string
+
+jobs:
+  precheck:
+    name: Behavior Benchmark Subagents Smoke Precheck
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.select.outputs.should_run }}
+      task_files: ${{ steps.select.outputs.task_files }}
+      task_count: ${{ steps.select.outputs.task_count }}
+      task_label: ${{ steps.select.outputs.task_label }}
+      task_ids: ${{ steps.select.outputs.task_ids }}
+      selection_reason: ${{ steps.select.outputs.selection_reason }}
+      resume_run_id: ${{ steps.select.outputs.resume_run_id }}
+      matrix_json: ${{ steps.matrix.outputs.matrix_json }}
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Collect changed files
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          bash scripts/collect-benchmark-changes.sh \
+            --event "${{ github.event_name }}" \
+            --output .bench-changed-files.txt \
+            --base-ref "${BASE_REF:-main}" \
+            --ref-name "${REF_NAME:-}"
+
+      - name: Select subagent smoke tasks
+        id: select
+        shell: bash
+        env:
+          INPUT_SELECTION_MODE: ${{ inputs.selection_mode }}
+          INPUT_RESUME_RUN_ID: ${{ inputs.resume_run_id }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          selection_mode="changed"
+          resume_args=()
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            selection_mode="${INPUT_SELECTION_MODE:-changed}"
+            if [ "$selection_mode" = "resume" ]; then
+              if [ -z "${INPUT_RESUME_RUN_ID:-}" ]; then
+                echo "resume_run_id input is required when selection_mode=resume" >&2
+                exit 1
+              fi
+              python3 scripts/download-benchmark-summary.py \
+                --repo "${GITHUB_REPOSITORY}" \
+                --run-id "${INPUT_RESUME_RUN_ID}" \
+                --artifact-name "behavior-benchmark-subagents-smoke-${INPUT_RESUME_RUN_ID}" \
+                --output .bench-previous-summary.json
+              resume_args+=(--previous-summary-file .bench-previous-summary.json)
+              echo "resume_run_id=${INPUT_RESUME_RUN_ID}" >> "$GITHUB_OUTPUT"
+            elif [ "$selection_mode" = "auto_resume" ]; then
+              # Find the last failed run automatically
+              python3 scripts/find-failed-benchmark-run.py \
+                --workflow "Behavior Benchmark Subagents Smoke" \
+                --max-age-hours 72 \
+                --status failed
+              # Check if a failed run was found by reading GITHUB_OUTPUT
+              if grep -q "^found=true$" "$GITHUB_OUTPUT" 2>/dev/null; then
+                run_id=$(grep "^run_id=" "$GITHUB_OUTPUT" 2>/dev/null | cut -d= -f2)
+                if [ -n "$run_id" ]; then
+                  echo "Found failed run: ${run_id}"
+                  python3 scripts/download-benchmark-summary.py \
+                    --repo "${GITHUB_REPOSITORY}" \
+                    --run-id "${run_id}" \
+                    --artifact-name "behavior-benchmark-subagents-smoke-${run_id}" \
+                    --output .bench-previous-summary.json
+                  resume_args+=(--previous-summary-file .bench-previous-summary.json)
+                  echo "resume_run_id=${run_id}" >> "$GITHUB_OUTPUT"
+                  selection_mode="resume"
+                else
+                  echo "No failed run found in last 72 hours, falling back to changed mode"
+                  selection_mode="changed"
+                fi
+              else
+                echo "No failed run found in last 72 hours, falling back to changed mode"
+                selection_mode="changed"
+              fi
+            fi
+          fi
+          python3 scripts/select-benchmark-tasks.py \
+            --suite subagents_smoke \
+            --selection-mode "$selection_mode" \
+            --changed-files-file .bench-changed-files.txt \
+            "${resume_args[@]}"
+
+      - name: Render precheck summary
+        shell: bash
+        run: |
+          {
+            echo "## Behavior Benchmark Subagents Smoke Precheck"
+            echo ""
+            echo "- Event: \`${{ github.event_name }}\`"
+            echo "- Selection reason: \`${{ steps.select.outputs.selection_reason }}\`"
+            echo "- Resume source run id: \`${{ steps.select.outputs.resume_run_id || 'n/a' }}\`"
+            echo "- Selected tasks: \`${{ steps.select.outputs.task_count }}\`"
+            echo "- Task ids: \`${{ steps.select.outputs.task_ids || 'none' }}\`"
+            echo "- Will run subagent smoke suite: \`${{ steps.select.outputs.should_run }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install pytest for validation
+        shell: bash
+        run: |
+          pip install pytest --quiet
+
+      - name: Validate task/fixture alignment
+        shell: bash
+        run: |
+          python3 -m pytest tests/bench/test_task_fixture_alignment.py -v
+
+      - name: Build subagent smoke shard matrix
+        id: matrix
+        shell: bash
+        run: |
+          cat > .bench-selected-tasks.txt <<'EOF'
+          ${{ steps.select.outputs.task_files }}
+          EOF
+          matrix_json="$(python3 scripts/build-benchmark-matrix.py --task-list-file .bench-selected-tasks.txt --max-shards 3)"
+          echo "matrix_json=$matrix_json" >> "$GITHUB_OUTPUT"
+
+  benchmark-subagents-smoke-shards:
+    name: Behavior Benchmark Subagents Smoke Shard
+    needs:
+      - precheck
+      - wait-for-slot
+    if: needs.precheck.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include: ${{ fromJson(needs.precheck.outputs.matrix_json) }}
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Write selected task list
+        shell: bash
+        run: |
+          cat > .bench-selected-tasks.txt <<'EOF'
+          ${{ matrix.task_files }}
+          EOF
+
+      - name: Resolve benchmark config
+        id: cfg
+        shell: bash
+        env:
+          INPUT_MAX_TURNS: ${{ inputs.max_turns }}
+          INPUT_TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}
+          INPUT_MAX_OUTPUT_TOKENS: ${{ inputs.max_output_tokens }}
+          INPUT_SELECTION_MODE: ${{ inputs.selection_mode }}
+          VAR_BENCHMARK_MODEL: ${{ vars.BEHAVIOR_BENCHMARK_MODEL }}
+          VAR_OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
+          VAR_BENCHMARK_TIMEOUT_SECONDS: ${{ vars.BEHAVIOR_BENCHMARK_TIMEOUT_SECONDS }}
+          VAR_BENCHMARK_MAX_OUTPUT_TOKENS: ${{ vars.BEHAVIOR_BENCHMARK_MAX_OUTPUT_TOKENS }}
+        # Smoke suite uses tighter turn limit (6) vs full/nightly (8) to enforce concise runs
+        run: |
+          max_turns="${INPUT_MAX_TURNS:-6}"
+          model="${VAR_BENCHMARK_MODEL:-${VAR_OLLAMA_MODEL:-}}"
+          timeout_seconds="${INPUT_TIMEOUT_SECONDS:-${VAR_BENCHMARK_TIMEOUT_SECONDS:-400}}"
+          max_output_tokens="${INPUT_MAX_OUTPUT_TOKENS:-${VAR_BENCHMARK_MAX_OUTPUT_TOKENS:-768}}"
+          fail_fast="1"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${INPUT_SELECTION_MODE:-all}" = "resume" ]; then
+            fail_fast="0"
+          fi
+
+          if [ -z "$model" ]; then
+            echo "OLLAMA_MODEL GitHub Actions variable is required" >&2
+            exit 1
+          fi
+
+          {
+            echo "max_turns=$max_turns"
+            echo "model=$model"
+            echo "timeout_seconds=$timeout_seconds"
+            echo "max_output_tokens=$max_output_tokens"
+            echo "fail_fast=$fail_fast"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Restore dependency caches
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/pip
+          key: ${{ runner.os }}-behavior-benchmark-deps-v2
+
+      - name: Install Claude Code CLI and pytest
+        shell: bash
+        run: |
+          PIP_DISABLE_PIP_VERSION_CHECK=1 npm install -g @anthropic-ai/claude-code --prefer-offline --no-audit
+          PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install pytest --cache-dir ~/.cache/pip
+          claude --version
+
+      - name: Install Claude configuration
+        shell: bash
+        run: |
+          bash ./install.sh
+
+      - name: Run subagent smoke benchmark
+        shell: bash
+        env:
+          BENCH_RUNNER_CMD: python3 "$GITHUB_WORKSPACE/scripts/bench_runner_claude_code.py"
+          BENCH_SOURCE_REF: ${{ github.ref }}
+          MAX_TURNS: ${{ steps.cfg.outputs.max_turns }}
+          BENCH_FAIL_FAST: ${{ steps.cfg.outputs.fail_fast }}
+          CLAUDE_TIMEOUT_SECONDS: ${{ steps.cfg.outputs.timeout_seconds }}
+          CLAUDE_CODE_MAX_OUTPUT_TOKENS: ${{ steps.cfg.outputs.max_output_tokens }}
+          OLLAMA_MODEL: ${{ steps.cfg.outputs.model }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          ANTHROPIC_BASE_URL: https://ollama.com
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.OLLAMA_API_KEY }}
+          ANTHROPIC_API_KEY: ""
+        run: |
+          if [ -z "${OLLAMA_API_KEY:-}" ]; then
+            echo "OLLAMA_API_KEY secret is required" >&2
+            exit 1
+          fi
+          bash scripts/run-benchmark.sh \
+            --output-dir bench-output \
+            --mode command \
+            --task-list-file .bench-selected-tasks.txt \
+            --task-label "${{ needs.precheck.outputs.task_label }}" \
+            --ref "${GITHUB_REF}"
+
+      - name: Render subagent smoke shard summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f bench-output/summary.json ]; then
+            {
+              echo "## Behavior Benchmark Subagents Smoke"
+              echo ""
+              echo "- Selection reason: \`${{ needs.precheck.outputs.selection_reason }}\`"
+              echo "- Resume source run id: \`${{ needs.precheck.outputs.resume_run_id || 'n/a' }}\`"
+              echo "- Shard index: \`${{ matrix.shard_index }}\`"
+              echo "- Task count: \`${{ matrix.task_count }}\`"
+              echo "- Model: \`${{ steps.cfg.outputs.model }}\`"
+              echo "- Task selection: \`${{ needs.precheck.outputs.task_label }}\`"
+              echo "- Max turns: \`${{ steps.cfg.outputs.max_turns }}\`"
+              echo "- Timeout seconds: \`${{ steps.cfg.outputs.timeout_seconds }}\`"
+              echo "- Max output tokens: \`${{ steps.cfg.outputs.max_output_tokens }}\`"
+              echo ""
+              bash scripts/render-benchmark-summary.sh bench-output/summary.json
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload subagent smoke shard summary artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: behavior-benchmark-subagents-smoke-shard-${{ matrix.shard_index }}-${{ github.run_id }}
+          path: |
+            .bench-selected-tasks.txt
+            bench-output/summary.json
+            bench-output/benchmark-report.md
+            bench-output/tasks/**/workspace.patch
+            bench-output/tasks/**/changed-files.json
+
+      - name: Upload subagent smoke shard debug artifacts
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: behavior-benchmark-subagents-smoke-shard-debug-${{ matrix.shard_index }}-${{ github.run_id }}
+          path: |
+            bench-output/tasks/**/result.json
+            bench-output/tasks/**/claude-result.json
+            bench-output/tasks/**/claude-result.txt
+            bench-output/tasks/**/claude-debug.log
+            bench-output/tasks/**/claude-stderr.log
+            bench-output/tasks/**/claude-stderr-tail.txt
+            bench-output/tasks/**/task-prompt.txt
+            bench-output/tasks/**/task-summary.txt
+            bench-output/tasks/**/runner-error.txt
+
+  wait-for-slot:
+    name: Wait for benchmark slot
+    needs: precheck
+    if: needs.precheck.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Wait for shared benchmark slot
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BENCH_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python3 scripts/wait-for-benchmark-slot.py \
+            --current-run-id "${{ github.run_id }}" \
+            --head-sha "${BENCH_HEAD_SHA}" \
+            --max-active 2 \
+            --poll-seconds 15 \
+            --timeout-seconds 7200
+
+  benchmark-subagents-smoke:
+    name: Behavior Benchmark Subagents Smoke
+    needs:
+      - precheck
+      - benchmark-subagents-smoke-shards
+    if: always() && needs.precheck.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Download subagent smoke shard summaries
+        shell: bash
+        env:
+          BENCH_MATRIX_JSON: ${{ needs.precheck.outputs.matrix_json }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p shard-artifacts
+          mapfile -t shard_indexes < <(printf '%s' "$BENCH_MATRIX_JSON" | jq -r '.[].shard_index')
+          if [ "${#shard_indexes[@]}" -eq 0 ]; then
+            echo "No shard indexes were produced by the precheck matrix" >&2
+            exit 1
+          fi
+          for shard_index in "${shard_indexes[@]}"; do
+            python3 scripts/download-benchmark-summary.py \
+              --repo "${GITHUB_REPOSITORY}" \
+              --run-id "${GITHUB_RUN_ID}" \
+              --artifact-name "behavior-benchmark-subagents-smoke-shard-${shard_index}-${GITHUB_RUN_ID}" \
+              --output "shard-artifacts/shard-${shard_index}-summary.json"
+          done
+
+      - name: Merge shard summaries
+        shell: bash
+        run: |
+          mkdir -p bench-output
+          mapfile -t summary_files < <(find shard-artifacts -type f -name '*.json' | sort)
+          if [ "${#summary_files[@]}" -eq 0 ]; then
+            echo "No shard summary.json files were downloaded" >&2
+            exit 1
+          fi
+          python3 scripts/merge-benchmark-summaries.py \
+            --output bench-output/summary.json \
+            "${summary_files[@]}"
+          bash scripts/render-benchmark-summary.sh bench-output/summary.json > bench-output/benchmark-report.md
+
+      - name: Render subagent smoke summary
+        shell: bash
+        run: |
+          {
+            echo "## Behavior Benchmark Subagents Smoke"
+            echo ""
+            echo "- Selection reason: \`${{ needs.precheck.outputs.selection_reason }}\`"
+            echo "- Resume source run id: \`${{ needs.precheck.outputs.resume_run_id || 'n/a' }}\`"
+            echo "- Task ids: \`${{ needs.precheck.outputs.task_ids }}\`"
+            echo "- Task selection: \`${{ needs.precheck.outputs.task_label }}\`"
+            echo ""
+            cat bench-output/benchmark-report.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce subagent smoke gate
+        shell: bash
+        run: |
+          bash scripts/assert-benchmark-summary.sh bench-output/summary.json
+
+      - name: Upload subagent smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: behavior-benchmark-subagents-smoke-${{ github.run_id }}
+          path: |
+            bench-output/summary.json
+            bench-output/benchmark-report.md
+
+      - name: Upload subagent smoke debug artifacts
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: behavior-benchmark-subagents-smoke-debug-${{ github.run_id }}
+          path: |
+            bench-output/tasks/**/workspace.patch
+            bench-output/tasks/**/changed-files.json
+            bench-output/tasks/**/claude-debug.log
+            bench-output/tasks/**/claude-stderr.log
+            bench-output/tasks/**/claude-stderr-tail.txt

@@ -7,6 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `Behavior Benchmark Full` workflow as a separate manually runnable full-suite entry instead of hiding the full run inside the nightly matrix
+- `Behavior Benchmark Subagents Smoke` workflow for fast PR/manual subagent-only checks
+- Smart benchmark task selection scripts that map agent, skill, fixture, workflow, and runner changes to the smallest relevant behavioral suites
+- Workflow-combination benchmark tasks covering common manager-led chains such as manager+explorer+reviewer and manager+bugbuster/debugger/tester+reviewer
+- Golden per-agent benchmark tasks under `bench/tasks/subagents/golden/` so every specialist role has both smoke and stricter regression coverage
+- Shared-state hook scenarios via `tests/hooks/scenarios.json` plus scenario-aware `scripts/test-hooks.sh` coverage for multi-hook flows
+- `Python Tests` GitHub Actions workflow for non-hook pytest coverage
+- `Benchmark Nightly` workflow that runs broader live benchmark suites on schedule when `main` changed in the last 24 hours
+- `Notification` hook wiring plus `hooks/notification.sh` log sink for runtime notification telemetry
 - `PermissionDenied` hook support so auto-mode classifier denials can retry through the normal approval path when the command is not hard-denied by profile policy
 - Auto-execution configuration for project folders (`~/projects/**`, `~/code/**`, `~/repos/**`, `~/work/**`)
 - Extended Bash permissions for common dev tools (rm, mkdir, cp, mv, cargo, go, etc.)
@@ -17,14 +26,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - CONTRIBUTING.md guidelines
 - LICENSE file (MIT)
 - Hook-based SDLC gate layer for session start, prompt classification, verification tracking, stop control, and transcript indexing
-- Repository-level `Validate` and `Hook Tests` GitHub Actions workflows
-- Behavior Benchmark workflow that runs the real Claude Code CLI inside isolated benchmark fixtures and uploads per-task artifacts
+- Repository-level `Repository Checks` and `Hook Contracts` GitHub Actions workflows
+- `Benchmark Smoke` workflow that runs the real Claude Code CLI inside isolated benchmark fixtures and uploads per-task artifacts
 - OpenRouter-backed Claude Code benchmark setup documentation
 - Behavioral benchmark documentation and summary gate script
 - README status badges for repository workflows
 
 ### Changed
+- Renamed benchmark workflows to clearer GitHub Actions labels: `Behavior Benchmark Smoke`, `Behavior Benchmark Full`, `Behavior Benchmark Subagents Smoke`, and `Behavior Benchmark Subagents Golden`
+- Reorganized benchmark tasks into `bench/tasks/smoke/`, `bench/tasks/full/`, `bench/tasks/subagents/smoke/`, and `bench/tasks/subagents/golden/`
+- Taught behavioral CI to select only the impacted smoke/full/subagent tasks from changed agents, skills, fixtures, task files, and shared benchmark logic instead of rerunning whole suites by default
+- Split the nightly live benchmark matrix so the full workflow suite and the golden subagent suite appear as separate Actions entries and the full suite can be launched manually on `main`
+- Expanded the benchmark matrix with a new Node fixture plus fixture-aware verification detection (`pytest`, `npm`, `cargo`, `go`) so manual/full benchmark runs can cover non-Python repos without widening the default PR suite
+- Added workflow linting with `actionlint`, shell linting with `shellcheck`, and an installer smoke/idempotency test to the Validate path
+- Renamed GitHub workflows to more neutral CI labels and split general `pytest` coverage into a dedicated `Python Tests` workflow while keeping hook-contract checks grouped with the hook harness
+- Updated `Repository Checks` to `actions/setup-go@v6` to remove the GitHub Actions Node 20 deprecation warning
+- Limited `Benchmark Smoke` to PRs with benchmark-relevant changes and moved the broader live suites into the nightly benchmark workflow so daytime CI stays faster
+- Updated `Hook Tests` and `Validate` workflows to `actions/setup-python@v6` so CI is aligned with GitHub's Node 24 migration path
+- Restored the live `Behavior Benchmark` default timeout to `300` seconds and added optional `BEHAVIOR_BENCHMARK_MODEL` support so benchmark CI can use a dedicated model without changing the wider repository default
+- Switched profile `outputStyle` from `Explanatory` to `Default` to preserve built-in coding instructions
+- Added YAML frontmatter to all bundled skills (`/design`, `/docs`, `/refactor`, `/review`, `/test`) with explicit `agent`, `context`, `disable-model-invocation`, `allowed-tools`, and scoped `paths` where useful
+- Updated docs (`README`, `GUIDE`, `claudecfg/README`, `CONTRIBUTING`, `CLAUDE.md`) to reflect Notification hook coverage, default output style, and skill-frontmatter requirements
 - Behavior Benchmark recovery metrics now remain visible in `summary.json` and the GitHub summary without failing CI by default; strict recovery caps only apply when explicitly set through GitHub variables or `workflow_dispatch`
+- `behavior-benchmark.yml`: removed duplicate `max_turns` default assignment
+- `benchmark-nightly.yml`: added `--base-ref` to `collect-benchmark-changes` call
+- `claudecfg/hooks/`: removed dead `permission_denied_should_retry()` function, added `notification.jsonl` log rotation
+- `scripts/wait-for-benchmark-slot.py`: added HTTP 403 rate-limit handling with `Retry-After` header support
+- `scripts/validate.sh`: replaced fragile `grep`-based policy checks with robust `jq` validation
+
+### Added
+
+- New pytest coverage: `test_build_benchmark_matrix.py` (shard distribution and chunking), `test_wait_for_benchmark_slot.py` (slot allocation and rate-limit handling), `test_merge_benchmark_summaries.py` (merge logic and totals computation), `test_render_benchmark_summary.py` (jq markdown rendering)
 - Benchmark transcript regression coverage now includes a reusable forbidden meta-chatter pattern set and limits forbidden transcript scans to assistant-like entries so user prompts do not trigger false positives
 - Golden subagent regression coverage is now explicit: every canonical agent alias must have at least one focused benchmark task with `agent_alias` plus non-empty required/forbidden transcript assertions, and the contract is documented in `docs/agent-contracts.md`
 - `PermissionDenied` retry behavior now disables retries in benchmark headless runs so denied shell commands do not consume turn budget during automated benchmark tasks
@@ -37,7 +69,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Updated GUIDE.md with new agents and skills
 - Updated GitHub Actions workflows to run on every push
 - Replaced the custom benchmark coding-agent workflow with automatic real Claude Code CLI runs via OpenRouter
-- Removed the standalone `Real Claude Code` smoke workflow so `Behavior Benchmark` is now the only real-agent GitHub workflow
+- Removed the standalone `Real Claude Code` smoke workflow in favor of the `Behavior Benchmark` workflow family
 - Tightened hook safety and completion gates: expanded dangerous-command blocking, unified failed test/lint/build gating, and moved `Stop` enforcement fully into shell hooks to avoid tool-only prompt-hook failures
 - Moved `SubagentStop` enforcement into a shell hook so subagent stop validation no longer depends on prompt-hook message availability
 - Updated shell stop gating so repos without detectable `test`/`lint`/`build` commands do not deadlock completion after config changes
@@ -67,6 +99,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Updated review guidance so broad workflow, subsystem, and multi-file reviews should normally map the area with `@explorer` before `@code-reviewer`, while keeping `@cr` as the only enforced review gate
 
 ### Fixed
+- Extended validation/test coverage for the new Notification hook and skill frontmatter contract
 - New Feature workflow missing implementation and test steps
 - Missing post-implementation code review in workflows
 - `make lint` is now tracked as lint instead of build in hook session state

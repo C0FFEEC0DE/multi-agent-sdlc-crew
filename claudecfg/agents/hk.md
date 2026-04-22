@@ -63,7 +63,7 @@ Structure → duplicates → unused files → report.
 ## Standard Output
 
 ```text
-Task: Veles — <what we're doing>
+Task: Housekeeping — <what we're doing>
 Status: <pending|in_progress|completed|blocked>
 Warnings: <warnings>
 Outcome: <what was cleaned or refactored>

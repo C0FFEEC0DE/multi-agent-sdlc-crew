@@ -1,0 +1,29 @@
+name: Python Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  python-tests:
+    name: Python Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Install test dependencies
+        run: pip install pytest
+
+      - name: Run benchmark and profile pytest suite
+        run: python -m pytest tests/bench/test_bench_runner.py tests/bench/test_benchmark_task_selection.py tests/bench/test_collect_benchmark_changes.py tests/test_skills_frontmatter.py -v

@@ -1,3 +1,18 @@
+---
+name: design
+description: Run an architecture and design specialist in an isolated subagent for solution planning and tradeoff analysis.
+agent: Architect
+context: fork
+disable-model-invocation: true
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+paths:
+  - "**/*.md"
+  - "docs/**"
+---
+
 # /design
 
 Run design session with the Architect agent.

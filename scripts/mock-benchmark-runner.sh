@@ -6,6 +6,14 @@ set -euo pipefail
 : "${BENCH_OUTPUT_DIR:?BENCH_OUTPUT_DIR is required}"
 
 task_id="$(jq -r '.id' "$BENCH_TASK_FILE")"
+task_path="$BENCH_TASK_FILE"
+if [ -n "${BENCH_REPO_ROOT:-}" ]; then
+    case "$BENCH_TASK_FILE" in
+        "$BENCH_REPO_ROOT"/*)
+            task_path="${BENCH_TASK_FILE#"$BENCH_REPO_ROOT"/}"
+            ;;
+    esac
+fi
 category="$(jq -r '.category' "$BENCH_TASK_FILE")"
 review_required="$(jq -r '.review_required' "$BENCH_TASK_FILE")"
 docs_required="$(jq -r '.docs_required' "$BENCH_TASK_FILE")"
@@ -23,6 +31,7 @@ mkdir -p "$BENCH_OUTPUT_DIR"
 
 jq -n \
     --arg task_id "$task_id" \
+    --arg task_path "$task_path" \
     --arg status "passed" \
     --arg notes "Mock runner produced a synthetic passing result. Configure BENCH_RUNNER_CMD for real agent evaluation." \
     --argjson completed true \
@@ -38,6 +47,7 @@ jq -n \
     --argjson runtime_seconds "$runtime_seconds" \
     '{
         task_id: $task_id,
+        task_path: $task_path,
         status: $status,
         completed: $completed,
         verification_required: $verification_required,

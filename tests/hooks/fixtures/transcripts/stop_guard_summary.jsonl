@@ -1,2 +1,2 @@
 {"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Preparing final summary."}]}}
-{"type":"result","result":"Verification status: pytest -q passed. Review outcome: pending. Key files changed: src/app.py. Remaining risks: none."}
+{"type":"result","result":"Verification status: pytest -q passed. Review outcome: pending. Changed files: src/app.py. Remaining risks: none."}

@@ -3,7 +3,7 @@
   "model": "minimax-m2.5:cloud",
   "effortLevel": "high",
   "language": "english",
-  "outputStyle": "Explanatory",
+  "outputStyle": "Default",
 
   "permissions": {
     "allow": [
@@ -230,6 +230,17 @@
           {
             "type": "command",
             "command": "\"$HOME\"/.claude/hooks/task-completed.sh"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$HOME\"/.claude/hooks/notification.sh",
+            "async": true
           }
         ]
       }

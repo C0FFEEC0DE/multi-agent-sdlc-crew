@@ -41,9 +41,9 @@ if [ -z "$override_task_type" ]; then
     )"
 fi
 
-if grep -Eiq '(which|what|recommend|recommendation|compare|best|better|vs|versus|какую|какой|посовет|рекоменд|сравн|лучш|выбрат)' <<<"$prompt" \
-    && grep -Eiq '(model|models|llm|ollama|openrouter|qwen|llama|deepseek|модел|модели|модель)' <<<"$prompt" \
-    && ! grep -Eiq '(feature|implement|add support|integrat|new capability|фич|добав|интеграц|подключ|fix|bug|defect|баг|ошиб|исправ|refactor|rename|cleanup|tech debt|рефактор|почист|переимен)' <<<"$prompt"; then
+if grep -Eiq '(model|models|llm|ollama|openrouter|qwen|llama|deepseek|mistral|claude|gpt|gemini|command r|модел|модели|модель)' <<<"$prompt" \
+    && grep -Eiq '(which|what|recommend|recommendation|compare|best|better|vs|versus|open source|opensource|closed model|api|creative|creativity|style|storytelling|какую|какой|посовет|совет|рекоменд|сравн|лучш|выбрат|подскажи|подбери|нужн|креатив|стиль|сторител|иде[йи])' <<<"$prompt" \
+    && ! grep -Eiq '(feature|implement|add support|integrat|new capability|фич|добав|интеграц|подключ|fix|bug|defect|баг|ошиб|исправ|refactor|rename|cleanup|tech debt|рефактор|почист|переимен|review|audit|ревью|аудит|проверь|docs|readme|document|док|ридми)' <<<"$prompt"; then
     informational_model_query="true"
 fi
 

@@ -1,0 +1,33 @@
+{
+  "id": "subagent-tester-regression-lite",
+  "suite": "subagents_smoke",
+  "agent_alias": "t",
+  "category": "feature",
+  "related_agents": ["t"],
+  "fixture": "python-math",
+  "review_required": false,
+  "docs_required": false,
+  "verification_required": true,
+  "prompt": "Use @t to add one regression test for add() with negative operand. Run pytest -q. Do not modify calculator.py. Finish with required footer.",
+  "success_criteria": [
+    "One regression test added for add()",
+    "pytest -q passes",
+    "calculator.py unchanged"
+  ],
+  "must_not": [
+    "Modify calculator.py",
+    "Skip pytest -q",
+    "Perform release or deploy work"
+  ],
+  "forbidden_transcript_patterns": [
+    "footer repair",
+    "shell guard"
+  ],
+  "required_transcript_patterns": [
+    "Outcome:",
+    "Changed files:|No files changed:",
+    "Verification status:",
+    "Remaining risks:|Next step:"
+  ],
+  "required_used_agents": ["t"]
+}

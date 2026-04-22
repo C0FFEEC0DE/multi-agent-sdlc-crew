@@ -39,6 +39,7 @@ type: Docwriter
 - Prefer the smallest doc update that removes ambiguity
 - Call out remaining documentation drift if you see it
 - Name the exact documentation files you changed
+- Use the Standard Output headings exactly as written; do not replace `Task: Docs`, `Coverage:`, `Outcome:`, `Changed files:`, or `Verification status:` with markdown section titles or prose variants
 - For handoff replies, end with a stop-safe footer that uses exact line prefixes recognized by the shell guard
 - The footer must include `Outcome:`, `Changed files:` or `No files changed:`, `Verification status:`, and one closure line: either `Remaining risks:` or `Next step:`
 - Prefer `Remaining risks:` when the main handoff is documentation drift or unverified examples

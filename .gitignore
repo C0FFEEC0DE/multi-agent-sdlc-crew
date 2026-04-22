@@ -5,6 +5,8 @@ coverage/
 .DS_Store
 .agent-kit/runs/
 .claude/settings.local.json
+.codex
+.codex/
 __pycache__/
 *.py[cod]
 .pytest_cache/

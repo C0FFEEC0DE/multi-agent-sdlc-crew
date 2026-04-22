@@ -2,6 +2,7 @@
 
 ## Model
 - Current default: `minimax-m2.5:cloud`
+- Output style: `Default` (keeps built-in coding instructions active)
 
 ## Navigation
 - `Read path/to/file` — read file
@@ -100,6 +101,7 @@ Main checkpoints:
 - `PostToolUse` / `PostToolUseFailure` — record edits and successful or failed test/lint/build status
 - `SubagentStart` / `SubagentStop` — enforce the subagent output contract with shell guards
 - `TaskCompleted` / `TeammateIdle` / `Stop` — share the same gate logic and block completion after missing verification, failed test/lint/build runs, or missing required subagent roles
+- `Notification` — log runtime notifications for observability
 - `SessionEnd` — log transcript path and session metadata for later indexing
 
 `Stop` is shell-enforced by `hooks/stop-guard.sh`, and `SubagentStop` is shell-enforced by `hooks/subagent-stop-guard.sh`. After code or config changes, the final assistant summary must include explicit summary lines for verification status, review outcome or pending review, changed files or `no files changed`, and remaining risks or `none`. If the repo exposes no detectable `test`, `lint`, or `build` command, the stop guard allows completion without deadlock, but the summary must explicitly say verification was not run and why. Feature, bugfix, refactor, review, and docs workflows also require role-specific specialist handoffs before completion, tracked in shared session state with alias normalization such as `@code-reviewer -> cr`. Manager-led orchestration itself is tracked separately through `manager_mode=orchestrate`, so top-level `@m` use is not treated as a required specialist handoff. For feature, bugfix, and refactor work, a recorded successful test command satisfies the tester side of that gate; otherwise `@t` is still required. `SubagentStart` normalization also accepts alias/name/subagent-type fields in both snake_case and camelCase before falling back to generic runtime types. When a runtime loads slash skills like `/review` without emitting `SubagentStart`, or records specialist launches only as transcript lines like `Code Reviewer(...)`, the hooks fall back to transcript evidence so those handoffs still satisfy review/docs/test specialist gates. When a runtime backgrounds a live manager-led workflow before any code/config changes, `Stop` defers the specialist-role gate for that turn instead of treating the background handoff as a failed final response. `TeammateIdle` additionally blocks manager-led workflows that have not yet handed off to any specialist.
@@ -183,139 +185,13 @@ Manager returns the plan without continuing execution.
 @docwriter update the user-facing docs
 ```
 
-## Hooks Schema
+## Skills Frontmatter
 
-Hooks в `settings.json` используют единую структуру для всех событий согласно [официальной документации](https://code.claude.com/docs/en/hooks.md).
+`claudecfg/skills/*.md` should include YAML frontmatter to keep slash skills explicit and constrained:
 
-### Базовая структура
-
-Все события используют вложенный формат с ключом `hooks`:
-
-```json
-"EventName": [
-  {
-    "hooks": [
-      {
-        "type": "command",
-        "command": "\"$HOME\"/.claude/hooks/script.sh",
-        "async": true
-      }
-    ]
-  }
-]
-```
-
-### Matcher-based события
-
-Некоторые события поддерживают фильтрацию через `matcher`:
-
-```json
-"EventName": [
-  {
-    "matcher": "Bash|Edit",
-    "hooks": [
-      {
-        "type": "command",
-        "command": "\"$HOME\"/.claude/hooks/script.sh"
-      }
-    ]
-  }
-]
-```
-
-**События с matcher:**
-- `InstructionsLoaded` — matcher: `session_start|compact|nested_traversal|path_glob_match|include`
-- `PreToolUse` — matcher: имена инструментов (`Bash`, `Edit`, `Write`)
-- `PermissionRequest` — matcher: имена инструментов
-- `PermissionDenied` — matcher: имена инструментов
-- `PostToolUse` — matcher: имена инструментов или паттерны
-- `PostToolUseFailure` — matcher: имена инструментов
-
-**События без matcher:**
-- `SessionStart`, `SessionEnd`
-- `UserPromptSubmit`
-- `SubagentStart`, `SubagentStop`
-- `Stop`, `TeammateIdle`, `TaskCompleted`
-- `ConfigChange`
-- `PreCompact`, `PostCompact`
-
-### Ключи hook definition
-
-| Ключ | Тип | Обязательный | Описание |
-|------|-----|--------------|----------|
-| `type` | string | да | Должен быть `"command"` |
-| `command` | string | да | Shell команда для выполнения |
-| `async` | boolean | нет | Запуск в фоне (по умолчанию: false) |
-
-### Примеры
-
-**SessionStart (без matcher):**
-```json
-"SessionStart": [
-  {
-    "hooks": [
-      {
-        "type": "command",
-        "command": "\"$HOME\"/.claude/hooks/session-start.sh"
-      }
-    ]
-  }
-]
-```
-
-**PreToolUse для Bash (с matcher):**
-```json
-"PreToolUse": [
-  {
-    "matcher": "Bash",
-    "hooks": [
-      {
-        "type": "command",
-        "command": "\"$HOME\"/.claude/hooks/pre-tool-use.sh"
-      }
-    ]
-  }
-]
-```
-
-**PostToolUse с несколькими инструментами:**
-```json
-"PostToolUse": [
-  {
-    "matcher": "Edit|Write",
-    "hooks": [
-      {
-        "type": "command",
-        "command": "\"$HOME\"/.claude/hooks/post-edit-write.sh"
-      }
-    ]
-  },
-  {
-    "matcher": "Bash",
-    "hooks": [
-      {
-        "type": "command",
-        "command": "\"$HOME\"/.claude/hooks/post-bash.sh"
-      }
-    ]
-  }
-]
-```
-
-**Async hook — PreCompact:**
-```json
-"PreCompact": [
-  {
-    "hooks": [
-      {
-        "type": "command",
-        "command": "\"$HOME\"/.claude/hooks/pre-compact.sh",
-        "async": true
-      }
-    ]
-  }
-]
-```
+- required keys: `name`, `description`, `agent`, `context`, `disable-model-invocation`, `allowed-tools`, `paths`
+- pin `disable-model-invocation: true` and `context: fork` for the bundled manual slash skills
+- keep `allowed-tools` pragmatic for each skill (review/design read-heavy; docs write to docs paths; test/refactor can include Bash when verification or refactors are expected)
 
 ## Docs
 - https://docs.anthropic.com/en/docs/claude-code/settings
@@ -327,18 +203,19 @@ Repository-level checks are separate from the local Claude profile:
 
 - `.github/workflows/validate.yml` — structural validation on every push and PR
 - `.github/workflows/hooks-test.yml` — deterministic hook behavior tests on every push and PR
-- `.github/workflows/behavior-benchmark.yml` — behavioral acceptance tasks using the real Claude Code CLI inside benchmark fixtures
+- `.github/workflows/behavior-benchmark.yml` — fast behavioral smoke coverage for benchmark-relevant PR changes
+- `.github/workflows/behavior-benchmark-subagents-smoke.yml` — per-agent coverage for benchmark-relevant PR changes
 - `.github/workflows/security-scan.yml` — repository secret scan on every push and PR, plus weekly schedule
 
-Behavior benchmark recovery metrics are always reported in `summary.json` and the GitHub step summary. By default they are informational only; strict recovery caps are enabled only when `BEHAVIOR_BENCHMARK_MAX_RECOVERED_TASKS` or `BEHAVIOR_BENCHMARK_MAX_SUMMARY_REPAIRED_TASKS` are set explicitly, or when matching `workflow_dispatch` inputs are provided.
+Behavior benchmark recovery metrics are always reported in `summary.json` and the GitHub step summary. By default they are informational only; strict recovery caps are enabled only when `BEHAVIOR_BENCHMARK_MAX_RECOVERED_TASKS` or `BEHAVIOR_BENCHMARK_MAX_SUMMARY_REPAIRED_TASKS` are set explicitly, or when matching `workflow_dispatch` inputs are provided. The live workflow defaults to a `400` second per-task timeout and can optionally use a dedicated `BEHAVIOR_BENCHMARK_MODEL` variable before falling back to the repository-wide `OLLAMA_MODEL`.
 
 Benchmark support files:
 
 - `tests/hooks/` — hook fixtures and assertions
 - `bench/tasks/` — benchmark task definitions
-- `bench/tasks/subagents/` — golden regression suite for each specialist agent
+- `bench/tasks/subagents/smoke/` — one canary task per specialist agent (9 tasks total)
 - `bench/fixtures/` — benchmark fixture repositories
 - `docs/agent-contracts.md` — agent contract matrix and how the hook/benchmark layers fit together
 - `docs/benchmarking.md` — runner contract and GitHub setup
 
-Each canonical agent alias must have at least one focused task in `bench/tasks/subagents/` with non-empty `required_transcript_patterns` and `forbidden_transcript_patterns`. This keeps agent prompt regressions catchable in CI instead of depending on manual subagent spot checks.
+Each canonical agent alias must have at least one focused task in `bench/tasks/subagents/smoke/` with non-empty `forbidden_transcript_patterns` and at least one required-behavior assertion via `required_transcript_patterns`, `required_used_agents`, or `required_used_agent_groups`. This keeps role regressions catchable in PR coverage.

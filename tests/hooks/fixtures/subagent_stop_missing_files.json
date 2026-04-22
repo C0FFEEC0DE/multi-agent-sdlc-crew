@@ -1,4 +1,4 @@
 {
   "session_id": "case-subagent-stop-loop",
-  "last_assistant_message": "Outcome: implemented the parser. Verification: not run. Remaining risks: none."
+  "last_assistant_message": "Outcome: implemented the parser. Verification status: not run. Remaining risks: none."
 }

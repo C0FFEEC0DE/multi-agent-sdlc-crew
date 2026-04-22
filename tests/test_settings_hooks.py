@@ -27,6 +27,7 @@ HOOK_EVENTS = {
     "Stop",
     "TeammateIdle",
     "TaskCompleted",
+    "Notification",
     "ConfigChange",
     "PreCompact",
     "PostCompact",
@@ -145,6 +146,10 @@ def test_hooks_section_exists():
     assert isinstance(settings["hooks"], dict)
 
 
+def test_output_style_stays_default_for_coding_profile():
+    """Default output style preserves Claude Code's built-in coding-oriented behavior."""
+    settings = load_settings_json()
+    assert settings.get("outputStyle") == "Default"
 def test_all_hook_events_are_known():
     """Test that all hook events in settings are known event types."""
     settings = load_settings_json()
@@ -207,6 +212,23 @@ def test_matcher_based_events_have_correct_structure():
             )
 
 
+def test_notification_hook_targets_notification_script():
+    """Notification hook should point at the bundled notification script."""
+    settings = load_settings_json()
+
+    notification_hooks = settings["hooks"].get("Notification", [])
+    assert notification_hooks, "Notification hook must be configured"
+
+    record = notification_hooks[0]
+    assert "matcher" not in record, "Notification hook should use the non-matcher form in this profile"
+
+    nested_hooks = record.get("hooks", [])
+    assert nested_hooks, "Notification hook must define nested hooks"
+
+    hook_def = nested_hooks[0]
+    assert hook_def.get("type") == "command"
+    assert hook_def.get("command") == "\"$HOME\"/.claude/hooks/notification.sh"
+    assert hook_def.get("async") is True
 def test_non_matcher_events_dont_have_matcher():
     """Test that non-matcher events don't have matcher key."""
     settings = load_settings_json()

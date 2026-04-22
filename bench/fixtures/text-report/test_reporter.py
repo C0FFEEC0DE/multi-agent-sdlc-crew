@@ -1,3 +1,4 @@
+import pytest
 from reporter import render_metric, render_subtitle, render_title, render_warning
 
 

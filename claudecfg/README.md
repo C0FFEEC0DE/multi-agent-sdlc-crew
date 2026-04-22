@@ -11,11 +11,12 @@ Source configuration directory. Contains:
 - `agents/` — agent definitions
 - `commands/` — slash command definitions
 - `workflows/` — workflow definitions
-- `skills/` — skill definitions
+- `skills/` — skill definitions with YAML frontmatter for routing and tool constraints
 - `install.sh` — compatibility wrapper to the repository-level installer
 - `GUIDE.md` — complete guide
 
 Repository-level CI and benchmarking live under `.github/workflows/`, `scripts/`, `tests/hooks/`, and `bench/`.
+The `settings.json` profile uses `outputStyle: "Default"` so coding instructions remain intact.
 
 The repository validator also checks that the bundled slash-command file inventory and the published slash-command lists stay in sync.
 It also checks that golden subagent benchmark tasks keep the shared handoff-footer transcript markers aligned with the hook contract.
