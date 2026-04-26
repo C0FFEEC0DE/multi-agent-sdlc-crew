@@ -82,7 +82,7 @@ This workflow:
 2. runs `./install.sh` so CI uses the same repo installer as local setup
 3. copies the repository `.claude/` directory into each isolated fixture workdir so project-local config is exercised during the benchmark
 4. collects the PR diff and maps it to affected agents, fixtures, task files, and shared workflow logic
-5. selects the impacted tasks from `bench/tasks/subagents/smoke/*.json` (9 tasks, one per agent)
+5. selects the impacted tasks from `bench/tasks/subagents/smoke/*.json`, which contains focused canary tasks for each canonical specialist role plus a few workflow-shape tasks
 6. runs `scripts/run-benchmark.sh` in `command` mode with the selected task list
 7. uses `scripts/bench_runner_claude_code.py` as the per-task runner
 8. uploads per-task Claude artifacts plus `summary.json`

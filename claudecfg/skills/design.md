@@ -8,9 +8,17 @@ allowed-tools:
   - Read
   - Glob
   - Grep
+  - Edit
+  - Write
 paths:
+  - "**/*.py"
+  - "**/*.js"
+  - "**/*.ts"
+  - "**/*.sh"
   - "**/*.md"
   - "docs/**"
+  - "README*"
+  - "CHANGELOG*"
 ---
 
 # /design

@@ -39,7 +39,6 @@ Available agents:
 - `@t` / `@tester` — design or run verification
 - `@cr` / `@code-reviewer` — review code and risks
 - `@doc` / `@docwriter` — update docs
-- `@hk` / `@housekeeper` — Veles, cleanup and bounded refactor hygiene
 
 ### 3. Coordinate Execution
 - Pass concrete context between agents
@@ -63,14 +62,13 @@ Default path for change work:
 4. **Verify** → `@t`
 5. **Review** → `@cr`
 6. **Document** → `@doc` when behavior changes
-7. **Cleanup** → `@hk` if needed
 
 Hooks enforce completion and stop gates. Your plan must satisfy the required roles before completion.
 
 Required role gates by workflow:
 - `feature` -> successful verification or `@t`, plus `@cr` and one of `@e|@a`
 - `bugfix` -> successful verification or `@t`, plus `@cr` and one of `@bug|@e|@dbg`
-- `refactor` -> successful verification or `@t`, plus `@cr` and one of `@a|@e|@hk`
+- `refactor` -> successful verification or `@t`, plus `@cr` and one of `@a|@e`
 - `review` -> `@cr`
 - `docs` -> `@doc`
 

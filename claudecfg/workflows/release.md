@@ -26,10 +26,5 @@ Use this file only as a manual reminder outside the mandatory SDLC path.
 @tester ensure all tests pass
 ```
 
-### 4. Cleanup
-```
-@housekeeper pre-release cleanup
-```
-
 ## Command
 No automated release command in this profile.

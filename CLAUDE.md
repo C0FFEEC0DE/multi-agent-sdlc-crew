@@ -15,7 +15,7 @@ This profile is hook-gated:
 - subagent handoffs must include exact handoff-footer lines for `Outcome:`, `Changed files:` or `No files changed:`, `Verification status:`, and one closure line: `Remaining risks:` or `Next step:`
 - feature work requires successful verification or `@t`, plus `@cr` and one of `@e|@a`
 - bugfix work requires successful verification or `@t`, plus `@cr` and one of `@bug|@e|@dbg`
-- refactor work requires successful verification or `@t`, plus `@cr` and one of `@a|@e|@hk`
+- refactor work requires successful verification or `@t`, plus `@cr` and one of `@a|@e`
 - review work requires `@cr`; docs work requires `@doc`
 - broad multi-file or workflow review should usually use `@e` before `@cr`, even though only `@cr` is hook-enforced
 - footer and stop-guard formatting are internal protocol details; agents should not expose prefix-matching or footer-repair chatter to the user
@@ -42,7 +42,6 @@ Commands `/debug`, `/test`, `/design`, `/refactor`, `/review` and the `/docs` sk
 - `@t` — Tester (design, run, and verify tests)
 - `@cr` — Code Reviewer (review)
 - `@doc` — Docwriter (documentation)
-- `@hk` — Veles/Housekeeper (cleanup)
 
 Subagent handoffs normalize aliases, names, and subagent-type fields from both snake_case and camelCase payloads before generic runtime types are considered.
 Transcript fallback also recognizes slash-skill loads and agent launch lines like `Code Reviewer(...)` when runtimes omit explicit `SubagentStart`.
@@ -68,7 +67,7 @@ Concurrent benchmark runs are limited by a **two-slot gate** (`scripts/wait-for-
 
 All benchmark workflows opt into **Node.js 24** via `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` to prepare for the September 2026 Node.js 20 runner deprecation.
 
-Agent-level regressions are covered by the smoke suite under `bench/tasks/subagents/smoke/` (9 tasks, one per agent). The repository validator enforces shared subagent footer markers inside benchmark tasks so prompt, benchmark, and hook contracts cannot silently drift apart.
+Agent-level regressions are covered by the smoke suite under `bench/tasks/subagents/smoke/` with focused canary tasks for each canonical specialist role plus extra workflow-shape coverage. The repository validator enforces shared subagent footer markers inside benchmark tasks so prompt, benchmark, and hook contracts cannot silently drift apart.
 
 OpenRouter-backed Claude Code is configured via repository secrets/variables. See `docs/benchmarking.md`.
 

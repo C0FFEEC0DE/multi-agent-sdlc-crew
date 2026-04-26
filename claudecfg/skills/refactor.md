@@ -1,7 +1,7 @@
 ---
 name: refactor
-description: Run the housekeeper in an isolated subagent for bounded refactors and cleanup with verification awareness.
-agent: Veles
+description: Run the architect in an isolated subagent for bounded refactor planning and structural cleanup guidance.
+agent: Architect
 context: fork
 disable-model-invocation: true
 allowed-tools:
@@ -21,7 +21,7 @@ paths:
 
 # /refactor
 
-Run refactoring session with the Veles agent.
+Run refactoring session with the Architect agent.
 
 ## When to use
 - Code duplication
@@ -43,12 +43,12 @@ Run refactoring session with the Veles agent.
 ```
 
 ## Agent
-Invokes @housekeeper (Veles) who will:
-1. Identify refactoring targets
-2. Propose cleanup and safety checkpoints
-3. Ensure verification still passes
-4. Leave code cleaner than found
-5. Report what was changed
+Invokes @architect who will:
+1. Identify the smallest defensible refactor target
+2. Propose the structural cleanup plan and safety checkpoints
+3. Call out behavior-preservation constraints and verification needs
+4. Hand back a concrete refactor direction that the main thread can implement safely
+5. Report the intended file-level impact
 
 ## Constraints
 - **Never ask the user for confirmation.** Proceed directly with bounded refactoring changes.

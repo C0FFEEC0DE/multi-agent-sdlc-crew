@@ -1,14 +1,14 @@
 {
-  "id": "subagent-housekeeper-refactor-lite",
+  "id": "subagent-architect-refactor-lite",
   "suite": "subagents_smoke",
-  "agent_alias": "hk",
+  "agent_alias": "a",
   "category": "refactor",
-  "related_agents": ["hk"],
+  "related_agents": ["a"],
   "fixture": "text-report",
   "review_required": false,
   "docs_required": false,
   "verification_required": true,
-  "prompt": "Use @hk to remove duplicated normalization logic in render_title() and render_subtitle() without changing behavior. Run pytest -q. Finish with required footer.",
+  "prompt": "Launch @architect/@a immediately and let that specialist scope the refactor before you touch the code. Do not refactor the code yourself before the handoff. Use @architect/@a to drive the smallest safe refactor that removes duplicated normalization logic in render_title() and render_subtitle() without changing behavior. Run pytest -q. Finish with required footer.",
   "success_criteria": [
     "Duplication reduced",
     "Behavior unchanged",
@@ -29,5 +29,5 @@
     "Verification status:",
     "Remaining risks:|Next step:"
   ],
-  "required_used_agents": ["hk"]
+  "required_used_agents": ["a"]
 }

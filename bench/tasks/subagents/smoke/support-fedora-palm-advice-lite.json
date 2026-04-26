@@ -1,0 +1,38 @@
+{
+  "id": "support-fedora-palm-advice-lite",
+  "suite": "subagents_smoke",
+  "agent_alias": "e",
+  "category": "support",
+  "related_agents": [
+    "e"
+  ],
+  "fixture": "python-math",
+  "review_required": false,
+  "docs_required": false,
+  "verification_required": false,
+  "prompt": "A user writes: \"ispravi bag: postavio sam pilot-link na Fedora i povezao Palm preko COM/USB, sta da radim; dmesg pokazuje ttyUSB0\". Treat this as troubleshooting only. Explain the next diagnostic steps, explicitly avoid repository edits, and make it clear no code change is needed. Finish with the required footer plus an `Outcome:` line and a `No files changed:` line.",
+  "success_criteria": [
+    "Support workflow stays advisory",
+    "Troubleshooting steps are provided",
+    "No code changes"
+  ],
+  "must_not": [
+    "Modify fixture files",
+    "Perform release or deploy work",
+    "Ask the user to choose an agent"
+  ],
+  "forbidden_transcript_patterns": [
+    "which agent would you prefer",
+    "which required agent",
+    "footer repair",
+    "shell guard"
+  ],
+  "required_transcript_patterns": [
+    "Outcome:",
+    "No files changed:",
+    "Verification status:",
+    "Review outcome:",
+    "Remaining risks:"
+  ],
+  "expect_changes": false
+}

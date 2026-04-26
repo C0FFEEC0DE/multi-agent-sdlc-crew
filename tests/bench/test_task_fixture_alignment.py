@@ -20,9 +20,9 @@ TASKS_DIR = REPO_ROOT / "bench" / "tasks"
 
 # Valid agent aliases from the profile
 VALID_AGENT_ALIASES = {
-    "m", "e", "a", "bug", "dbg", "t", "cr", "doc", "hk",
+    "m", "e", "a", "bug", "dbg", "t", "cr", "doc",
     "manager", "explorer", "architect", "bugbuster", "debugger",
-    "tester", "code-reviewer", "docwriter", "housekeeper", "veles",
+    "tester", "code-reviewer", "docwriter",
 }
 
 # Patterns indicating fixture already has content

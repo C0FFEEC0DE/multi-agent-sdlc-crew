@@ -230,7 +230,7 @@ declare -A COMMAND_TO_ALIAS=(
     [debug]="dbg"
     [design]="a"
     [test]="t"
-    [refactor]="hk"
+    [refactor]="a"
     [review]="cr"
     [docs]="doc"
 )
@@ -487,7 +487,7 @@ echo ""
 
 echo "--- Checking benchmark tasks ---"
 TASK_IDS=()
-EXPECTED_SUBAGENT_ALIASES=(m e a bug dbg t cr doc hk)
+EXPECTED_SUBAGENT_ALIASES=(m e a bug dbg t cr doc)
 SUBAGENT_SMOKE_ALIASES_SEEN=()
 SUBAGENT_REQUIRED_FOOTER_REGEXES=(
     "Outcome:"

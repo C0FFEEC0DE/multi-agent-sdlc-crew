@@ -11,6 +11,10 @@ allowed-tools:
   - Edit
   - Write
 paths:
+  - "**/*.py"
+  - "**/*.js"
+  - "**/*.ts"
+  - "**/*.sh"
   - "**/*.md"
   - "docs/**"
   - "README*"

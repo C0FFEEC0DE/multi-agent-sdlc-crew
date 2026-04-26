@@ -27,13 +27,18 @@ resolve_transcript_path() {
     printf "%s" "$path"
 }
 
-extract_last_assistant_message_from_transcript() {
+tail_jsonl_lines() {
     local transcript_path="$1"
+    local lines="${2:-200}"
 
     if [ -z "$transcript_path" ] || [ ! -f "$transcript_path" ]; then
         return 0
     fi
 
+    tail -n "$lines" "$transcript_path" 2>/dev/null || cat "$transcript_path"
+}
+
+extract_last_assistant_message_from_jsonl_stream() {
     jq -s -r '
         def flattened_text:
             if type == "array" then
@@ -53,12 +58,13 @@ extract_last_assistant_message_from_transcript() {
 
         def assistant_text:
             [
-                .last_assistant_message?,
-                .result?,
-                .message?.content? | flattened_text,
-                .content? | flattened_text,
-                .message?.text?,
-                .text?
+                (.last_assistant_message?),
+                (.assistant_message?),
+                (.result?),
+                ((.message?.content? // empty) | flattened_text),
+                ((.content? // empty) | flattened_text),
+                (.message?.text?),
+                (.text?)
             ]
             | map(select(type == "string" and (gsub("\\s+"; " ") | length) > 0))
             | .[0] // "";
@@ -74,7 +80,26 @@ extract_last_assistant_message_from_transcript() {
             | assistant_text
             | select(length > 0)
         ][0] // ""
-    ' "$transcript_path" 2>/dev/null || true
+    ' 2>/dev/null || true
+}
+
+extract_last_assistant_message_from_transcript() {
+    local transcript_path="$1"
+    local message=""
+
+    if [ -z "$transcript_path" ] || [ ! -f "$transcript_path" ]; then
+        return 0
+    fi
+
+    # The newest assistant entry is normally near the end of the JSONL transcript.
+    # Tail-first avoids slurping the entire file on every subagent/stop guard event.
+    message="$(tail_jsonl_lines "$transcript_path" 200 | extract_last_assistant_message_from_jsonl_stream)"
+    if [ -n "$message" ]; then
+        printf "%s" "$message"
+        return 0
+    fi
+
+    extract_last_assistant_message_from_jsonl_stream < "$transcript_path"
 }
 
 resolved_last_assistant_message() {
@@ -164,6 +189,8 @@ ensure_state() {
             stop_block_count: 0,
             stop_block_reason: "",
             stop_block_message: "",
+            stalled_by_policy: false,
+            policy_stall_reason: "",
             subagent_stop_block_count: 0,
             subagent_stop_block_reason: "",
             subagent_stop_block_message: "",
@@ -256,7 +283,9 @@ clear_loop_block() {
         --arg message_key "$message_key" \
         '.[$count_key] = 0
         | .[$reason_key] = ""
-        | .[$message_key] = ""' "$(state_file)" > "$tmp"
+        | .[$message_key] = ""
+        | .stalled_by_policy = false
+        | .policy_stall_reason = ""' "$(state_file)" > "$tmp"
     mv "$tmp" "$(state_file)"
 }
 
@@ -283,22 +312,62 @@ emit_loop_aware_block() {
     local prefix="$1"
     local reason="$2"
     local message="$3"
-    local count final_reason checklist_output
+    local count final_reason checklist_output hard_stop file tmp
 
     record_loop_block "$prefix" "$reason" "$message"
     count="$(loop_block_count "$prefix")"
     final_reason="$reason"
+    hard_stop="false"
     if [ "$count" -ge 3 ]; then
         final_reason="Repeated stop-block loop detected (${count}x): ${reason} Do not retry the same final response again; change the summary or perform the required action first."
+        hard_stop="true"
+    fi
+
+    if [ "$prefix" = "stop" ]; then
+        file="$(state_file)"
+        tmp="$(mktemp)"
+        jq \
+            --arg reason "$final_reason" \
+            --argjson hard_stop "$hard_stop" \
+            '.stalled_by_policy = $hard_stop
+            | .policy_stall_reason = (if $hard_stop then $reason else "" end)' "$file" > "$tmp"
+        mv "$tmp" "$file"
     fi
 
     checklist_output="$(build_block_checklist "$prefix" "$final_reason" "$message")"
 
-    jq -n --arg checklist "$checklist_output" --arg reason "$final_reason" '{
+    jq -n --arg checklist "$checklist_output" --arg reason "$final_reason" --argjson hard_stop "$hard_stop" '{
         decision: "block",
         reason: $reason,
-        errorDetails: $checklist
+        errorDetails: $checklist,
+        hardStop: $hard_stop
     }'
+}
+
+task_type_requires_implementation_summary() {
+    local task_type="${1:-}"
+
+    case "$task_type" in
+        feature|bugfix|refactor|review|docs)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+task_type_requires_specialist_handoffs() {
+    local task_type="${1:-}"
+
+    case "$task_type" in
+        feature|bugfix|refactor|review|docs)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
 }
 
 append_jsonl() {
@@ -510,9 +579,6 @@ canonicalize_subagent_label() {
         doc|docwriter|wiki-wiki|documentation-writer|docs-writer)
             printf "doc"
             ;;
-        hk|housekeeper|the-cleaner|cleaner)
-            printf "hk"
-            ;;
         m|manager|big-boss)
             printf "m"
             ;;
@@ -540,94 +606,63 @@ sorted_unique_lines() {
     awk 'NF { seen[$0] = 1 } END { for (line in seen) print line }' | sort
 }
 
-transcript_text_content() {
-    local transcript_path="$1"
-
-    if [ -z "$transcript_path" ] || [ ! -f "$transcript_path" ]; then
-        return 0
-    fi
-
-    jq -Rr 'fromjson? | .. | strings?' "$transcript_path" 2>/dev/null || true
-}
-
 transcript_indicates_backgrounded_agent() {
-    local transcript_path text
+    local transcript_path
 
     transcript_path="$(resolve_transcript_path)"
     if [ -z "$transcript_path" ] || [ ! -f "$transcript_path" ]; then
         return 1
     fi
 
-    text="$(transcript_text_content "$transcript_path" | tr '[:upper:]' '[:lower:]')"
-    grep -Fq 'backgrounded agent' <<<"$text"
+    if tail_jsonl_lines "$transcript_path" 400 | grep -Fiq 'backgrounded agent'; then
+        return 0
+    fi
+
+    grep -Fiq 'backgrounded agent' "$transcript_path"
 }
 
 infer_started_roles_from_transcript() {
-    local transcript_path text roles=""
+    local transcript_path matches match roles=""
 
     transcript_path="$(resolve_transcript_path)"
     if [ -z "$transcript_path" ] || [ ! -f "$transcript_path" ]; then
         return 0
     fi
 
-    text="$(transcript_text_content "$transcript_path" | tr '[:upper:]' '[:lower:]')"
-    [ -z "$text" ] && return 0
+    matches="$(
+        grep -Eio 'skill\(/manager\)|skill\(/review\)|skill\(/test\)|skill\(/explore\)|skill\(/design\)|skill\(/bug\)|skill\(/debug\)|skill\(/docs\)|skill\(/refactor\)|manager\(|code reviewer\(|tester\(|explorer\(|architect\(|bugbuster\(|debugger\(|docwriter\(' "$transcript_path" \
+            || true
+    )"
+    [ -z "$matches" ] && return 0
 
-    if grep -Fq 'skill(/manager)' <<<"$text"; then
-        roles="${roles}"$'\n''m'
-    fi
-    if grep -Fq 'skill(/review)' <<<"$text"; then
-        roles="${roles}"$'\n''cr'
-    fi
-    if grep -Fq 'skill(/test)' <<<"$text"; then
-        roles="${roles}"$'\n''t'
-    fi
-    if grep -Fq 'skill(/explore)' <<<"$text"; then
-        roles="${roles}"$'\n''e'
-    fi
-    if grep -Fq 'skill(/design)' <<<"$text"; then
-        roles="${roles}"$'\n''a'
-    fi
-    if grep -Fq 'skill(/bug)' <<<"$text"; then
-        roles="${roles}"$'\n''bug'
-    fi
-    if grep -Fq 'skill(/debug)' <<<"$text"; then
-        roles="${roles}"$'\n''dbg'
-    fi
-    if grep -Fq 'skill(/docs)' <<<"$text"; then
-        roles="${roles}"$'\n''doc'
-    fi
-    if grep -Fq 'skill(/refactor)' <<<"$text"; then
-        roles="${roles}"$'\n''hk'
-    fi
-
-    if grep -Eq '(^|[[:space:]])manager\(' <<<"$text"; then
-        roles="${roles}"$'\n''m'
-    fi
-    if grep -Eq '(^|[[:space:]])code reviewer\(' <<<"$text"; then
-        roles="${roles}"$'\n''cr'
-    fi
-    if grep -Eq '(^|[[:space:]])tester\(' <<<"$text"; then
-        roles="${roles}"$'\n''t'
-    fi
-    if grep -Eq '(^|[[:space:]])explorer\(' <<<"$text"; then
-        roles="${roles}"$'\n''e'
-    fi
-    if grep -Eq '(^|[[:space:]])architect\(' <<<"$text"; then
-        roles="${roles}"$'\n''a'
-    fi
-    if grep -Eq '(^|[[:space:]])bugbuster\(' <<<"$text"; then
-        roles="${roles}"$'\n''bug'
-    fi
-    if grep -Eq '(^|[[:space:]])debugger\(' <<<"$text"; then
-        roles="${roles}"$'\n''dbg'
-    fi
-    if grep -Eq '(^|[[:space:]])docwriter\(' <<<"$text"; then
-        roles="${roles}"$'\n''doc'
-    fi
-    if grep -Eq '(^|[[:space:]])(housekeeper|veles)\(' <<<"$text"; then
-        roles="${roles}"$'\n''hk'
-    fi
+    while IFS= read -r match; do
+        case "$(printf "%s" "$match" | tr '[:upper:]' '[:lower:]')" in
+            skill\(/manager\)|manager\()
+                roles="${roles}"$'\n''m'
+                ;;
+            skill\(/review\)|code\ reviewer\()
+                roles="${roles}"$'\n''cr'
+                ;;
+            skill\(/test\)|tester\()
+                roles="${roles}"$'\n''t'
+                ;;
+            skill\(/explore\)|explorer\()
+                roles="${roles}"$'\n''e'
+                ;;
+            skill\(/design\)|skill\(/refactor\)|architect\()
+                roles="${roles}"$'\n''a'
+                ;;
+            skill\(/bug\)|bugbuster\()
+                roles="${roles}"$'\n''bug'
+                ;;
+            skill\(/debug\)|debugger\()
+                roles="${roles}"$'\n''dbg'
+                ;;
+            skill\(/docs\)|docwriter\()
+                roles="${roles}"$'\n''doc'
+                ;;
+        esac
+    done <<<"$matches"
 
     printf "%s\n" "$roles" | sorted_unique_lines
 }
@@ -921,7 +956,7 @@ block_checklist_summary_requirements() {
     printf "### Requirement Checklist\n\n"
 
     if [ "$prefix" = "stop" ]; then
-        if [ "$code_changed" != "true" ] || [ "$task_type" = "other" ]; then
+        if [ "$code_changed" != "true" ] || ! task_type_requires_implementation_summary "$task_type"; then
             checklist_status_line "SKIP" "Implementation summary lines" "Not required for this stop event."
             return 0
         fi
@@ -1015,21 +1050,17 @@ block_checklist_gate_requirements() {
         checklist_status_line "SKIP" "Verification gate" "No code/config changes recorded."
     fi
 
-    case "$task_type" in
-        feature|bugfix|refactor|review|docs)
-            handoff_reason="$(session_agent_enforcement_reason || true)"
-            if [ -n "$handoff_reason" ]; then
-                checklist_status_line "FAIL" "Required specialist handoffs" "$handoff_reason"
-            else
-                checklist_status_line "PASS" "Required specialist handoffs" "All required roles for this workflow are satisfied."
-            fi
-            ;;
-        *)
-            checklist_status_line "SKIP" "Required specialist handoffs" "No workflow-specific handoff requirement for this task type."
-            ;;
-    esac
+    if task_type_requires_specialist_handoffs "$task_type"; then
+        handoff_reason="$(session_agent_enforcement_reason || true)"
+        if [ -n "$handoff_reason" ]; then
+            checklist_status_line "FAIL" "Required specialist handoffs" "$handoff_reason"
+        else
+            checklist_status_line "PASS" "Required specialist handoffs" "All required roles for this workflow are satisfied."
+        fi
+    else
+        checklist_status_line "SKIP" "Required specialist handoffs" "No workflow-specific handoff requirement for this task type."
+    fi
 }
-
 block_checklist_fix_template() {
     local prefix="$1"
 

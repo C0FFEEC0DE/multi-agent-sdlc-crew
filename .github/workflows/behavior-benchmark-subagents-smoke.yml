@@ -236,10 +236,9 @@ jobs:
           model="${VAR_BENCHMARK_MODEL:-${VAR_OLLAMA_MODEL:-}}"
           timeout_seconds="${INPUT_TIMEOUT_SECONDS:-${VAR_BENCHMARK_TIMEOUT_SECONDS:-400}}"
           max_output_tokens="${INPUT_MAX_OUTPUT_TOKENS:-${VAR_BENCHMARK_MAX_OUTPUT_TOKENS:-768}}"
-          fail_fast="1"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${INPUT_SELECTION_MODE:-all}" = "resume" ]; then
-            fail_fast="0"
-          fi
+          # The aggregate smoke gate requires full task coverage, so PR and resume
+          # runs must continue through the selected shard list even after a failure.
+          fail_fast="0"
 
           if [ -z "$model" ]; then
             echo "OLLAMA_MODEL GitHub Actions variable is required" >&2

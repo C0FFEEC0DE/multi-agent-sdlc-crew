@@ -28,14 +28,14 @@ if grep -Eiq '(plan only|only plan|plan-only|только план|только 
 fi
 
 override_task_type="$(
-    grep -Eo 'workflow override: treat this as a (feature|bugfix|refactor|review|docs) workflow' <<<"$prompt" \
+    grep -Eo 'workflow override: treat this as a (feature|bugfix|refactor|review|docs|support|other) workflow' <<<"$prompt" \
         | sed -E 's/.* a ([a-z]+) workflow/\1/' \
         | head -n1 || true
 )"
 
 if [ -z "$override_task_type" ]; then
     override_task_type="$(
-        grep -Eo 'workflow_category:[[:space:]]*(feature|bugfix|refactor|review|docs)' <<<"$prompt" \
+        grep -Eo 'workflow_category:[[:space:]]*(feature|bugfix|refactor|review|docs|support|other)' <<<"$prompt" \
             | sed -E 's/.*workflow_category:[[:space:]]*([a-z]+)/\1/' \
             | head -n1 || true
     )"
@@ -63,6 +63,22 @@ elif grep -Eiq '(feature|implement|add support|integrat|new capability|фич|д
     task_type="feature"
 fi
 
+if [ -z "$override_task_type" ] && [ "$informational_model_query" != "true" ] && [ "$task_type" != "other" ]; then
+    has_code_signals="false"
+    if grep -Eiq '(\.py\b|\.js\b|\.ts\b|\.tsx\b|\.jsx\b|\.rs\b|\.go\b|\.java\b|\.kt\b|\.c\b|\.cc\b|\.cpp\b|\.h\b|\.hpp\b|package\.json\b|pyproject\.toml\b|cargo\.toml\b|go\.mod\b|pom\.xml\b|build\.gradle\b|cmakelists\.txt\b|makefile\b|dockerfile\b|src/|tests?/|pytest\b|jest\b|vitest\b|npm\b|yarn\b|pnpm\b|pip\b|venv\b|ci\b|github actions\b|pull request\b|commit\b|branch\b|diff\b|patch\b|код\b|файл\b|репозитор|проект\b)' <<<"$prompt"; then
+        has_code_signals="true"
+    fi
+
+    has_tech_support_signals="false"
+    if grep -Eiq '(fedora|ubuntu|debian|arch linux|kernel|ядро|dmesg|lsusb|udev|systemctl|modemmanager|ttyusb|ttys|/dev/tty|dialout|uucp|com[- ]?port|rs[- ]?232|serial|usb[- ]?to[- ]?serial|driver|драйвер|pilot[- ]?link|hotsync|palm\b|palmos|кредл|док[- ]?станц)' <<<"$prompt"; then
+        has_tech_support_signals="true"
+    fi
+
+    if [ "$has_tech_support_signals" = "true" ] && [ "$has_code_signals" != "true" ]; then
+        task_type="support"
+    fi
+fi
+
 if [ "$manager_mode" = "plan_only" ]; then
     required_subagents='[]'
     required_subagent_any_of='[]'
@@ -86,7 +102,7 @@ case "$task_type" in
     refactor)
         if [ "$manager_mode" != "plan_only" ]; then
             required_subagents="$(jq -cn --argjson existing "$required_subagents" '$existing + ["t","cr"] | unique')"
-            required_subagent_any_of='[["a","e","hk"]]'
+            required_subagent_any_of='[["a","e"]]'
         fi
         context_message="Treat this as a refactor workflow."
         ;;
@@ -101,6 +117,9 @@ case "$task_type" in
             required_subagents="$(jq -cn --argjson existing "$required_subagents" '$existing + ["doc"] | unique')"
         fi
         context_message="Treat this as a docs workflow."
+        ;;
+    support)
+        context_message="Treat this as a support workflow."
         ;;
 esac
 
@@ -126,11 +145,11 @@ if [ -n "$context_message" ]; then
             ;;
         refactor)
             if [ "$manager_mode" = "orchestrate" ]; then
-                context_message="${context_message} Manager-led orchestration is active. Required before completion: successful verification or @t, plus @cr and one of @a/@e/@hk. Start the first required specialist handoff early instead of spending multiple turns in manager-only exploration. Keep scope to structure and maintainability, preserve behavior, run verification after changes, and decide whether docs need updates.${stop_safe_hint}"
+                context_message="${context_message} Manager-led orchestration is active. Required before completion: successful verification or @t, plus @cr and one of @a/@e. Start the first required specialist handoff early instead of spending multiple turns in manager-only exploration. Keep scope to structure and maintainability, preserve behavior, run verification after changes, and decide whether docs need updates.${stop_safe_hint}"
             elif [ "$manager_mode" = "plan_only" ]; then
                 context_message="${context_message} Plan-only manager mode is active. Return a concrete refactor plan without continuing implementation or specialist handoffs in this session."
             else
-                context_message="${context_message} Required before completion: successful verification or @t, plus @cr and one of @a/@e/@hk. Keep scope to structure and maintainability, preserve behavior, run verification after changes, and summarize risks plus changed files before stopping.${stop_safe_hint}"
+                context_message="${context_message} Required before completion: successful verification or @t, plus @cr and one of @a/@e. Keep scope to structure and maintainability, preserve behavior, run verification after changes, and summarize risks plus changed files before stopping.${stop_safe_hint}"
             fi
             ;;
         review)
@@ -149,6 +168,13 @@ if [ -n "$context_message" ]; then
                 context_message="${context_message} Plan-only manager mode is active. Return the docs plan without continuing specialist handoffs in this session."
             else
                 context_message="${context_message} Required subagent handoff before completion: @doc. Keep documentation accurate to current behavior, include examples when they materially help, and note any remaining drift or missing verification.${stop_safe_hint}"
+            fi
+            ;;
+        support)
+            if [ "$manager_mode" = "plan_only" ]; then
+                context_message="${context_message} Plan-only manager mode is active. Return the diagnostic plan without implementation or specialist handoffs in this session."
+            else
+                context_message="${context_message} Keep this in advisory or troubleshooting mode unless the user explicitly requests repository changes. No workflow-specific specialist handoffs are required before completion."
             fi
             ;;
     esac

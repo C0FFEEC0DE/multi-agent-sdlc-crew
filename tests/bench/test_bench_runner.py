@@ -118,7 +118,56 @@ def test_verification_status_and_footer_use_dynamic_label(tmp_path, monkeypatch)
     assert line == "Verification status: passed - npm test completed successfully."
     assert footer[0] == line
     assert footer[1] == "Review outcome: done - explicit review summary is present."
-    assert footer[2] == "Remaining risks: the model omitted explicit remaining-risk and review summaries."
+
+
+def test_payload_bool_reads_hard_stop_flag(tmp_path, monkeypatch):
+    runner = load_runner_module(tmp_path, monkeypatch)
+
+    assert runner.payload_bool({"hardStop": True}, "hardStop") is True
+    assert runner.payload_bool({"hardStop": False}, "hardStop") is False
+    assert runner.payload_bool({"hardStop": "true"}, "hardStop") is False
+    assert runner.payload_bool(None, "hardStop") is False
+
+
+def test_build_task_summary_includes_hard_stop_flag(tmp_path, monkeypatch):
+    runner = load_runner_module(tmp_path, monkeypatch)
+    task = {
+        "id": "support-hard-stop-check",
+        "category": "support",
+        "review_required": False,
+        "docs_required": False,
+        "verification_required": False,
+    }
+
+    summary = runner.build_task_summary(
+        task=task,
+        prompt="diagnose stop-loop behavior",
+        status="failed",
+        exit_code=1,
+        changed_files=[],
+        failures=["hard_stop_triggered"],
+        raw_json="{}",
+        payload={"hardStop": True, "stop_reason": "Repeated stop-block loop detected"},
+        payload_subtype="",
+        payload_stop_reason="Repeated stop-block loop detected",
+        payload_hard_stop=True,
+        permission_denials=[],
+        result_text="Verification status: not required - support only.",
+        verification_output="",
+        stderr_text="",
+        debug_log_text="",
+        patch_text="",
+        transcript_scanned=True,
+        transcript_pattern_hits=[],
+        required_transcript_scanned=True,
+        required_transcript_misses=[],
+        used_agent_aliases=[],
+        required_used_agent_misses=[],
+        required_used_agent_group_misses=[],
+    )
+
+    assert "Claude hard stop: true" in summary
+    assert "Failures: hard_stop_triggered" in summary
 
 
 def test_build_prompt_mentions_fixture_specific_verification_command(tmp_path, monkeypatch):
@@ -162,6 +211,9 @@ def test_build_prompt_includes_required_agent_and_transcript_contract(tmp_path, 
     prompt = runner.build_prompt(task, "pytest -q")
 
     assert "Start with an actual handoff to: @bug" in prompt
+    assert "This task has a single required specialist. Launch @bug first and let that specialist own the core task." in prompt
+    assert "Do not make the substantive edit or analysis yourself before @bug is launched" in prompt
+    assert "Prefer direct alias handoffs like @doc, @a, or @cr instead of slash skills" in prompt
     assert "Findings: or Investigation:" in prompt
     assert "Changed files: or No files changed:" in prompt
 
@@ -418,6 +470,34 @@ def test_synthesize_required_transcript_lines_supports_standalone_next_step(tmp_
     assert "Next step: carry the verified handoff forward to the next required specialist." in lines
 
 
+def test_synthesize_required_transcript_lines_supports_exact_no_files_changed_pattern(tmp_path, monkeypatch):
+    runner = load_runner_module(tmp_path, monkeypatch)
+
+    lines = runner.synthesize_required_transcript_lines(
+        {
+            "id": "support-fedora-palm-advice-lite",
+            "agent_alias": "e",
+            "required_transcript_patterns": [
+                "Outcome:",
+                "No files changed:",
+                "Verification status:",
+                "Review outcome:",
+                "Remaining risks:",
+            ],
+        },
+        changed_files=[],
+        verification_required=False,
+        tests_run=False,
+        tests_passed=False,
+        verification_label="verification",
+        review_required=False,
+        review_present=True,
+    )
+
+    assert "No files changed: benchmark task completed without workspace edits." in lines
+    assert any(line.startswith("Outcome:") for line in lines)
+
+
 def test_extract_used_agent_aliases_counts_action_phrases_in_final_result_text(tmp_path, monkeypatch):
     runner = load_runner_module(tmp_path, monkeypatch)
 
@@ -663,7 +743,7 @@ def test_required_used_agent_misses_report_missing_roles(tmp_path, monkeypatch):
 
 def test_required_used_agent_groups_accept_any_alias_in_group(tmp_path, monkeypatch):
     runner = load_runner_module(tmp_path, monkeypatch)
-    task = {"required_used_agent_groups": [["e", "a", "t"], ["doc", "hk"]]}
+    task = {"required_used_agent_groups": [["e", "a", "t"], ["doc", "cr"]]}
 
     assert runner.required_used_agent_group_misses(task, ["a", "doc"]) == []
 

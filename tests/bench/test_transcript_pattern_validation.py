@@ -37,8 +37,6 @@ class TestCanonicalizeSubagentLabel:
         assert canonicalize_subagent_label("bug") == "bug"
         assert canonicalize_subagent_label("debugger") == "dbg"
         assert canonicalize_subagent_label("dbg") == "dbg"
-        assert canonicalize_subagent_label("housekeeper") == "hk"
-        assert canonicalize_subagent_label("hk") == "hk"
         assert canonicalize_subagent_label("manager") == "m"
         assert canonicalize_subagent_label("m") == "m"
         assert canonicalize_subagent_label("docwriter") == "doc"

@@ -57,10 +57,6 @@ EXTRA_AGENT_LABELS = {
     "documentation-writer": "doc",
     "docs-writer": "doc",
     "docs": "doc",
-    "hk": "hk",
-    "housekeeper": "hk",
-    "the-cleaner": "hk",
-    "cleaner": "hk",
     "m": "m",
     "manager": "m",
     "big-boss": "m",
@@ -232,6 +228,7 @@ def build_prompt(task: dict, verification_label: str) -> str:
     if required_used_agents:
         completion_discipline_note = ""
         sequence_note = ""
+        ownership_note = ""
         if len(required_used_agent_list) > 1:
             ordered = " -> ".join(f"@{alias}" for alias in required_used_agent_list)
             sequence_note = f"""
@@ -246,12 +243,20 @@ def build_prompt(task: dict, verification_label: str) -> str:
 - If @cr is the final required role, reserve time for it: once verification and docs are ready, launch @cr immediately.
 - Keep the @cr review terse and findings-only so the required review handoff lands before timeout.
 - Do not spend the final turns polishing prose or making optional edits before the required @cr handoff."""
+        if len(required_used_agent_list) == 1:
+            required_alias = f"@{required_used_agent_list[0]}"
+            ownership_note = f"""
+- This task has a single required specialist. Launch {required_alias} first and let that specialist own the core task.
+- Do not make the substantive edit or analysis yourself before {required_alias} is launched; that still fails the run even if tests pass."""
         required_used_agent_note = f"""
 
 Required specialist handoff:
 - This run is scored on a real specialist launch, not a prose mention.
 - Start with an actual handoff to: {required_used_agents}
-- Make that handoff before doing the substantive work yourself.{sequence_note}{completion_discipline_note}"""
+- Make that handoff before doing the substantive work yourself.{sequence_note}{ownership_note}{completion_discipline_note}"""
+        required_used_agent_note += """
+- Prefer direct alias handoffs like @doc, @a, or @cr instead of slash skills such as /docs, /design, or /review unless the task explicitly asks for the slash command.
+- Do not burn turns probing avoidable skill path/tool restrictions before the required alias handoff lands."""
     transcript_contract_note = ""
     if required_transcript_hints:
         transcript_contract_note = """
@@ -1015,6 +1020,12 @@ def payload_string(payload: dict | None, key: str) -> str:
     return value if isinstance(value, str) else str(value or "")
 
 
+def payload_bool(payload: dict | None, key: str) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    return payload.get(key) is True
+
+
 def payload_permission_denials(payload: dict | None) -> list[dict]:
     if not isinstance(payload, dict):
         return []
@@ -1187,7 +1198,7 @@ def infer_used_agent_aliases_from_transcript(payload: dict | None) -> list[str]:
         ("bug", r"skill\(/bug\)"),
         ("dbg", r"skill\(/debug\)"),
         ("doc", r"skill\(/docs\)"),
-        ("hk", r"skill\(/refactor\)"),
+        ("a", r"skill\(/refactor\)"),
         ("m", r"(^|[\s])manager\("),
         ("cr", r"(^|[\s])code reviewer\("),
         ("t", r"(^|[\s])tester\("),
@@ -1196,7 +1207,6 @@ def infer_used_agent_aliases_from_transcript(payload: dict | None) -> list[str]:
         ("bug", r"(^|[\s])bugbuster\("),
         ("dbg", r"(^|[\s])debugger\("),
         ("doc", r"(^|[\s])docwriter\("),
-        ("hk", r"(^|[\s])(housekeeper|veles)\("),
     )
 
     aliases: list[str] = []
@@ -1322,8 +1332,6 @@ def synthesized_outcome_line(task: dict, changed_files: list[str]) -> str:
         return "Outcome: mapped the requested code paths and recorded the relevant locations."
     if alias == "t":
         return "Outcome: verified the scoped behavior and captured the remaining gaps."
-    if alias == "hk":
-        return "Outcome: completed the bounded cleanup while preserving behavior."
     return "Outcome: completed the scoped benchmark task."
 
 
@@ -1399,6 +1407,10 @@ def synthesize_required_transcript_lines(
         elif "Outcome:|Fix:" in pattern or pattern.strip() == "Outcome:":
             lines.append(synthesized_outcome_line(task, changed_files))
         elif "Changed files:|No files changed:" in pattern:
+            lines.append(changed_files_line(changed_files))
+        elif pattern.strip() == "Changed files:" and changed_files:
+            lines.append(changed_files_line(changed_files))
+        elif pattern.strip() == "No files changed:" and not changed_files:
             lines.append(changed_files_line(changed_files))
         elif "Verification status:" in pattern:
             lines.append(verification_status_line(verification_required, tests_run, tests_passed, verification_label))
@@ -1499,6 +1511,7 @@ def build_task_summary(
     payload: dict | None,
     payload_subtype: str,
     payload_stop_reason: str,
+    payload_hard_stop: bool,
     permission_denials: list[dict],
     result_text: str,
     verification_output: str,
@@ -1526,6 +1539,7 @@ def build_task_summary(
         f"Claude payload keys: {payload_keys(payload)}",
         f"Claude subtype: {payload_subtype or '<missing>'}",
         f"Claude stop reason: {payload_stop_reason or '<missing>'}",
+        f"Claude hard stop: {'true' if payload_hard_stop else 'false'}",
         f"Permission denials: {len(permission_denials)}",
         f"First permission denial: {first_permission_denial_summary(permission_denials)}",
         f"Transcript scanned: {transcript_scanned}",
@@ -1681,6 +1695,7 @@ def main() -> int:
     )
     payload_subtype = payload_string(payload, "subtype")
     payload_stop_reason = payload_string(payload, "stop_reason")
+    payload_hard_stop = payload_bool(payload, "hardStop")
     permission_denials = payload_permission_denials(payload)
     if raw_stderr.strip():
         write_text(OUTPUT_DIR / "claude-stderr-tail.txt", "\n".join(raw_stderr.splitlines()[-200:]) + "\n")
@@ -1899,6 +1914,8 @@ def main() -> int:
         failures.append("required_used_agents_missing")
     if missing_required_used_agent_groups:
         failures.append("required_used_agent_groups_missing")
+    if payload_hard_stop:
+        failures.append("hard_stop_triggered")
 
     if failures:
         status = "failed"
@@ -1917,6 +1934,7 @@ def main() -> int:
         f"Verification command: {verification_label}. "
         f"Timeout recovered: {timeout_recovered}. "
         f"Max-turns recovered: {max_turns_recovered}. "
+        f"Claude hard stop: {payload_hard_stop}. "
         f"Transcript scanned: {transcript_scanned}. "
         f"Forbidden transcript hits: {'; '.join(transcript_pattern_hits) if transcript_pattern_hits else 'none'}. "
         f"Required assistant transcript scanned: {required_transcript_scanned}. "
@@ -1953,6 +1971,7 @@ def main() -> int:
         "claude_exit_code": exit_code,
         "claude_subtype": payload_subtype,
         "claude_stop_reason": payload_stop_reason,
+        "claude_hard_stop": payload_hard_stop,
         "timeout_recovered": timeout_recovered,
         "max_turns_recovered": max_turns_recovered,
         "recovered_nonzero_exit": recovered_nonzero_exit,
@@ -1986,6 +2005,7 @@ def main() -> int:
             payload=payload,
             payload_subtype=payload_subtype,
             payload_stop_reason=payload_stop_reason,
+            payload_hard_stop=payload_hard_stop,
             permission_denials=permission_denials,
             result_text=result_text,
             verification_output=verification_output,

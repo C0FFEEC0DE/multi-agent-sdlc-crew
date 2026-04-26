@@ -42,7 +42,7 @@ The hooks enforce the actual handoff and stop gates; the commands below are the 
 - `/debug` — debugging session
 - `/test` — testing session (invokes @tester)
 - `/design` — design session (invokes @architect)
-- `/refactor` — refactoring session (invokes @housekeeper, Veles)
+- `/refactor` — refactoring session (invokes @architect)
 - `/review` — code review (invokes @code-reviewer)
 - `/docs` — documentation session (invokes @docwriter)
 
@@ -58,8 +58,6 @@ The hooks enforce the actual handoff and stop gates; the commands below are the 
 | `@bug` | Bugbuster | Bug hunting |
 | `@dbg` | Debugger | Debugging issues |
 | `@doc` | Docwriter | Documentation |
-| `@hk` | Veles | Cleanup + bounded refactor hygiene |
-
 Also works: `@manager`, `@code-reviewer`, etc.
 
 ### Slash command examples
@@ -104,15 +102,15 @@ Main checkpoints:
 - `Notification` — log runtime notifications for observability
 - `SessionEnd` — log transcript path and session metadata for later indexing
 
-`Stop` is shell-enforced by `hooks/stop-guard.sh`, and `SubagentStop` is shell-enforced by `hooks/subagent-stop-guard.sh`. After code or config changes, the final assistant summary must include explicit summary lines for verification status, review outcome or pending review, changed files or `no files changed`, and remaining risks or `none`. If the repo exposes no detectable `test`, `lint`, or `build` command, the stop guard allows completion without deadlock, but the summary must explicitly say verification was not run and why. Feature, bugfix, refactor, review, and docs workflows also require role-specific specialist handoffs before completion, tracked in shared session state with alias normalization such as `@code-reviewer -> cr`. Manager-led orchestration itself is tracked separately through `manager_mode=orchestrate`, so top-level `@m` use is not treated as a required specialist handoff. For feature, bugfix, and refactor work, a recorded successful test command satisfies the tester side of that gate; otherwise `@t` is still required. `SubagentStart` normalization also accepts alias/name/subagent-type fields in both snake_case and camelCase before falling back to generic runtime types. When a runtime loads slash skills like `/review` without emitting `SubagentStart`, or records specialist launches only as transcript lines like `Code Reviewer(...)`, the hooks fall back to transcript evidence so those handoffs still satisfy review/docs/test specialist gates. When a runtime backgrounds a live manager-led workflow before any code/config changes, `Stop` defers the specialist-role gate for that turn instead of treating the background handoff as a failed final response. `TeammateIdle` additionally blocks manager-led workflows that have not yet handed off to any specialist.
-General informational questions are not implementation workflows by themselves. Mentions of models, Ollama, or OpenRouter should stay `other` unless the prompt also asks for a repository change such as implementing, integrating, adding support, or changing configuration.
+`Stop` is shell-enforced by `hooks/stop-guard.sh`, and `SubagentStop` is shell-enforced by `hooks/subagent-stop-guard.sh`. After code or config changes, the final assistant summary must include explicit summary lines for verification status, review outcome or pending review, changed files or `no files changed`, and remaining risks or `none` only for implementation workflows. If the repo exposes no detectable `test`, `lint`, or `build` command, the stop guard allows completion without deadlock, but the summary must explicitly say verification was not run and why. Feature, bugfix, refactor, review, and docs workflows also require role-specific specialist handoffs before completion, tracked in shared session state with alias normalization such as `@code-reviewer -> cr`. Manager-led orchestration itself is tracked separately through `manager_mode=orchestrate`, so top-level `@m` use is not treated as a required specialist handoff. For feature, bugfix, and refactor work, a recorded successful test command satisfies the tester side of that gate; otherwise `@t` is still required. `SubagentStart` normalization also accepts alias/name/subagent-type fields in both snake_case and camelCase before falling back to generic runtime types. When a runtime loads slash skills like `/review` without emitting `SubagentStart`, or records specialist launches only as transcript lines like `Code Reviewer(...)`, the hooks fall back to transcript evidence so those handoffs still satisfy review/docs/test specialist gates. When a runtime backgrounds a live manager-led workflow before any code/config changes, `Stop` defers the specialist-role gate for that turn instead of treating the background handoff as a failed final response. After three identical `Stop` blocks, the hook also marks the session as policy-stalled and returns a hard-stop hint so the runtime can stop retrying the same summary. `TeammateIdle` additionally blocks manager-led workflows that have not yet handed off to any specialist.
+General informational questions are not implementation workflows by themselves. Mentions of models, Ollama, or OpenRouter should stay `other` unless the prompt also asks for a repository change such as implementing, integrating, adding support, or changing configuration. OS, device, and troubleshooting prompts without repository-change signals are classified as `support`, which keeps them in advisory mode without specialist handoff gates.
 
 If a later reply in the same session makes no additional changes after earlier code or config edits, keep reporting the actual verification, review status, changed files, and remaining risks instead of switching to a no-change footer.
 
 Required handoffs:
 - `feature` -> successful verification or `@t`, plus `@cr` and one of `@e|@a`
 - `bugfix` -> successful verification or `@t`, plus `@cr` and one of `@bug|@e|@dbg`
-- `refactor` -> successful verification or `@t`, plus `@cr` and one of `@a|@e|@hk`
+- `refactor` -> successful verification or `@t`, plus `@cr` and one of `@a|@e`
 - `review` -> `@cr`
 - `docs` -> `@doc`
 
@@ -213,7 +211,7 @@ Benchmark support files:
 
 - `tests/hooks/` — hook fixtures and assertions
 - `bench/tasks/` — benchmark task definitions
-- `bench/tasks/subagents/smoke/` — one canary task per specialist agent (9 tasks total)
+- `bench/tasks/subagents/smoke/` — focused canary tasks for each canonical specialist role plus extra workflow-shape coverage
 - `bench/fixtures/` — benchmark fixture repositories
 - `docs/agent-contracts.md` — agent contract matrix and how the hook/benchmark layers fit together
 - `docs/benchmarking.md` — runner contract and GitHub setup

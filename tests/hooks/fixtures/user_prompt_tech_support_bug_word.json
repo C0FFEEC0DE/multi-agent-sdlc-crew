@@ -1,0 +1,4 @@
+{
+  "session_id": "case-tech-support-bug-word",
+  "prompt": "исправь баг: поставил pilot-link на fedora и подключил palm к com/usb, что делать? dmesg lsusb /dev/ttyUSB0"
+}
