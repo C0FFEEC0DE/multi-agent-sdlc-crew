@@ -341,7 +341,10 @@ emit_loop_aware_block() {
         reason: $reason,
         errorDetails: $checklist,
         hardStop: $hard_stop
-    }'
+    } + if $hard_stop then {
+        continue: false,
+        stopReason: $reason
+    } else {} end'
 }
 
 task_type_requires_implementation_summary() {
@@ -744,10 +747,34 @@ detect_node_script() {
     return 1
 }
 
+detect_make_target() {
+    local target="$1"
+    local makefile=""
+
+    if [ -f Makefile ]; then
+        makefile="Makefile"
+    elif [ -f makefile ]; then
+        makefile="makefile"
+    else
+        return 1
+    fi
+
+    if grep -Eq "^${target}[[:space:]]*:" "$makefile"; then
+        printf "make %s" "$target"
+        return 0
+    fi
+
+    return 1
+}
+
 detect_test_cmd() {
     local cmd=""
 
     if cmd="$(detect_node_script test)"; then
+        printf "%s" "$cmd"
+        return 0
+    fi
+    if cmd="$(detect_make_target test)"; then
         printf "%s" "$cmd"
         return 0
     fi
@@ -771,6 +798,10 @@ detect_lint_cmd() {
     local cmd=""
 
     if cmd="$(detect_node_script lint)"; then
+        printf "%s" "$cmd"
+        return 0
+    fi
+    if cmd="$(detect_make_target lint)"; then
         printf "%s" "$cmd"
         return 0
     fi

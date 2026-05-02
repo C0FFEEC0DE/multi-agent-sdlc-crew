@@ -278,6 +278,14 @@
     "state_jq": ".task_type == \"bugfix\" and ((.required_subagents | sort) == [\"cr\", \"t\"]) and .required_subagent_any_of == [[\"bug\", \"e\", \"dbg\"]]"
   },
   {
+    "name": "user_prompt_submit_classifies_russian_bugfix",
+    "script": "claudecfg/hooks/user-prompt-submit.sh",
+    "stdin": "tests/hooks/fixtures/user_prompt_bugfix_ru.json",
+    "expect_exit": 0,
+    "stdout_jq": ".hookSpecificOutput.hookEventName == \"UserPromptSubmit\" and (.hookSpecificOutput.additionalContext | contains(\"successful verification or @t, plus @cr and one of @bug/@e/@dbg\"))",
+    "state_jq": ".task_type == \"bugfix\" and ((.required_subagents | sort) == [\"cr\", \"t\"]) and .required_subagent_any_of == [[\"bug\", \"e\", \"dbg\"]]"
+  },
+  {
     "name": "user_prompt_submit_classifies_refactor",
     "script": "claudecfg/hooks/user-prompt-submit.sh",
     "stdin": "tests/hooks/fixtures/user_prompt_refactor.json",
@@ -696,7 +704,7 @@
     "stdin": "tests/hooks/fixtures/stop_guard_missing_review.json",
     "seed_state": "tests/hooks/fixtures/state_stop_guard_repeated_review_block.json",
     "expect_exit": 0,
-    "stdout_jq": ".decision == \"block\" and .hardStop == true and (.reason | contains(\"Repeated stop-block loop detected\"))",
+    "stdout_jq": ".decision == \"block\" and .hardStop == true and .continue == false and (.stopReason | contains(\"Repeated stop-block loop detected\")) and (.reason | contains(\"Repeated stop-block loop detected\"))",
     "state_jq": ".stalled_by_policy == true and (.policy_stall_reason | contains(\"Repeated stop-block loop detected\"))"
   },
   {
@@ -742,6 +750,32 @@
       }
     ],
     "state_jq": ".detected_test_command == \"npm run test\" and .detected_lint_command == \"npm run lint\" and .detected_build_command == \"npm run build\""
+  },
+  {
+    "name": "session_start_prefers_make_targets_for_any_language_project",
+    "script": "claudecfg/hooks/session-start.sh",
+    "stdin": "tests/hooks/fixtures/session_start_node.json",
+    "cwd": "tests/hooks/projects/make-any-language",
+    "env": {
+      "CLAUDE_ENV_FILE": "__CASE_TMP__/claude.env"
+    },
+    "expect_exit": 0,
+    "stdout_jq": ".hookSpecificOutput.hookEventName == \"SessionStart\" and (.hookSpecificOutput.additionalContext | contains(\"test=make test\")) and (.hookSpecificOutput.additionalContext | contains(\"lint=make lint\")) and (.hookSpecificOutput.additionalContext | contains(\"build=make\"))",
+    "file_assertions": [
+      {
+        "path": "__CASE_TMP__/claude.env",
+        "regex": "PROJECT_TEST_CMD=\"make test\""
+      },
+      {
+        "path": "__CASE_TMP__/claude.env",
+        "regex": "PROJECT_LINT_CMD=\"make lint\""
+      },
+      {
+        "path": "__CASE_TMP__/claude.env",
+        "regex": "PROJECT_BUILD_CMD=\"make\""
+      }
+    ],
+    "state_jq": ".detected_test_command == \"make test\" and .detected_lint_command == \"make lint\" and .detected_build_command == \"make\""
   },
   {
     "name": "teammate_idle_blocks_after_failed_lint",
