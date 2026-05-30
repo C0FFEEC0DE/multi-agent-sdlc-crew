@@ -1,0 +1,6 @@
+{
+  "session_id": "case-pre-tool-rm-dot",
+  "tool_input": {
+    "command": "rm -rf ."
+  }
+}

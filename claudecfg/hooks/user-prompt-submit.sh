@@ -180,8 +180,7 @@ if [ -n "$context_message" ]; then
     esac
 fi
 
-tmp="$(mktemp)"
-jq \
+_atomic_state_update \
     --arg task_type "$task_type" \
     --arg manager_mode "$manager_mode" \
     --argjson required_subagents "$required_subagents" \
@@ -189,8 +188,7 @@ jq \
     '.task_type = $task_type
     | .manager_mode = $manager_mode
     | .required_subagents = $required_subagents
-    | .required_subagent_any_of = $required_subagent_any_of' "$(state_file)" > "$tmp"
-mv "$tmp" "$(state_file)"
+    | .required_subagent_any_of = $required_subagent_any_of'
 
 if [ -n "$context_message" ]; then
     emit_context "UserPromptSubmit" "$context_message"

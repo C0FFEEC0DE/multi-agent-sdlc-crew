@@ -1,0 +1,6 @@
+{
+  "session_id": "case-pre-tool-allow",
+  "tool_input": {
+    "command": "ls -la"
+  }
+}

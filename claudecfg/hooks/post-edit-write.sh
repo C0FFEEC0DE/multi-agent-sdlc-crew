@@ -17,8 +17,7 @@ if is_docs_path "$file_path"; then
     code_changed="false"
 fi
 
-tmp="$(mktemp)"
-jq \
+_atomic_state_update \
     --arg file_path "$file_path" \
     --argjson docs_changed "$docs_changed" \
     --argjson code_changed "$code_changed" \
@@ -27,8 +26,7 @@ jq \
     | .code_changed = (.code_changed or $code_changed)
     | .docs_changed = (.docs_changed or $docs_changed)
     | .files = ((.files + [$file_path]) | map(select(length > 0)) | unique)
-    ' "$(state_file)" > "$tmp"
-mv "$tmp" "$(state_file)"
+    '
 
 if [ "$code_changed" = "true" ]; then
     emit_context "PostToolUse" "Recorded a code/config change in session state. This session now requires verification before completion."

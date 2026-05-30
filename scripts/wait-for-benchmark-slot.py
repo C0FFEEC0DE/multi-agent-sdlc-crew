@@ -105,6 +105,17 @@ def current_run_has_slot(*, current_run_id: int, runs: Iterable[dict], max_activ
     return current_run_id in allowed_run_ids, allowed_run_ids
 
 
+def handle_transient_error(exc: Exception, attempt: int) -> bool:
+    """Log a transient error and optionally retry. Returns True if we should retry."""
+    max_retries = 5
+    if attempt >= max_retries:
+        return False
+    delay = min(2 ** attempt, 60)
+    print(f"Transient error: {exc}. Retry {attempt + 1}/{max_retries} after {delay}s.", file=sys.stderr)
+    time.sleep(delay)
+    return True
+
+
 def main() -> int:
     args = parse_args()
     token = os.environ.get("GITHUB_TOKEN", "")
@@ -116,6 +127,7 @@ def main() -> int:
         return 2
 
     deadline = time.monotonic() + args.timeout_seconds
+    transient_attempt = 0
     while True:
         try:
             active_runs = fetch_active_behavior_runs(
@@ -124,15 +136,23 @@ def main() -> int:
                 token=token,
                 head_sha=args.head_sha,
             )
+            transient_attempt = 0
         except urllib.error.HTTPError as exc:
             if is_github_rate_limit(exc):
                 result = handle_rate_limit(exc)
                 if result is not None:
                     return result
                 continue  # retry after sleeping
+            if exc.code in {500, 502, 503, 504}:
+                if handle_transient_error(exc, transient_attempt):
+                    transient_attempt += 1
+                    continue
             print(f"GitHub API request failed with HTTP {exc.code}", file=sys.stderr)
             return 1
         except urllib.error.URLError as exc:
+            if handle_transient_error(exc, transient_attempt):
+                transient_attempt += 1
+                continue
             print(f"GitHub API request failed: {exc}", file=sys.stderr)
             return 1
 

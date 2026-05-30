@@ -159,10 +159,6 @@ ensure_state() {
         --arg transcript_path "$(json_get '.transcript_path')" \
         --arg created_at "$(timestamp_utc)" \
         '{
-            session_id: $session_id,
-            cwd: $cwd,
-            transcript_path: $transcript_path,
-            created_at: $created_at,
             task_type: "other",
             manager_mode: "none",
             edited: false,
@@ -198,15 +194,20 @@ ensure_state() {
         }' > "$file"
 }
 
-update_state() {
-    local jq_program="$1"
+_atomic_state_update() {
     local file
-    local tmp
-
     file="$(state_file)"
-    tmp="$(mktemp)"
-    jq "$jq_program" "$file" > "$tmp"
-    mv "$tmp" "$file"
+    ensure_dirs
+    (
+        flock 200 || exit 1
+        tmp="$(mktemp)"
+        jq "$@" "$file" > "$tmp"
+        mv "$tmp" "$file"
+    ) 200>>"$file"
+}
+
+update_state() {
+    _atomic_state_update "$@"
 }
 
 record_loop_block() {
@@ -242,8 +243,7 @@ record_loop_block() {
         next_count=1
     fi
 
-    tmp="$(mktemp)"
-    jq \
+    _atomic_state_update \
         --arg count_key "$count_key" \
         --arg reason_key "$reason_key" \
         --arg message_key "$message_key" \
@@ -252,13 +252,12 @@ record_loop_block() {
         --argjson count "$next_count" \
         '.[$count_key] = $count
         | .[$reason_key] = $reason
-        | .[$message_key] = $message' "$file" > "$tmp"
-    mv "$tmp" "$file"
+        | .[$message_key] = $message'
 }
 
 clear_loop_block() {
     local prefix="$1"
-    local count_key reason_key message_key tmp
+    local count_key reason_key message_key
 
     case "$prefix" in
         stop)
@@ -276,8 +275,7 @@ clear_loop_block() {
             ;;
     esac
 
-    tmp="$(mktemp)"
-    jq \
+    _atomic_state_update \
         --arg count_key "$count_key" \
         --arg reason_key "$reason_key" \
         --arg message_key "$message_key" \
@@ -285,8 +283,7 @@ clear_loop_block() {
         | .[$reason_key] = ""
         | .[$message_key] = ""
         | .stalled_by_policy = false
-        | .policy_stall_reason = ""' "$(state_file)" > "$tmp"
-    mv "$tmp" "$(state_file)"
+        | .policy_stall_reason = ""'
 }
 
 loop_block_count() {
@@ -484,9 +481,14 @@ message_has_line_prefix() {
     local message="$1"
     local prefix="$2"
     local line=""
+    local lower_line=""
+    local lower_prefix=""
+
+    lower_prefix="${prefix,,}"
 
     while IFS= read -r line; do
-        if [[ "$line" == "$prefix"* ]]; then
+        lower_line="${line,,}"
+        if [[ "$lower_line" == "$lower_prefix"* ]]; then
             return 0
         fi
     done <<<"$message"
@@ -549,46 +551,31 @@ extract_subagent_scope() {
     ' <<<"$HOOK_INPUT" | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//'
 }
 
+ALIASES_JSON="${SCRIPT_DIR}/../agents/aliases.json"
+
 canonicalize_subagent_label() {
     local raw="$1"
-    local normalized
+    local normalized canonical
 
     normalized="$(printf "%s" "$raw" \
         | tr '[:upper:]' '[:lower:]' \
         | sed -E 's/^@//; s/[[:space:]_]+/-/g; s/[^a-z0-9.-]+/-/g; s/^-+//; s/-+$//; s/-+/-/g')"
 
-    case "$normalized" in
-        "")
-            printf ""
-            ;;
-        a|architect|the-architect)
-            printf "a"
-            ;;
-        e|explorer|nerd)
-            printf "e"
-            ;;
-        bug|bugbuster|bug-pattern-hunter|bug-pattern)
-            printf "bug"
-            ;;
-        dbg|debugger|debugging-specialist)
-            printf "dbg"
-            ;;
-        t|tester|paranoid)
-            printf "t"
-            ;;
-        cr|code-reviewer|code-review|reviewer|toxic-senior)
-            printf "cr"
-            ;;
-        doc|docwriter|wiki-wiki|documentation-writer|docs-writer)
-            printf "doc"
-            ;;
-        m|manager|big-boss)
-            printf "m"
-            ;;
-        *)
-            printf "%s" "$normalized"
-            ;;
-    esac
+    [ -z "$normalized" ] && { printf ""; return; }
+
+    if [ -f "$ALIASES_JSON" ]; then
+        canonical="$(jq -r --arg n "$normalized" '
+            to_entries[]
+            | select(any(.value[]; . == $n))
+            | .key
+        ' "$ALIASES_JSON" | head -n1)"
+        if [ -n "$canonical" ]; then
+            printf "%s" "$canonical"
+            return 0
+        fi
+    fi
+
+    printf "%s" "$normalized"
 }
 
 array_contains() {
@@ -851,7 +838,7 @@ command_class() {
         *"npm run lint"*|*"pnpm lint"*|*"yarn lint"*|*"ruff"*|*"flake8"*|*"cargo clippy"*|*"golangci-lint"*|*"eslint"*|*"shellcheck"*|*"python -m compileall "*|*"make lint"*)
             printf "lint"
             ;;
-        *"npm run build"*|*"pnpm build"*|*"yarn build"*|*"cargo build"*|*"go build"*|*"cmake --build"*|*"make"*)
+        *"make"$|*"make "*|*"make:"*)
             printf "build"
             ;;
         *)
@@ -963,6 +950,23 @@ message_mentions_next_step() {
 message_mentions_concrete_outcome() {
     local message="$1"
 
+    # Prefer exact line prefixes (footer contract)
+    if message_has_line_prefix "$message" "Outcome:" \
+        || message_has_line_prefix "$message" "Result:" \
+        || message_has_line_prefix "$message" "Fix:" \
+        || message_has_line_prefix "$message" "Implemented:" \
+        || message_has_line_prefix "$message" "Updated:" \
+        || message_has_line_prefix "$message" "Completed:" \
+        || message_has_line_prefix "$message" "Done:" \
+        || message_has_line_prefix "$message" "No files changed:" \
+        || message_has_line_prefix "$message" "No changes:"
+    then
+        return 0
+    fi
+
+    # Fallback: accept loose outcome-related keywords to avoid
+    # unnecessary blocks when the model describes concrete work
+    # in natural language (common with smaller/quantized models).
     grep -Eiq '(outcome|result|implemented|updated|fixed|investigated|reviewed|documented|added|removed|refactored|changed|created|no changes|completed|done|исправил|обновил|добавил|удалил|проверил|нашел|сделал|без изменений)' <<<"$message"
 }
 

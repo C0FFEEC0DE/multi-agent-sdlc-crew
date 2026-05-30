@@ -171,6 +171,7 @@ def run_verification() -> tuple[bool, str]:
         cwd=WORKDIR,
         capture_output=True,
         text=True,
+        timeout=300,
     )
     output = (completed.stdout + "\n" + completed.stderr).strip()
     return completed.returncode == 0, output

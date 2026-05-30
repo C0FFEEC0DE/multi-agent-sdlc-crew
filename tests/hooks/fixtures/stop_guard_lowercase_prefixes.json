@@ -1,0 +1,4 @@
+{
+  "session_id": "case-stop-guard",
+  "last_assistant_message": "outcome: implemented the fix.\nverification status: passed.\nreview outcome: approved.\nchanged files: src/app.py.\nremaining risks: none."
+}

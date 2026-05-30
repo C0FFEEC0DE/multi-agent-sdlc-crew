@@ -15,6 +15,33 @@ TASK_FILE = pathlib.Path(os.environ["BENCH_TASK_FILE"]).resolve()
 WORKDIR = pathlib.Path(os.environ["BENCH_WORKDIR"]).resolve()
 OUTPUT_DIR = pathlib.Path(os.environ["BENCH_OUTPUT_DIR"]).resolve()
 
+ALIASES_JSON = REPO_ROOT / "claudecfg" / "agents" / "aliases.json"
+
+
+def _load_aliases_json() -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    if ALIASES_JSON.exists():
+        data = json.loads(ALIASES_JSON.read_text(encoding="utf-8"))
+        for canonical, variants in data.items():
+            for variant in variants:
+                mapping[variant] = canonical
+    else:
+        # Fallback for benchmark unit tests that run with a dummy repo root
+        mapping = {
+            "a": "a", "architect": "a", "the-architect": "a", "design": "a", "plan": "a",
+            "e": "e", "explorer": "e", "explore": "e", "nerd": "e",
+            "bug": "bug", "bugbuster": "bug", "bug-pattern-hunter": "bug", "bug-pattern": "bug",
+            "dbg": "dbg", "debugger": "dbg", "debugging-specialist": "dbg",
+            "t": "t", "tester": "t", "testing": "t", "paranoid": "t",
+            "cr": "cr", "code-reviewer": "cr", "code-review": "cr", "reviewer": "cr", "toxic-senior": "cr",
+            "doc": "doc", "docwriter": "doc", "documentation-writer": "doc", "docs-writer": "doc", "docs": "doc",
+            "m": "m", "manager": "m", "big-boss": "m",
+        }
+    return mapping
+
+
+EXTRA_AGENT_LABELS = _load_aliases_json()
+
 
 def task_path_for_output(task_file: pathlib.Path) -> str:
     try:
@@ -26,41 +53,7 @@ def task_path_for_output(task_file: pathlib.Path) -> str:
 TASK_PATH = task_path_for_output(TASK_FILE)
 
 
-EXTRA_AGENT_LABELS = {
-    "a": "a",
-    "architect": "a",
-    "the-architect": "a",
-    "design": "a",
-    "plan": "a",
-    "e": "e",
-    "explorer": "e",
-    "explore": "e",
-    "nerd": "e",
-    "bug": "bug",
-    "bugbuster": "bug",
-    "bug-pattern-hunter": "bug",
-    "bug-pattern": "bug",
-    "dbg": "dbg",
-    "debugger": "dbg",
-    "debugging-specialist": "dbg",
-    "t": "t",
-    "tester": "t",
-    "testing": "t",
-    "paranoid": "t",
-    "cr": "cr",
-    "code-reviewer": "cr",
-    "code-review": "cr",
-    "reviewer": "cr",
-    "toxic-senior": "cr",
-    "doc": "doc",
-    "docwriter": "doc",
-    "documentation-writer": "doc",
-    "docs-writer": "doc",
-    "docs": "doc",
-    "m": "m",
-    "manager": "m",
-    "big-boss": "m",
-}
+
 
 
 def env_or_default(name: str, default: str) -> str:

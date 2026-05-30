@@ -23,7 +23,7 @@
   "stop_block_reason": "",
   "stop_block_message": "",
   "subagent_stop_block_count": 3,
-  "subagent_stop_block_reason": "Subagent output must name changed files or explicitly say no files changed.",
+  "subagent_stop_block_reason": "Subagent output must include a Changed files: or No files changed: line.",
   "subagent_stop_block_message": "Outcome: implemented the parser. Verification status: not run. Remaining risks: none.",
   "files": []
 }

@@ -1,0 +1,8 @@
+# Global shellcheck configuration for claude-crew
+# SC2016: jq programs intentionally use single-quoted $var syntax
+#         (jq variables, not shell variables). Suppressed globally
+#         because every hook that calls jq with --arg uses this pattern.
+# SC2094: _atomic_state_update intentionally reads the state file
+#         while holding an advisory flock on it; the mv-and-flock
+#         pattern makes this safe, so the warning is a false positive
+disable=SC2016,SC2094

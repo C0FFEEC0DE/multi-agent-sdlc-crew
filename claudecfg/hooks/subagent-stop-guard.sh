@@ -16,22 +16,22 @@ if [ -z "$last_message" ]; then
 fi
 
 if ! message_mentions_concrete_outcome "$last_message"; then
-    emit_loop_aware_block "subagent_stop" "Subagent output must include a concrete outcome." "$last_message"
+    emit_loop_aware_block "subagent_stop" "Subagent output must include a concrete outcome line (e.g. Outcome: <result>)." "$last_message"
     exit 0
 fi
 
 if ! message_mentions_changed_files "$last_message"; then
-    emit_loop_aware_block "subagent_stop" "Subagent output must name changed files or explicitly say no files changed." "$last_message"
+    emit_loop_aware_block "subagent_stop" "Subagent output must include a Changed files: or No files changed: line." "$last_message"
     exit 0
 fi
 
 if ! message_mentions_verification_status "$last_message"; then
-    emit_loop_aware_block "subagent_stop" "Subagent output must mention verification status or explicitly say verification was not run." "$last_message"
+    emit_loop_aware_block "subagent_stop" "Subagent output must include a Verification status: line." "$last_message"
     exit 0
 fi
 
 if ! message_mentions_remaining_risks "$last_message" && ! message_mentions_next_step "$last_message"; then
-    emit_loop_aware_block "subagent_stop" "Subagent output must state remaining risks or the next step." "$last_message"
+    emit_loop_aware_block "subagent_stop" "Subagent output must include a Remaining risks: or Next step: line." "$last_message"
     exit 0
 fi
 

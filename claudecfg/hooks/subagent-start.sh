@@ -10,8 +10,7 @@ ensure_state
 
 label="$(extract_subagent_label)"
 scope="$(extract_subagent_scope)"
-tmp="$(mktemp)"
-jq \
+_atomic_state_update \
     --arg label "$label" \
     --arg scope "$scope" \
     '.subagent_start_count = ((.subagent_start_count // 0) + 1)
@@ -32,8 +31,7 @@ jq \
             }
             + (if ($scope | length) > 0 then {purpose: $scope} else {} end)
         )]
-      )' "$(state_file)" > "$tmp"
-mv "$tmp" "$(state_file)"
+      )'
 
 if [ -n "$label" ]; then
     emit_context "SubagentStart" "Recorded subagent handoff: @${label}. Parallel same-role handoffs are allowed when they have distinct scopes. Return outcome, changed files or 'no changes', verification status, and remaining risks or next step. If you edit code, run or request verification before stopping."

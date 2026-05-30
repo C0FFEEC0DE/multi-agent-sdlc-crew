@@ -230,9 +230,9 @@ jobs:
           VAR_OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
           VAR_BENCHMARK_TIMEOUT_SECONDS: ${{ vars.BEHAVIOR_BENCHMARK_TIMEOUT_SECONDS }}
           VAR_BENCHMARK_MAX_OUTPUT_TOKENS: ${{ vars.BEHAVIOR_BENCHMARK_MAX_OUTPUT_TOKENS }}
-        # Smoke suite uses tighter turn limit (6) vs full/nightly (8) to enforce concise runs
+        # Smoke suite uses tighter turn limit (8) vs full/nightly (8) to enforce concise runs
         run: |
-          max_turns="${INPUT_MAX_TURNS:-6}"
+          max_turns="${INPUT_MAX_TURNS:-8}"
           model="${VAR_BENCHMARK_MODEL:-${VAR_OLLAMA_MODEL:-}}"
           timeout_seconds="${INPUT_TIMEOUT_SECONDS:-${VAR_BENCHMARK_TIMEOUT_SECONDS:-400}}"
           max_output_tokens="${INPUT_MAX_OUTPUT_TOKENS:-${VAR_BENCHMARK_MAX_OUTPUT_TOKENS:-768}}"

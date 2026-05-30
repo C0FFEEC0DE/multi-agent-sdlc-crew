@@ -1,0 +1,6 @@
+{
+  "session_id": "case-post-bash-cmake",
+  "tool_input": {
+    "command": "cmake --build ."
+  }
+}

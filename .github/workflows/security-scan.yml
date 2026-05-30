@@ -19,55 +19,13 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v5
 
-    - name: Scan for secrets
-      run: |
-        echo "=== Scanning for secrets ==="
-
-        # Check for common secret patterns
-        ERRORS=0
-
-        # Password patterns
-        if grep -r -i "password\s*=\s*['\"][^'\"]+['\"]" --include="*.py" --include="*.js" --include="*.ts" --include="*.json" --include="*.yaml" --include="*.yml" --include="*.sh" . 2>/dev/null | grep -v "example\|test\|dummy\|placeholder"; then
-          echo "❌ Found potential hardcoded passwords"
-          ERRORS=$((ERRORS + 1))
-        fi
-
-        # API keys
-        if grep -r -i "api_key\|apikey\|api-key" --include="*.py" --include="*.js" --include="*.ts" --include="*.json" --include="*.yaml" --include="*.yml" . 2>/dev/null | grep -E "(=|:)\s*['\"][a-zA-Z0-9]{16,}['\"]" | grep -v "example\|test\|dummy"; then
-          echo "❌ Found potential API keys"
-          ERRORS=$((ERRORS + 1))
-        fi
-
-        # AWS credentials
-        if grep -r "AKIA[0-9A-Z]{16}" --include="*.py" --include="*.js" --include="*.ts" --include="*.json" . 2>/dev/null; then
-          echo "❌ Found AWS Access Key ID"
-          ERRORS=$((ERRORS + 1))
-        fi
-
-        # Private keys
-        if grep -r "BEGIN RSA PRIVATE KEY\|BEGIN OPENSSH PRIVATE KEY\|BEGIN EC PRIVATE KEY" --include="*.py" --include="*.js" --include="*.ts" --include="*.pem" --include="*.key" . 2>/dev/null; then
-          echo "❌ Found private keys"
-          ERRORS=$((ERRORS + 1))
-        fi
-
-        # .env files in git
-        if git ls-files | grep -E "^\.env" | grep -v "\.env\.example"; then
-          echo "❌ Found .env files tracked in git"
-          ERRORS=$((ERRORS + 1))
-        fi
-
-        # Bearer tokens
-        if grep -r "Bearer [a-zA-Z0-9_\-]*\.[a-zA-Z0-9_\-]*\.[a-zA-Z0-9_\-]*" --include="*.py" --include="*.js" --include="*.ts" . 2>/dev/null | grep -v "example\|test"; then
-          echo "❌ Found potential JWT tokens"
-          ERRORS=$((ERRORS + 1))
-        fi
-
-        if [ $ERRORS -eq 0 ]; then
-          echo "✅ No secrets found"
-        else
-          echo "❌ Found $ERRORS potential security issues"
-          exit 1
-        fi
+    - name: Scan for secrets with TruffleHog
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+        extra_args: --only-verified
 
     - name: Check for sensitive file permissions
       run: |

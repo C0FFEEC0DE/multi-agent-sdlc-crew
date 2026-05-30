@@ -18,8 +18,18 @@ if [[ "$command" =~ (^|[[:space:]])mkfs(\.[^[:space:]]+)?($|[[:space:]]) ]] || [
     exit 0
 fi
 
-if [[ "$command" == *"rm -rf /"* || "$command" == *"git reset --hard"* ]] \
+if [[ "$command" == *"rm -rf /"* ]] \
     || { [[ "$command" =~ git[[:space:]]+push ]] && [[ "$command" =~ (^|[[:space:]])(-f|--force|--force-with-lease)($|[[:space:]]) ]]; }; then
+    emit_pretool_decision "deny" "Destructive commands are blocked by policy."
+    exit 0
+fi
+
+if [[ "$command" == *"rm -rf ~"* || "$command" == *"rm -rf $HOME"* || "$command" == *"rm -rf ."* ]]; then
+    emit_pretool_decision "deny" "Recursive deletion of home or current directory is blocked."
+    exit 0
+fi
+
+if [[ "$command" == *"git reset --hard"* ]]; then
     emit_pretool_decision "deny" "Destructive commands are blocked by policy."
     exit 0
 fi
@@ -33,3 +43,6 @@ if is_remote_shell_bootstrap_command "$command"; then
     emit_pretool_decision "deny" "Piping remote scripts into the shell is blocked."
     exit 0
 fi
+
+emit_pretool_decision "allow" "Command is allowed by the SDLC safety profile."
+exit 0

@@ -13,33 +13,27 @@ class="$(command_class "$command")"
 
 case "$class" in
     test)
-        tmp="$(mktemp)"
-        jq \
+        _atomic_state_update \
             --arg command "$command" \
             '.tests_ok = true
             | .tests_failed = false
-            | .last_test_command = $command' "$(state_file)" > "$tmp"
-        mv "$tmp" "$(state_file)"
+            | .last_test_command = $command'
         emit_context "PostToolUse" "Successful verification command recorded: ${command}"
         ;;
     lint)
-        tmp="$(mktemp)"
-        jq \
+        _atomic_state_update \
             --arg command "$command" \
             '.lint_ok = true
             | .lint_failed = false
-            | .last_lint_command = $command' "$(state_file)" > "$tmp"
-        mv "$tmp" "$(state_file)"
+            | .last_lint_command = $command'
         emit_context "PostToolUse" "Successful lint/static-check command recorded: ${command}"
         ;;
     build)
-        tmp="$(mktemp)"
-        jq \
+        _atomic_state_update \
             --arg command "$command" \
             '.build_ok = true
             | .build_failed = false
-            | .last_build_command = $command' "$(state_file)" > "$tmp"
-        mv "$tmp" "$(state_file)"
+            | .last_build_command = $command'
         emit_context "PostToolUse" "Successful build command recorded: ${command}"
         ;;
     *)

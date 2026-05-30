@@ -54,22 +54,22 @@ fi
 if [ "$code_changed" = "true" ] && task_type_requires_implementation_summary "$task_type"; then
     load_last_message
     if ! message_mentions_verification_status "$last_message"; then
-        emit_loop_aware_block "stop" "Final response must mention verification status after code or config changes.$(stop_safe_no_change_footer_hint)" "$last_message"
+        emit_loop_aware_block "stop" "Final response must include a Verification status: line after code or config changes.$(stop_safe_no_change_footer_hint)" "$last_message"
         exit 0
     fi
 
     if ! message_mentions_review_outcome "$last_message"; then
-        emit_loop_aware_block "stop" "Final response must mention review outcome or explicitly say review is pending after code or config changes.$(stop_safe_no_change_footer_hint)" "$last_message"
+        emit_loop_aware_block "stop" "Final response must include a Review outcome: line after code or config changes.$(stop_safe_no_change_footer_hint)" "$last_message"
         exit 0
     fi
 
     if ! message_mentions_changed_files "$last_message"; then
-        emit_loop_aware_block "stop" "Final response must name key changed files or explicitly say no files changed.$(stop_safe_no_change_footer_hint)" "$last_message"
+        emit_loop_aware_block "stop" "Final response must include a Changed files: or No files changed: line after code or config changes.$(stop_safe_no_change_footer_hint)" "$last_message"
         exit 0
     fi
 
     if ! message_mentions_remaining_risks "$last_message"; then
-        emit_loop_aware_block "stop" "Final response must state remaining risks or explicitly mark them as none.$(stop_safe_no_change_footer_hint)" "$last_message"
+        emit_loop_aware_block "stop" "Final response must include a Remaining risks: line after code or config changes.$(stop_safe_no_change_footer_hint)" "$last_message"
         exit 0
     fi
 fi

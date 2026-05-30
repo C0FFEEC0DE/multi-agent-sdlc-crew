@@ -49,9 +49,11 @@ if [ -z "$message" ]; then
 fi
 
 if command -v notify-send >/dev/null 2>&1; then
-    notify-send "$title" "$message" >/dev/null 2>&1 || true
+    notify-send -- "$title" "$message" >/dev/null 2>&1 || true
 elif command -v osascript >/dev/null 2>&1; then
-    osascript - "$title" "$message" >/dev/null 2>&1 <<'APPLESCRIPT' || true
+    safe_title="${title//\"/\\\"}"
+    safe_message="${message//\"/\\\"}"
+    osascript - "$safe_title" "$safe_message" >/dev/null 2>&1 <<'APPLESCRIPT' || true
 on run argv
     display notification (item 2 of argv) with title (item 1 of argv)
 end run
