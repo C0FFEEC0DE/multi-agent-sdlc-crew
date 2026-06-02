@@ -7,13 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
-- `stop-guard.sh` now enforces a `Docs status:` footer line for feature/bugfix/refactor/docs workflows when code changes are made, aligning the hook gate with the profile's "docs when behavior changes" step
-- `user-prompt-submit.sh` sets `docs_required` in session state for task types that imply documentation may need updating
+- Added docs gate enforcement in `stop-guard.sh` requiring a `Docs status:` footer line for feature/bugfix/refactor/docs workflows when code changes are made, aligning the hook gate with the profile's "docs when behavior changes" step
+- Added `docs_required` session state flag in `user-prompt-submit.sh` for task types that imply documentation may need updating
+- Added `tests/test_macos_portability.py` TDD regression suite to prevent GNU-specific constructs from silently re-entering the shell surface
 
 ### Fixed
 - `scripts/validate.sh`: replaced GNU-only `find -printf` with portable `sed` so file inventory checks work on BSD/macOS
+- `scripts/validate.sh`: replaced bash 4+ `declare -A` associative array with indexed arrays and a lookup helper for command-inventory validation
+- `scripts/validate.sh`: replaced GNU `grep -oP` PCRE patterns with portable `sed -E` capture groups in two validation sites
 - `tests/install/install-smoke.sh`: added runtime probe selecting `sha256sum` vs `shasum -a 256` so the installer smoke test works on stock macOS
-- Added `tests/test_macos_portability.py` TDD regression suite to prevent GNU-specific constructs from silently re-entering the shell surface
+- `claudecfg/hooks/lib.sh`: replaced bash 4+ `${var,,}` lowercase expansion with POSIX `tr` to prevent `bad substitution` errors on macOS /bin/bash 3.2
+- `claudecfg/hooks/notification.sh`: replaced GNU `stat -c%s` with runtime-probed BSD-compatible `stat` so `notification.jsonl` log rotation works on macOS
 
 ## [0.21] - 2026-06-02
 
