@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- `scripts/validate.sh`: replaced GNU-only `find -printf` with portable `sed` so file inventory checks work on BSD/macOS
+- `tests/install/install-smoke.sh`: added runtime probe selecting `sha256sum` vs `shasum -a 256` so the installer smoke test works on stock macOS
+- Added `tests/test_macos_portability.py` TDD regression suite to prevent GNU-specific constructs from silently re-entering the shell surface
+
 ## [0.21] - 2026-06-02
 
 ### Added
