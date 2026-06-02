@@ -72,6 +72,12 @@ if [ "$code_changed" = "true" ] && task_type_requires_implementation_summary "$t
         emit_loop_aware_block "stop" "Final response must include a Remaining risks: line after code or config changes.$(stop_safe_no_change_footer_hint)" "$last_message"
         exit 0
     fi
+
+    docs_required="$(jq -r '.docs_required // false' "$(state_file)")"
+    if [ "$docs_required" = "true" ] && ! message_mentions_docs_status "$last_message"; then
+        emit_loop_aware_block "stop" "Final response must include a Docs status: line when behavior changes require documentation updates.$(stop_safe_no_change_footer_hint)" "$last_message"
+        exit 0
+    fi
 fi
 
 clear_loop_block "stop"

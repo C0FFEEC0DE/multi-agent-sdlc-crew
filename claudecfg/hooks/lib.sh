@@ -164,6 +164,7 @@ ensure_state() {
             edited: false,
             code_changed: false,
             docs_changed: false,
+            docs_required: false,
             tests_ok: false,
             tests_failed: false,
             lint_ok: false,
@@ -493,7 +494,14 @@ permission_denied_should_retry() {
 }
 
 stop_safe_no_change_footer_hint() {
-    printf ' If this reply did not introduce additional changes, still report the actual verification, review, changed files, and remaining risks instead of using a no-change shortcut after code or config changes.'
+    local state docs_required
+    state="$(state_file)"
+    docs_required="$(jq -r '.docs_required // false' "$state")"
+    if [ "$docs_required" = "true" ]; then
+        printf ' If this reply did not introduce additional changes, still report the actual verification, review, changed files, docs status, and remaining risks instead of using a no-change shortcut after code or config changes.'
+    else
+        printf ' If this reply did not introduce additional changes, still report the actual verification, review, changed files, and remaining risks instead of using a no-change shortcut after code or config changes.'
+    fi
 }
 
 checklist_status_line() {
@@ -955,6 +963,15 @@ message_mentions_review_outcome() {
         || message_has_line_prefix "$message" "Review:"
 }
 
+message_mentions_docs_status() {
+    local message="$1"
+
+    message_has_line_prefix "$message" "Docs status:" \
+        || message_has_line_prefix "$message" "Documentation:" \
+        || message_has_line_prefix "$message" "Docs:" \
+        || message_has_line_prefix "$message" "Документация:"
+}
+
 message_mentions_changed_files() {
     local message="$1"
 
@@ -1022,12 +1039,13 @@ message_reports_no_changes() {
 block_checklist_summary_requirements() {
     local prefix="$1"
     local message="$2"
-    local state code_changed task_type
+    local state code_changed task_type docs_required
     local verification_ok review_ok files_ok risks_ok next_ok outcome_ok
 
     state="$(state_file)"
     code_changed="$(jq -r '.code_changed // false' "$state")"
     task_type="$(jq -r '.task_type // "other"' "$state")"
+    docs_required="$(jq -r '.docs_required // false' "$state")"
 
     printf "### Requirement Checklist\n\n"
 
@@ -1059,6 +1077,14 @@ block_checklist_summary_requirements() {
         checklist_status_line "$review_ok" "Review outcome line" "Accepted prefixes: \`Review outcome:\`, \`Review status:\`, \`Review:\`."
         checklist_status_line "$files_ok" "Changed files line" "Accepted prefixes: \`Changed files:\`, \`Key files changed:\`, \`Files changed:\`, \`Updated files:\`, \`Modified files:\`, \`No files changed:\`."
         checklist_status_line "$risks_ok" "Remaining risks line" "Accepted prefixes: \`Remaining risks:\`, \`Residual risks:\`, \`Risks:\`."
+
+        if [ "$docs_required" = "true" ]; then
+            local docs_ok="FAIL"
+            if message_mentions_docs_status "$message"; then
+                docs_ok="PASS"
+            fi
+            checklist_status_line "$docs_ok" "Docs status line" "Accepted prefixes: \`Docs status:\`, \`Documentation:\`, \`Docs:\`, \`Документация:\`."
+        fi
 
         if message_reports_no_changes "$message"; then
             checklist_status_line "FAIL" "No-change shortcut" "Do not use \`No changes were made.\` after code/config changes."
@@ -1148,6 +1174,7 @@ Verification status: passed|failed|not run - <what you ran or why not>
 Review outcome: done|pending - <what review happened or why pending>
 Changed files: <path1>, <path2> | No files changed: <reason>
 Remaining risks: none | <specific risk>
+Docs status: updated|not needed - <what docs changed or why not>
 ```
 EOF
     else

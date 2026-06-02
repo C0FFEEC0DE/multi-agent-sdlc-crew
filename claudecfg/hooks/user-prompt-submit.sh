@@ -8,7 +8,7 @@ source "${SCRIPT_DIR}/lib.sh"
 
 ensure_state
 
-stop_safe_hint=" If a later reply in the same session makes no additional changes, still report the actual verification, review, changed files, and remaining risks instead of using a no-change shortcut after code or config changes."
+stop_safe_hint=" If a later reply in the same session makes no additional changes, still report the actual verification, review, changed files, docs status when relevant, and remaining risks instead of using a no-change shortcut after code or config changes."
 
 prompt="$(json_get '.prompt' | tr '[:upper:]' '[:lower:]')"
 task_type="other"
@@ -18,6 +18,7 @@ required_subagent_any_of='[]'
 context_message=""
 informational_model_query="false"
 override_task_type=""
+docs_required="false"
 
 if grep -Eiq '(^|[[:space:]])(@m|@manager|/manager)($|[[:space:][:punct:]])' <<<"$prompt"; then
     manager_mode="orchestrate"
@@ -91,6 +92,7 @@ case "$task_type" in
             required_subagent_any_of='[["e","a"]]'
         fi
         context_message="Treat this as a feature workflow."
+        docs_required="true"
         ;;
     bugfix)
         if [ "$manager_mode" != "plan_only" ]; then
@@ -98,6 +100,7 @@ case "$task_type" in
             required_subagent_any_of='[["bug","e","dbg"]]'
         fi
         context_message="Treat this as a bugfix workflow."
+        docs_required="true"
         ;;
     refactor)
         if [ "$manager_mode" != "plan_only" ]; then
@@ -105,6 +108,7 @@ case "$task_type" in
             required_subagent_any_of='[["a","e"]]'
         fi
         context_message="Treat this as a refactor workflow."
+        docs_required="true"
         ;;
     review)
         if [ "$manager_mode" != "plan_only" ]; then
@@ -117,6 +121,7 @@ case "$task_type" in
             required_subagents="$(jq -cn --argjson existing "$required_subagents" '$existing + ["doc"] | unique')"
         fi
         context_message="Treat this as a docs workflow."
+        docs_required="true"
         ;;
     support)
         context_message="Treat this as a support workflow."
@@ -183,10 +188,12 @@ fi
 _atomic_state_update \
     --arg task_type "$task_type" \
     --arg manager_mode "$manager_mode" \
+    --argjson docs_required "$docs_required" \
     --argjson required_subagents "$required_subagents" \
     --argjson required_subagent_any_of "$required_subagent_any_of" \
     '.task_type = $task_type
     | .manager_mode = $manager_mode
+    | .docs_required = $docs_required
     | .required_subagents = $required_subagents
     | .required_subagent_any_of = $required_subagent_any_of'
 

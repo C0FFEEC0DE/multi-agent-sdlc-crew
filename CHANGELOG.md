@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- `stop-guard.sh` now enforces a `Docs status:` footer line for feature/bugfix/refactor/docs workflows when code changes are made, aligning the hook gate with the profile's "docs when behavior changes" step
+- `user-prompt-submit.sh` sets `docs_required` in session state for task types that imply documentation may need updating
+
 ### Fixed
 - `scripts/validate.sh`: replaced GNU-only `find -printf` with portable `sed` so file inventory checks work on BSD/macOS
 - `tests/install/install-smoke.sh`: added runtime probe selecting `sha256sum` vs `shasum -a 256` so the installer smoke test works on stock macOS
