@@ -114,7 +114,10 @@ run_case() {
         return
     fi
 
-    mapfile -t env_pairs < <(jq -r '.env // {} | to_entries[] | "\(.key)=\(.value)"' <<<"$case_json")
+    env_pairs=()
+    while IFS= read -r pair; do
+        [ -n "$pair" ] && env_pairs+=("$pair")
+    done < <(jq -r '.env // {} | to_entries[] | "\(.key)=\(.value)"' <<<"$case_json")
     resolved_env=()
     for pair in "${env_pairs[@]}"; do
         key="${pair%%=*}"

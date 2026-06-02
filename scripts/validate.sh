@@ -196,13 +196,19 @@ if [ -d "$SKILL_DIR" ]; then
             case_failed=1
         fi
 
-        mapfile -t allowed_tools_items < <(extract_frontmatter_list_items "$frontmatter" "allowed-tools")
+        allowed_tools_items=()
+    while IFS= read -r item; do
+        [ -n "$item" ] && allowed_tools_items+=("$item")
+    done < <(extract_frontmatter_list_items "$frontmatter" "allowed-tools")
         if [ "${#allowed_tools_items[@]}" -eq 0 ]; then
             report_error "Skill frontmatter must declare non-empty allowed-tools in $filename"
             case_failed=1
         fi
 
-        mapfile -t path_items < <(extract_frontmatter_list_items "$frontmatter" "paths")
+        path_items=()
+        while IFS= read -r item; do
+            [ -n "$item" ] && path_items+=("$item")
+        done < <(extract_frontmatter_list_items "$frontmatter" "paths")
         if [ "${#path_items[@]}" -eq 0 ]; then
             report_error "Skill frontmatter must declare non-empty paths in $filename"
             case_failed=1
@@ -249,8 +255,14 @@ compare_command_lists() {
         return
     fi
 
-    mapfile -t actual < <(sed -n "/^${start}$/,/^${end}$/p" "$file" | grep -oP "^- \`/\K[^\`]+(?=\`)" | sort -u || true)
-    mapfile -t expected < <(printf '%s\n' "${EXPECTED_COMMANDS[@]}" | sort -u)
+    actual=()
+    while IFS= read -r item; do
+        [ -n "$item" ] && actual+=("$item")
+    done < <(sed -n "/^${start}$/,/^${end}$/p" "$file" | grep -oP "^- \`/\K[^\`]+(?=\`)" | sort -u || true)
+    expected=()
+    while IFS= read -r item; do
+        [ -n "$item" ] && expected+=("$item")
+    done < <(printf '%s\n' "${EXPECTED_COMMANDS[@]}" | sort -u)
 
     if ! diff -u <(printf '%s\n' "${expected[@]}") <(printf '%s\n' "${actual[@]}") >/dev/null; then
         report_error "$label does not match the bundled slash-command inventory: $file"
@@ -262,8 +274,14 @@ compare_command_lists() {
 compare_command_file_inventory() {
     local actual expected
 
-    mapfile -t actual < <(find "$REPO_ROOT/claudecfg/commands" -maxdepth 1 -type f -name "*.md" -printf '%f\n' | sed 's/\.md$//' | sort -u)
-    mapfile -t expected < <(printf '%s\n' "${EXPECTED_COMMANDS[@]}" | sort -u)
+    actual=()
+    while IFS= read -r item; do
+        [ -n "$item" ] && actual+=("$item")
+    done < <(find "$REPO_ROOT/claudecfg/commands" -maxdepth 1 -type f -name "*.md" -printf '%f\n' | sed 's/\.md$//' | sort -u)
+    expected=()
+    while IFS= read -r item; do
+        [ -n "$item" ] && expected+=("$item")
+    done < <(printf '%s\n' "${EXPECTED_COMMANDS[@]}" | sort -u)
 
     if ! diff -u <(printf '%s\n' "${expected[@]}") <(printf '%s\n' "${actual[@]}") >/dev/null; then
         report_error "claudecfg/commands file inventory does not match the bundled slash-command inventory"
@@ -277,8 +295,14 @@ compare_command_file_inventory
 compare_skill_file_inventory() {
     local actual expected
 
-    mapfile -t actual < <(find "$REPO_ROOT/claudecfg/skills" -maxdepth 1 -type f -name "*.md" -printf '%f\n' | sed 's/\.md$//' | sort -u)
-    mapfile -t expected < <(printf '%s\n' "${EXPECTED_SKILLS[@]}" | sort -u)
+    actual=()
+    while IFS= read -r item; do
+        [ -n "$item" ] && actual+=("$item")
+    done < <(find "$REPO_ROOT/claudecfg/skills" -maxdepth 1 -type f -name "*.md" -printf '%f\n' | sed 's/\.md$//' | sort -u)
+    expected=()
+    while IFS= read -r item; do
+        [ -n "$item" ] && expected+=("$item")
+    done < <(printf '%s\n' "${EXPECTED_SKILLS[@]}" | sort -u)
 
     if ! diff -u <(printf '%s\n' "${expected[@]}") <(printf '%s\n' "${actual[@]}") >/dev/null; then
         report_error "claudecfg/skills file inventory does not match the bundled skill inventory"

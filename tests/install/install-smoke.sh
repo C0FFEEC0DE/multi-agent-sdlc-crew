@@ -66,7 +66,10 @@ capture_manifest "$HOME_DIR" ".claude" "$BEFORE_MANIFEST"
 assert_installed_tree "$HOME_DIR"
 capture_manifest "$HOME_DIR" ".claude" "$AFTER_MANIFEST"
 
-mapfile -t backup_dirs < <(find "$HOME_DIR" -maxdepth 1 -mindepth 1 -type d -name '.claude.backup.*' | sort)
+backup_dirs=()
+while IFS= read -r dir; do
+    [ -n "$dir" ] && backup_dirs+=("$dir")
+done < <(find "$HOME_DIR" -maxdepth 1 -mindepth 1 -type d -name '.claude.backup.*' | sort)
 if [ "${#backup_dirs[@]}" -ne 1 ]; then
     echo "Expected exactly one backup directory after reinstall, found ${#backup_dirs[@]}" >&2
     exit 1

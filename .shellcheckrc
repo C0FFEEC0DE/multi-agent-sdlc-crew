@@ -3,6 +3,8 @@
 #         (jq variables, not shell variables). Suppressed globally
 #         because every hook that calls jq with --arg uses this pattern.
 # SC2094: _atomic_state_update intentionally reads the state file
-#         while holding an advisory flock on it; the mv-and-flock
-#         pattern makes this safe, so the warning is a false positive
+#         while holding a mkdir-lockfile on it (see lib.sh: _acquire_state_lock);
+#         the mktemp+mv atomic-rename pattern is safe because the
+#         lockfile sits on the same filesystem as the state file, so
+#         the warning is a false positive.
 disable=SC2016,SC2094

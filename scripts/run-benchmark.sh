@@ -119,7 +119,10 @@ if [ -n "$TASK_LIST_FILE" ]; then
         echo "Task list file does not exist: $TASK_LIST_FILE" >&2
         exit 1
     fi
-    mapfile -t task_files < <(
+    task_files=()
+    while IFS= read -r task_path; do
+        [ -n "$task_path" ] && task_files+=("$task_path")
+    done < <(
         sed '/^[[:space:]]*$/d' "$TASK_LIST_FILE" \
         | while IFS= read -r task_path; do
             case "$task_path" in
@@ -129,7 +132,10 @@ if [ -n "$TASK_LIST_FILE" ]; then
           done
     )
 else
-    mapfile -t task_files < <(compgen -G "$REPO_ROOT/$TASK_GLOB" || true)
+    task_files=()
+    while IFS= read -r task_path; do
+        [ -n "$task_path" ] && task_files+=("$task_path")
+    done < <(compgen -G "$REPO_ROOT/$TASK_GLOB" || true)
 fi
 shopt -u nullglob
 configured_task_count="${#task_files[@]}"

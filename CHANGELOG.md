@@ -111,6 +111,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Fixed live `SubagentStop` and `Stop` false blocks caused by missing `last_assistant_message` in runtime hook payloads despite valid assistant summaries in the session transcript
 - Fixed false review gating when runtimes recorded specialist launches only in transcript lines such as `Skill(/review)` or `Code Reviewer(...)`
 - Fixed stop-loop false blocks when manager-led workflows were backgrounded before the first specialist handoff completed
+- `claudecfg/hooks/lib.sh`: replaced Linux-only `flock` with a portable `mkdir`-based lockfile (`_acquire_state_lock` / `_release_state_lock`) so `_atomic_state_update` works on macOS; the `200>>$file` fd-redirect was dropped
+- `claudecfg/hooks/lib.sh` and the shell scripts in `scripts/` plus `tests/install/install-smoke.sh`: replaced bash 4+ `mapfile` calls with `while IFS= read -r` loops so the user-facing shell surface runs on macOS /bin/bash 3.2
+- `.shellcheckrc`: refreshed the `SC2094` rationale comment to describe the new mkdir-lockfile strategy
 
 ## [1.0.0] - 2026-03-19
 

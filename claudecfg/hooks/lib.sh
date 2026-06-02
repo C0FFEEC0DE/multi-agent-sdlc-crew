@@ -194,16 +194,47 @@ ensure_state() {
         }' > "$file"
 }
 
+_acquire_state_lock() {
+    # Portable (POSIX) advisory lock: mkdir is atomic on every Unix
+    # since 4.3 BSD. The lockfile sits next to the state file on the
+    # same filesystem, so the mktemp+mv atomic-rename inside the
+    # critical section remains valid. flock is Linux-only, so on macOS
+    # we fall back to this.
+    local file="$1"
+    local lockdir="${file}.lock"
+    local attempt=0
+    while ! mkdir "$lockdir" 2>/dev/null; do
+        attempt=$((attempt + 1))
+        if [ "$attempt" -ge 200 ]; then
+            # Stale lock from a crashed prior writer: rmdir is atomic
+            # and at most one writer holds the lockdir at a time, so
+            # removing it here cannot clobber a live holder.
+            rmdir "$lockdir" 2>/dev/null || true
+            attempt=0
+        fi
+        sleep 0.05
+    done
+    LOCKDIR_HELD="$lockdir"
+}
+
+_release_state_lock() {
+    if [ -n "${LOCKDIR_HELD:-}" ]; then
+        rmdir "$LOCKDIR_HELD" 2>/dev/null || true
+        LOCKDIR_HELD=""
+    fi
+}
+
 _atomic_state_update() {
     local file
     file="$(state_file)"
     ensure_dirs
-    (
-        flock 200 || exit 1
-        tmp="$(mktemp)"
-        jq "$@" "$file" > "$tmp"
-        mv "$tmp" "$file"
-    ) 200>>"$file"
+    _acquire_state_lock "$file"
+    # Function-return trap is bash 3.2 compatible and runs on every
+    # exit path, including errors and the eventual successful return.
+    trap '_release_state_lock' RETURN
+    tmp="$(mktemp)"
+    jq "$@" "$file" > "$tmp"
+    mv "$tmp" "$file"
 }
 
 update_state() {
@@ -1229,12 +1260,22 @@ session_agent_enforcement_reason() {
         successful_verification="true"
     fi
 
-    mapfile -t started < <(effective_started_roles)
-    mapfile -t required < <(jq -r '.required_subagents[]? // empty' "$state")
+    started=()
+    while IFS= read -r alias; do
+        [ -n "$alias" ] && started+=("$alias")
+    done < <(effective_started_roles)
+
+    required=()
+    while IFS= read -r alias; do
+        [ -n "$alias" ] && required+=("$alias")
+    done < <(jq -r '.required_subagents[]? // empty' "$state")
 
     while IFS= read -r group_json; do
         [ -z "$group_json" ] && continue
-        mapfile -t group < <(jq -r '.[]? // empty' <<<"$group_json")
+        group=()
+        while IFS= read -r alias; do
+            [ -n "$alias" ] && group+=("$alias")
+        done < <(jq -r '.[]? // empty' <<<"$group_json")
         [ "${#group[@]}" -eq 0 ] && continue
 
         satisfied="false"
