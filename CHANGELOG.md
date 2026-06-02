@@ -6,10 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.22] - 2026-06-02
+
 ### Added
 - Added docs gate enforcement in `stop-guard.sh` requiring a `Docs status:` footer line for feature/bugfix/refactor/docs workflows when code changes are made, aligning the hook gate with the profile's "docs when behavior changes" step
 - Added `docs_required` session state flag in `user-prompt-submit.sh` for task types that imply documentation may need updating
 - Added `tests/test_macos_portability.py` TDD regression suite to prevent GNU-specific constructs from silently re-entering the shell surface
+- Added hook regression cases for `rm -fr`, `rm -rf -- /`, quoted `$HOME`, and remote bootstrap pipes through `env bash` or `sh`
 
 ### Fixed
 - `scripts/validate.sh`: replaced GNU-only `find -printf` with portable `sed` so file inventory checks work on BSD/macOS
@@ -18,6 +21,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `tests/install/install-smoke.sh`: added runtime probe selecting `sha256sum` vs `shasum -a 256` so the installer smoke test works on stock macOS
 - `claudecfg/hooks/lib.sh`: replaced bash 4+ `${var,,}` lowercase expansion with POSIX `tr` to prevent `bad substitution` errors on macOS /bin/bash 3.2
 - `claudecfg/hooks/notification.sh`: replaced GNU `stat -c%s` with runtime-probed BSD-compatible `stat` so `notification.jsonl` log rotation works on macOS
+- `claudecfg/hooks/lib.sh`: hardened the portable state lock with PID and timestamp metadata so stale-lock cleanup does not remove a live writer
+- `claudecfg/hooks/lib.sh`: classified `make all` as build and `make clean` as other so cleanup commands cannot satisfy verification gates
+- `claudecfg/hooks/pre-tool-use.sh` and `permission-request.sh`: reused shared destructive-command detection for safer Linux/macOS hook behavior
+- `scripts/bench_runner_claude_code.py` and `scripts/bench_runner_openrouter.py`: made workspace snapshots binary-safe by hashing binary files instead of decoding everything as UTF-8
+- `scripts/bench_runner_claude_code.py`: only runs npm verification when `package.json` declares a non-empty `scripts.test`
 
 ## [0.21] - 2026-06-02
 
