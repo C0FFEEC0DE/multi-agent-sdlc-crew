@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import difflib
+import hashlib
 import json
 import os
 import pathlib
@@ -162,24 +163,39 @@ def is_ignored_runtime_path(path: pathlib.Path) -> bool:
     return any(part in ignored_parts for part in path.parts) or path.name == ".coverage"
 
 
-def snapshot_files(root: pathlib.Path) -> dict[str, str]:
-    snapshot = {}
+def snapshot_file(path: pathlib.Path) -> dict[str, object]:
+    data = path.read_bytes()
+    digest = hashlib.sha256(data).hexdigest()
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return {"kind": "binary", "sha256": digest, "size": len(data)}
+    return {"kind": "text", "sha256": digest, "size": len(data), "text": text}
+
+
+def snapshot_files(root: pathlib.Path) -> dict[str, dict[str, object]]:
+    snapshot: dict[str, dict[str, object]] = {}
     for path in sorted(root.rglob("*")):
         if not path.is_file() or is_ignored_runtime_path(path.relative_to(root)):
             continue
-        snapshot[path.relative_to(root).as_posix()] = path.read_text(encoding="utf-8")
+        snapshot[path.relative_to(root).as_posix()] = snapshot_file(path)
     return snapshot
 
 
-def build_patch(before: dict[str, str], after: dict[str, str]) -> str:
+def build_patch(before: dict[str, dict[str, object]], after: dict[str, dict[str, object]]) -> str:
     chunks: list[str] = []
     for rel_path in sorted(set(before) | set(after)):
         old = before.get(rel_path)
         new = after.get(rel_path)
         if old == new:
             continue
-        old_lines = [] if old is None else old.splitlines(keepends=True)
-        new_lines = [] if new is None else new.splitlines(keepends=True)
+        if (old is not None and old.get("kind") != "text") or (new is not None and new.get("kind") != "text"):
+            chunks.append(f"Binary files differ: {rel_path}\n")
+            continue
+        old_text = "" if old is None else str(old.get("text", ""))
+        new_text = "" if new is None else str(new.get("text", ""))
+        old_lines = old_text.splitlines(keepends=True)
+        new_lines = new_text.splitlines(keepends=True)
         chunks.extend(
             difflib.unified_diff(
                 old_lines,
@@ -787,8 +803,15 @@ def extract_result_text_from_transcript(payload: dict | None) -> str:
 
 
 def detect_verification_target(workdir: pathlib.Path) -> tuple[list[str] | None, str | None]:
-    if (workdir / "package.json").exists():
-        return ["npm", "test", "--silent"], "npm test"
+    package_json = workdir / "package.json"
+    if package_json.exists():
+        try:
+            package_payload = json.loads(package_json.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return None, None
+        scripts = package_payload.get("scripts") if isinstance(package_payload, dict) else None
+        if isinstance(scripts, dict) and isinstance(scripts.get("test"), str) and scripts["test"].strip():
+            return ["npm", "run", "test", "--silent"], "npm run test"
     if (workdir / "Cargo.toml").exists():
         return ["cargo", "test", "--quiet"], "cargo test"
     if (workdir / "go.mod").exists():

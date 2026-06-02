@@ -1,0 +1,6 @@
+{
+  "session_id": "case-pre-tool-rm-fr-root",
+  "tool_input": {
+    "command": "rm -fr /"
+  }
+}

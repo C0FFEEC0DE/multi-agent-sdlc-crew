@@ -13,8 +13,7 @@ if [[ "$command" =~ (^|[[:space:]])mkfs(\.[^[:space:]]+)?($|[[:space:]]) ]] || [
     exit 0
 fi
 
-if [[ "$command" == *"rm -rf /"* || "$command" == *"git reset --hard"* ]] \
-    || { [[ "$command" =~ git[[:space:]]+push ]] && [[ "$command" =~ (^|[[:space:]])(-f|--force|--force-with-lease)($|[[:space:]]) ]]; }; then
+if is_dangerous_rm_command "$command" || [[ "$command" == *"git reset --hard"* ]] || is_force_push_command "$command"; then
     emit_permission_request_deny "destructive commands are blocked by this profile"
     exit 0
 fi

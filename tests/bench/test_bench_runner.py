@@ -29,7 +29,19 @@ def write_transcript(path, events):
             handle.write(json.dumps(event) + "\n")
 
 
-def test_detect_verification_target_prefers_npm_for_package_json(tmp_path, monkeypatch):
+def test_detect_verification_target_prefers_npm_when_package_has_test_script(tmp_path, monkeypatch):
+    runner = load_runner_module(tmp_path, monkeypatch)
+    fixture = tmp_path / "node-app"
+    fixture.mkdir()
+    (fixture / "package.json").write_text('{"scripts": {"test": "node --test"}}', encoding="utf-8")
+
+    command, label = runner.detect_verification_target(fixture)
+
+    assert command == ["npm", "run", "test", "--silent"]
+    assert label == "npm run test"
+
+
+def test_detect_verification_target_ignores_package_without_test_script(tmp_path, monkeypatch):
     runner = load_runner_module(tmp_path, monkeypatch)
     fixture = tmp_path / "node-app"
     fixture.mkdir()
@@ -37,8 +49,20 @@ def test_detect_verification_target_prefers_npm_for_package_json(tmp_path, monke
 
     command, label = runner.detect_verification_target(fixture)
 
-    assert command == ["npm", "test", "--silent"]
-    assert label == "npm test"
+    assert command is None
+    assert label is None
+
+
+def test_detect_verification_target_handles_malformed_package_json(tmp_path, monkeypatch):
+    runner = load_runner_module(tmp_path, monkeypatch)
+    fixture = tmp_path / "node-app"
+    fixture.mkdir()
+    (fixture / "package.json").write_text("{not json", encoding="utf-8")
+
+    command, label = runner.detect_verification_target(fixture)
+
+    assert command is None
+    assert label is None
 
 
 def test_detect_verification_target_finds_python_tests(tmp_path, monkeypatch):
@@ -69,7 +93,7 @@ def test_run_verification_uses_detected_command_and_label(tmp_path, monkeypatch)
     runner = load_runner_module(tmp_path, monkeypatch)
     fixture = tmp_path / "node-app"
     fixture.mkdir()
-    (fixture / "package.json").write_text("{}", encoding="utf-8")
+    (fixture / "package.json").write_text('{"scripts": {"test": "node --test"}}', encoding="utf-8")
     monkeypatch.setattr(runner, "WORKDIR", fixture)
 
     calls = []
@@ -90,9 +114,32 @@ def test_run_verification_uses_detected_command_and_label(tmp_path, monkeypatch)
     assert tests_run is True
     assert tests_passed is True
     assert output == "ok"
-    assert label == "npm test"
-    assert calls[0][0][0] == ["npm", "test", "--silent"]
+    assert label == "npm run test"
+    assert calls[0][0][0] == ["npm", "run", "test", "--silent"]
     assert calls[0][1]["cwd"] == fixture
+
+
+def test_snapshot_files_handles_binary_files_and_build_patch_marks_binary_diff(tmp_path, monkeypatch):
+    runner = load_runner_module(tmp_path, monkeypatch)
+    before_root = tmp_path / "before"
+    after_root = tmp_path / "after"
+    before_root.mkdir()
+    after_root.mkdir()
+    (before_root / "image.bin").write_bytes(b"\x00\xff\x01")
+    (after_root / "image.bin").write_bytes(b"\x00\xff\x02")
+    (before_root / "note.txt").write_text("old\n", encoding="utf-8")
+    (after_root / "note.txt").write_text("new\n", encoding="utf-8")
+
+    before = runner.snapshot_files(before_root)
+    after = runner.snapshot_files(after_root)
+    patch = runner.build_patch(before, after)
+
+    assert before["image.bin"]["kind"] == "binary"
+    assert after["image.bin"]["kind"] == "binary"
+    assert before["image.bin"] != after["image.bin"]
+    assert "Binary files differ: image.bin" in patch
+    assert "-old" in patch
+    assert "+new" in patch
 
 
 def test_run_verification_reports_missing_target(tmp_path, monkeypatch):

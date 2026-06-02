@@ -21,6 +21,27 @@
     "stdout_jq": ".hookSpecificOutput.permissionDecision == \"deny\" and (.hookSpecificOutput.permissionDecisionReason | contains(\"current directory\"))"
   },
   {
+    "name": "pre_tool_use_blocks_rm_fr_root",
+    "script": "claudecfg/hooks/pre-tool-use.sh",
+    "stdin": "tests/hooks/fixtures/pre_tool_use_rm_fr_root.json",
+    "expect_exit": 0,
+    "stdout_jq": ".hookSpecificOutput.permissionDecision == \"deny\" and (.hookSpecificOutput.permissionDecisionReason | contains(\"Destructive commands\"))"
+  },
+  {
+    "name": "pre_tool_use_blocks_rm_rf_dashdash_root",
+    "script": "claudecfg/hooks/pre-tool-use.sh",
+    "stdin": "tests/hooks/fixtures/pre_tool_use_rm_rf_dashdash_root.json",
+    "expect_exit": 0,
+    "stdout_jq": ".hookSpecificOutput.permissionDecision == \"deny\" and (.hookSpecificOutput.permissionDecisionReason | contains(\"Destructive commands\"))"
+  },
+  {
+    "name": "pre_tool_use_blocks_rm_rf_quoted_home",
+    "script": "claudecfg/hooks/pre-tool-use.sh",
+    "stdin": "tests/hooks/fixtures/pre_tool_use_rm_rf_quoted_home.json",
+    "expect_exit": 0,
+    "stdout_jq": ".hookSpecificOutput.permissionDecision == \"deny\" and (.hookSpecificOutput.permissionDecisionReason | contains(\"home\"))"
+  },
+  {
     "name": "pre_tool_use_blocks_sudo",
     "script": "claudecfg/hooks/pre-tool-use.sh",
     "stdin": "tests/hooks/fixtures/pre_tool_use_sudo.json",
@@ -56,6 +77,13 @@
     "stdout_jq": ".hookSpecificOutput.permissionDecision == \"deny\" and (.hookSpecificOutput.permissionDecisionReason | contains(\"remote scripts\"))"
   },
   {
+    "name": "pre_tool_use_blocks_remote_bootstrap_env_bash",
+    "script": "claudecfg/hooks/pre-tool-use.sh",
+    "stdin": "tests/hooks/fixtures/pre_tool_use_remote_bootstrap_env_bash.json",
+    "expect_exit": 0,
+    "stdout_jq": ".hookSpecificOutput.permissionDecision == \"deny\" and (.hookSpecificOutput.permissionDecisionReason | contains(\"remote scripts\"))"
+  },
+  {
     "name": "permission_request_blocks_release",
     "script": "claudecfg/hooks/permission-request.sh",
     "stdin": "tests/hooks/fixtures/permission_request_release.json",
@@ -66,6 +94,13 @@
     "name": "permission_request_blocks_remote_bootstrap_wget_bash",
     "script": "claudecfg/hooks/permission-request.sh",
     "stdin": "tests/hooks/fixtures/permission_request_remote_bootstrap_wget_bash.json",
+    "expect_exit": 0,
+    "stdout_jq": ".hookSpecificOutput.decision.behavior == \"deny\" and (.hookSpecificOutput.decision.message | contains(\"remote shell bootstrap\"))"
+  },
+  {
+    "name": "permission_request_blocks_remote_bootstrap_wget_sh",
+    "script": "claudecfg/hooks/permission-request.sh",
+    "stdin": "tests/hooks/fixtures/permission_request_remote_bootstrap_wget_sh.json",
     "expect_exit": 0,
     "stdout_jq": ".hookSpecificOutput.decision.behavior == \"deny\" and (.hookSpecificOutput.decision.message | contains(\"remote shell bootstrap\"))"
   },

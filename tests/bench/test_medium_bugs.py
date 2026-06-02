@@ -81,6 +81,16 @@ class TestBug4_CommandClassMakePattern:
             f'"make test" should match the test pattern first, not build.'
         )
 
+    def test_make_all_returns_build(self):
+        """Verify "make all" is build, not verification."""
+        result = self._run_command_class("make all")
+        assert result == "build"
+
+    def test_make_clean_returns_other(self):
+        """Verify "make clean" does not satisfy verification."""
+        result = self._run_command_class("make clean")
+        assert result == "other"
+
 
 class TestBug5_SubagentStopGuardLoadLastMessage:
     """Bug 5: subagent-stop-guard.sh calls resolved_last_assistant_message directly

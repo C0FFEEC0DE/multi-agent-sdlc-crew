@@ -1,0 +1,6 @@
+{
+  "session_id": "case-pre-tool-rm-rf-dashdash-root",
+  "tool_input": {
+    "command": "rm -rf -- /"
+  }
+}

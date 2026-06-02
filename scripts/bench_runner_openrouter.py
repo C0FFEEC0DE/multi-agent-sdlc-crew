@@ -8,6 +8,7 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
+import hashlib
 
 
 REPO_ROOT = pathlib.Path(os.environ["BENCH_REPO_ROOT"]).resolve()
@@ -140,11 +141,21 @@ def extract_json(text: str) -> dict:
         return json.loads(match.group(0))
 
 
-def snapshot_files(root: pathlib.Path) -> dict[str, str]:
-    snapshot = {}
+def snapshot_file(path: pathlib.Path) -> dict[str, object]:
+    data = path.read_bytes()
+    digest = hashlib.sha256(data).hexdigest()
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return {"kind": "binary", "sha256": digest, "size": len(data)}
+    return {"kind": "text", "sha256": digest, "size": len(data), "text": text}
+
+
+def snapshot_files(root: pathlib.Path) -> dict[str, dict[str, object]]:
+    snapshot: dict[str, dict[str, object]] = {}
     for path in sorted(root.rglob("*")):
         if path.is_file():
-            snapshot[path.relative_to(root).as_posix()] = path.read_text(encoding="utf-8")
+            snapshot[path.relative_to(root).as_posix()] = snapshot_file(path)
     return snapshot
 
 

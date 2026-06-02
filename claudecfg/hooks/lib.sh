@@ -203,18 +203,41 @@ _acquire_state_lock() {
     # we fall back to this.
     local file="$1"
     local lockdir="${file}.lock"
+    local metadata_pid metadata_epoch now age
+    local stale_after="${CLAUDE_CREW_LOCK_STALE_SECONDS:-120}"
     local attempt=0
     while ! mkdir "$lockdir" 2>/dev/null; do
         attempt=$((attempt + 1))
-        if [ "$attempt" -ge 200 ]; then
-            # Stale lock from a crashed prior writer: rmdir is atomic
-            # and at most one writer holds the lockdir at a time, so
-            # removing it here cannot clobber a live holder.
-            rmdir "$lockdir" 2>/dev/null || true
+
+        metadata_pid=""
+        metadata_epoch=""
+        if [ -f "$lockdir/pid" ]; then
+            metadata_pid="$(cat "$lockdir/pid" 2>/dev/null || true)"
+        fi
+        if [ -f "$lockdir/created_epoch" ]; then
+            metadata_epoch="$(cat "$lockdir/created_epoch" 2>/dev/null || true)"
+        fi
+        now="$(date +%s)"
+        age=0
+        case "$metadata_epoch" in
+            ''|*[!0-9]*)
+                age=0
+                ;;
+            *)
+                age=$((now - metadata_epoch))
+                ;;
+        esac
+
+        if [ "$attempt" -ge 200 ] && [ "$age" -ge "$stale_after" ]; then
+            if [ -z "$metadata_pid" ] || ! kill -0 "$metadata_pid" 2>/dev/null; then
+                rmdir "$lockdir" 2>/dev/null || true
+            fi
             attempt=0
         fi
         sleep 0.05
     done
+    printf "%s\n" "$$" > "$lockdir/pid" 2>/dev/null || true
+    date +%s > "$lockdir/created_epoch" 2>/dev/null || true
     LOCKDIR_HELD="$lockdir"
 }
 
@@ -881,11 +904,11 @@ command_class() {
         *"npm run lint"*|*"pnpm lint"*|*"yarn lint"*|*"ruff"*|*"flake8"*|*"cargo clippy"*|*"golangci-lint"*|*"eslint"*|*"shellcheck"*|*"python -m compileall "*|*"make lint"*)
             printf "lint"
             ;;
-        *"cmake --build"*)
+        *"cmake --build"*|*"make all"*)
             printf "build"
             ;;
-        *"make test"*|*"make all"*|*"make clean"*)
-            printf "test"
+        *"make clean"*)
+            printf "other"
             ;;
         "make"|"make "*)
             printf "build"
@@ -907,11 +930,57 @@ is_release_or_deploy_command() {
         || "$command" == *"helm upgrade"* ]]
 }
 
-is_remote_shell_bootstrap_command() {
+normalize_command_for_policy() {
+    local command="$1"
+    local normalized
+
+    normalized="$(printf "%s" "$command" | tr '[:upper:]' '[:lower:]' | sed -E 's/[[:space:]]+/ /g')"
+    normalized="${normalized//\"/}"
+    normalized="${normalized//\'/}"
+    normalized="${normalized//\\/}"
+    printf "%s" "$normalized"
+}
+
+is_dangerous_rm_command() {
+    local command="$1"
+    local normalized
+
+    normalized="$(normalize_command_for_policy "$command")"
+    if ! [[ "$normalized" =~ (^|[[:space:];|&])rm[[:space:]]+ ]]; then
+        return 1
+    fi
+
+    if ! { [[ "$normalized" =~ (^|[[:space:]])-[[:alnum:]-]*r[[:alnum:]-]*f($|[[:space:]]) ]] \
+        || [[ "$normalized" =~ (^|[[:space:]])-[[:alnum:]-]*f[[:alnum:]-]*r($|[[:space:]]) ]] \
+        || { [[ "$normalized" =~ (^|[[:space:]])-[[:alnum:]-]*r($|[[:space:]]) ]] && [[ "$normalized" =~ (^|[[:space:]])-[[:alnum:]-]*f($|[[:space:]]) ]]; }; }; then
+        return 1
+    fi
+
+    [[ "$normalized" =~ (^|[[:space:]])(--[[:space:]]+)?(/|~|\$home|\$\{home\}|\.|\.\.)($|[[:space:];|&]) ]]
+}
+
+rm_command_targets_home_or_current() {
+    local command="$1"
+    local normalized
+
+    normalized="$(normalize_command_for_policy "$command")"
+    [[ "$normalized" =~ (^|[[:space:]])(--[[:space:]]+)?(~|\$home|\$\{home\}|\.|\.\.)($|[[:space:];|&]) ]]
+}
+
+
+is_force_push_command() {
     local command="$1"
 
-    if { [[ "$command" =~ (^|[[:space:]])curl($|[[:space:]]) ]] || [[ "$command" =~ (^|[[:space:]])wget($|[[:space:]]) ]]; } \
-        && [[ "$command" =~ [|][[:space:]]*[[:alnum:]_./-]*(sh|bash|zsh|dash|ksh)($|[[:space:]]) ]]; then
+    [[ "$command" =~ git[[:space:]]+push ]] && [[ "$command" =~ (^|[[:space:]])(-f|--force|--force-with-lease)($|[[:space:]]) ]]
+}
+
+is_remote_shell_bootstrap_command() {
+    local command="$1"
+    local normalized
+
+    normalized="$(normalize_command_for_policy "$command")"
+    if { [[ "$normalized" =~ (^|[[:space:];|&])curl($|[[:space:]]) ]] || [[ "$normalized" =~ (^|[[:space:];|&])wget($|[[:space:]]) ]]; } \
+        && [[ "$normalized" =~ [|][[:space:]]*([[:alnum:]_./-]+[[:space:]]+)*(sh|bash|zsh|dash|ksh)($|[[:space:]]) ]]; then
         return 0
     fi
 
@@ -929,8 +998,7 @@ command_is_hard_denied_by_profile() {
         return 0
     fi
 
-    if [[ "$command" == *"rm -rf /"* || "$command" == *"git reset --hard"* ]] \
-        || { [[ "$command" =~ git[[:space:]]+push ]] && [[ "$command" =~ (^|[[:space:]])(-f|--force|--force-with-lease)($|[[:space:]]) ]]; }; then
+    if is_dangerous_rm_command "$command" || [[ "$command" == *"git reset --hard"* ]] || is_force_push_command "$command"; then
         return 0
     fi
 
