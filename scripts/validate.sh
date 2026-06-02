@@ -288,7 +288,7 @@ compare_command_file_inventory() {
     actual=()
     while IFS= read -r item; do
         [ -n "$item" ] && actual+=("$item")
-    done < <(find "$REPO_ROOT/claudecfg/commands" -maxdepth 1 -type f -name "*.md" -printf '%f\n' | sed 's/\.md$//' | sort -u)
+    done < <(find "$REPO_ROOT/claudecfg/commands" -maxdepth 1 -type f -name "*.md" | sed 's|.*/||; s/\.md$//' | sort -u)
     expected=()
     while IFS= read -r item; do
         [ -n "$item" ] && expected+=("$item")
@@ -309,7 +309,7 @@ compare_skill_file_inventory() {
     actual=()
     while IFS= read -r item; do
         [ -n "$item" ] && actual+=("$item")
-    done < <(find "$REPO_ROOT/claudecfg/skills" -maxdepth 1 -type f -name "*.md" -printf '%f\n' | sed 's/\.md$//' | sort -u)
+    done < <(find "$REPO_ROOT/claudecfg/skills" -maxdepth 1 -type f -name "*.md" | sed 's|.*/||; s/\.md$//' | sort -u)
     expected=()
     while IFS= read -r item; do
         [ -n "$item" ] && expected+=("$item")

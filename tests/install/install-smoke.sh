@@ -2,6 +2,14 @@
 
 set -euo pipefail
 
+# Choose a portable SHA-256 checksum command.
+# sha256sum is GNU coreutils; shasum -a 256 is BSD/macOS.
+if command -v sha256sum >/dev/null 2>&1; then
+    SHA256_CMD=(sha256sum)
+else
+    SHA256_CMD=(shasum -a 256)
+fi
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TMP_ROOT="$(mktemp -d)"
 HOME_DIR="$TMP_ROOT/home"
@@ -24,7 +32,7 @@ capture_manifest() {
 
     (
         cd "$root_dir"
-        find "$tree_root" -type f -print0 | sort -z | xargs -0 sha256sum
+        find "$tree_root" -type f -print0 | sort -z | xargs -0 "${SHA256_CMD[@]}"
     ) > "$output_file"
 }
 
@@ -52,7 +60,7 @@ capture_backup_manifest() {
 
     (
         cd "$backup_dir"
-        find . -type f -print0 | sort -z | xargs -0 sha256sum | sed 's#  \./#  .claude/#'
+        find . -type f -print0 | sort -z | xargs -0 "${SHA256_CMD[@]}" | sed 's#  \./#  .claude/#'
     ) > "$output_file"
 }
 
