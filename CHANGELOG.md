@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.21] - 2026-06-02
+
 ### Added
 - `Behavior Benchmark Full` workflow as a separate manually runnable full-suite entry instead of hiding the full run inside the nightly matrix
 - `Behavior Benchmark Subagents Smoke` workflow for fast PR/manual subagent-only checks
