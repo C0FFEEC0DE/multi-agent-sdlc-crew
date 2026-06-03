@@ -230,6 +230,7 @@ _acquire_state_lock() {
 
         if [ "$attempt" -ge 200 ] && [ "$age" -ge "$stale_after" ]; then
             if [ -z "$metadata_pid" ] || ! kill -0 "$metadata_pid" 2>/dev/null; then
+                rm -f "$lockdir/pid" "$lockdir/created_epoch" 2>/dev/null || true
                 rmdir "$lockdir" 2>/dev/null || true
             fi
             attempt=0
@@ -243,6 +244,7 @@ _acquire_state_lock() {
 
 _release_state_lock() {
     if [ -n "${LOCKDIR_HELD:-}" ]; then
+        rm -f "$LOCKDIR_HELD/pid" "$LOCKDIR_HELD/created_epoch" 2>/dev/null || true
         rmdir "$LOCKDIR_HELD" 2>/dev/null || true
         LOCKDIR_HELD=""
     fi

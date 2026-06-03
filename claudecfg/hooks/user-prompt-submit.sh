@@ -195,7 +195,23 @@ _atomic_state_update \
     | .manager_mode = $manager_mode
     | .docs_required = $docs_required
     | .required_subagents = $required_subagents
-    | .required_subagent_any_of = $required_subagent_any_of'
+    | .required_subagent_any_of = $required_subagent_any_of
+    | if $task_type == "other" then
+        .edited = false
+        | .code_changed = false
+        | .docs_changed = false
+        | .tests_failed = false
+        | .lint_failed = false
+        | .build_failed = false
+        | .files = []
+        | .stop_block_count = 0
+        | .stop_block_reason = ""
+        | .stop_block_message = ""
+        | .stalled_by_policy = false
+        | .policy_stall_reason = ""
+      else
+        .
+      end'
 
 if [ -n "$context_message" ]; then
     emit_context "UserPromptSubmit" "$context_message"
