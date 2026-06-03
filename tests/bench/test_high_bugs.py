@@ -10,7 +10,8 @@ import subprocess
 from pathlib import Path
 
 
-HOOKS_DIR = Path("/var/home/chaos_weaver/code/claude-crew/claudecfg/hooks")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+HOOKS_DIR = REPO_ROOT / "claudecfg" / "hooks"
 LIB_SH = HOOKS_DIR / "lib.sh"
 STOP_GUARD_SH = HOOKS_DIR / "stop-guard.sh"
 ALL_HOOK_SCRIPTS = list(HOOKS_DIR.glob("*.sh"))

@@ -688,7 +688,39 @@ infer_started_roles_from_transcript() {
     fi
 
     matches="$(
-        grep -Eio 'skill\(/manager\)|skill\(/review\)|skill\(/test\)|skill\(/explore\)|skill\(/design\)|skill\(/bug\)|skill\(/debug\)|skill\(/docs\)|skill\(/refactor\)|manager\(|code reviewer\(|tester\(|explorer\(|architect\(|bugbuster\(|debugger\(|docwriter\(' "$transcript_path" \
+        jq -r '
+            def flattened_text:
+                if type == "array" then
+                    [
+                        .[]?
+                        | if type == "object" then
+                            .text // .result // .content // empty
+                        else
+                            empty
+                        end
+                    ]
+                    | map(select(type == "string" and length > 0))
+                    | join("\n")
+                else
+                    empty
+                end;
+
+            select(
+                (.type? == "assistant")
+                or (.type? == "result" and (has("tool_use_id") | not))
+                or (.role? == "assistant")
+                or (.message?.role? == "assistant")
+            )
+            | [
+                ((.message?.content? // empty) | flattened_text),
+                ((.content? // empty) | flattened_text),
+                (.result?),
+                (.text?)
+            ]
+            | .[]
+            | select(type == "string" and length > 0)
+        ' "$transcript_path" 2>/dev/null \
+            | grep -Eio '^[[:space:]]*(skill\(/manager\)|skill\(/review\)|skill\(/test\)|skill\(/explore\)|skill\(/design\)|skill\(/bug\)|skill\(/debug\)|skill\(/docs\)|skill\(/refactor\)|manager\(|code reviewer\(|tester\(|explorer\(|architect\(|bugbuster\(|debugger\(|docwriter\()' \
             || true
     )"
     [ -z "$matches" ] && return 0
@@ -1456,7 +1488,7 @@ is_docs_path() {
 
     # shellcheck disable=SC2221,SC2222
     case "$file_path" in
-        *.md|*.mdx|*.txt|*.rst|*.adoc|*.markdown|*/docs/*|README*|CHANGELOG*|CLAUDE.md)
+        *.md|*.mdx|*.rst|*.adoc|*.markdown|*/docs/*|README*|CHANGELOG*|CLAUDE.md)
             return 0
             ;;
         *)

@@ -523,6 +523,14 @@
     "state_jq": ".edited == true and .docs_changed == true and .code_changed == false and ((.files | index(\"README.md\")) != null)"
   },
   {
+    "name": "post_edit_write_treats_requirements_txt_as_code_change",
+    "script": "claudecfg/hooks/post-edit-write.sh",
+    "stdin": "tests/hooks/fixtures/post_edit_write_requirements_txt.json",
+    "expect_exit": 0,
+    "stdout_jq": ".hookSpecificOutput.hookEventName == \"PostToolUse\" and (.hookSpecificOutput.additionalContext | contains(\"requires verification\"))",
+    "state_jq": ".edited == true and .code_changed == true and .docs_changed == false and ((.files | index(\"requirements.txt\")) != null)"
+  },
+  {
     "name": "post_bash_classifies_cmake_as_build",
     "script": "claudecfg/hooks/post-bash.sh",
     "stdin": "tests/hooks/fixtures/post_bash_cmake.json",
@@ -721,6 +729,14 @@
     "stdin": "tests/hooks/fixtures/stop_guard_review_explorer_then_reviewer.json",
     "seed_state": "tests/hooks/fixtures/state_review_manager_explorer_then_reviewer.json",
     "expect_exit": 0
+  },
+  {
+    "name": "stop_guard_does_not_count_user_text_as_review_handoff",
+    "script": "claudecfg/hooks/stop-guard.sh",
+    "stdin": "tests/hooks/fixtures/stop_guard_review_user_text_false_positive.json",
+    "seed_state": "tests/hooks/fixtures/state_review_user_text_false_positive.json",
+    "expect_exit": 0,
+    "stdout_jq": ".decision == \"block\" and (.reason | contains(\"Missing required roles: @cr\"))"
   },
   {
     "name": "stop_guard_blocks_review_only_without_verification_status",
