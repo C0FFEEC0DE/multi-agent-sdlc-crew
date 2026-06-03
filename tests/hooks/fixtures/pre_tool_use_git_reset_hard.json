@@ -1,0 +1,6 @@
+{
+  "session_id": "case-pre-git-reset-hard",
+  "tool_input": {
+    "command": "git reset --hard HEAD~1"
+  }
+}

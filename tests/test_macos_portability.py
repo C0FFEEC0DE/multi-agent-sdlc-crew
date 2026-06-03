@@ -229,3 +229,22 @@ class TestHooksMacOSPortabilityRegression:
                 f"{script.name} contains {len(matches)} 'find -printf' usage(s) outside comments. "
                 f"Use 'find … | sed \"s|.*/|||\"' instead."
             )
+
+
+class TestPythonTestsPortability:
+    """Python tests should run from any checkout path."""
+
+    def test_no_hardcoded_local_checkout_paths_in_python_tests(self):
+        forbidden_fragments = (
+            "/" + "var" + "/" + "home" + "/",
+            "/" + "home" + "/" + "chaos",
+            "/" + "Users" + "/",
+        )
+
+        for path in (REPO_ROOT / "tests").rglob("*.py"):
+            content = path.read_text(encoding="utf-8")
+            for fragment in forbidden_fragments:
+                assert fragment not in content, (
+                    f"{path.relative_to(REPO_ROOT)} hard-codes local checkout path fragment {fragment!r}. "
+                    "Use Path(__file__).resolve() to derive repository paths."
+                )

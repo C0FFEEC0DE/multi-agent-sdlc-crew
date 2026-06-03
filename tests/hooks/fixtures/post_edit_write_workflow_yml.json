@@ -1,0 +1,6 @@
+{
+  "session_id": "case-edit-workflow-yml",
+  "tool_input": {
+    "file_path": ".github/workflows/ci.yml"
+  }
+}

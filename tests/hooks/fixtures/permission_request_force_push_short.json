@@ -1,0 +1,6 @@
+{
+  "session_id": "case-permission-force-push",
+  "tool_input": {
+    "command": "git push -f origin main"
+  }
+}
