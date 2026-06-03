@@ -150,6 +150,36 @@ Strict mode is opt-in. Leave the recovery-cap variables unset if you want recove
 
 ## Local Usage
 
+Make targets wrap the same scripts for the common local paths:
+
+```bash
+make bench-mock
+make bench-smoke
+make bench-smoke BENCH_TASK_GLOB='bench/tasks/subagents/smoke/*.json'
+make bench-smoke BENCH_TASK_LIST=/tmp/bench-tasks.txt BENCH_OUTPUT_DIR=/tmp/claude-bench-one
+make bench-report BENCH_OUTPUT_DIR=/tmp/claude-bench-one
+```
+
+`bench-mock` is the cheap synthetic path and does not call the model. `bench-smoke`
+uses `scripts/bench_runner_claude_code.py` by default and points Claude Code at a
+local no-auth endpoint:
+
+```bash
+BENCH_ANTHROPIC_BASE_URL=http://127.0.0.1:11434
+BENCH_ANTHROPIC_AUTH_TOKEN=
+BENCH_ANTHROPIC_API_KEY=
+OLLAMA_MODEL=qwen3.5:cloud
+```
+
+Override those Make variables when using a hosted endpoint:
+
+```bash
+make bench-smoke \
+  BENCH_ANTHROPIC_BASE_URL=https://ollama.com \
+  BENCH_ANTHROPIC_AUTH_TOKEN="$OLLAMA_API_KEY" \
+  OLLAMA_MODEL=qwen3.5:cloud
+```
+
 With Claude Code CLI and Ollama Cloud env vars available:
 
 ```bash
