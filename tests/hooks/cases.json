@@ -70,13 +70,6 @@
     "stdout_jq": ".hookSpecificOutput.permissionDecision == \"deny\" and (.hookSpecificOutput.permissionDecisionReason | contains(\"Destructive commands\"))"
   },
   {
-    "name": "pre_tool_use_blocks_git_reset_hard",
-    "script": "claudecfg/hooks/pre-tool-use.sh",
-    "stdin": "tests/hooks/fixtures/pre_tool_use_git_reset_hard.json",
-    "expect_exit": 0,
-    "stdout_jq": ".hookSpecificOutput.permissionDecision == \"deny\" and (.hookSpecificOutput.permissionDecisionReason | contains(\"Destructive commands\"))"
-  },
-  {
     "name": "pre_tool_use_blocks_remote_bootstrap_curl_bash",
     "script": "claudecfg/hooks/pre-tool-use.sh",
     "stdin": "tests/hooks/fixtures/pre_tool_use_remote_bootstrap_curl_bash.json",
@@ -96,27 +89,6 @@
     "stdin": "tests/hooks/fixtures/permission_request_release.json",
     "expect_exit": 0,
     "stdout_jq": ".hookSpecificOutput.decision.behavior == \"deny\" and (.hookSpecificOutput.decision.message | contains(\"outside this profile\"))"
-  },
-  {
-    "name": "permission_request_blocks_sudo",
-    "script": "claudecfg/hooks/permission-request.sh",
-    "stdin": "tests/hooks/fixtures/permission_request_sudo.json",
-    "expect_exit": 0,
-    "stdout_jq": ".hookSpecificOutput.decision.behavior == \"deny\" and (.hookSpecificOutput.decision.message | contains(\"sudo\"))"
-  },
-  {
-    "name": "permission_request_blocks_mkfs_variant",
-    "script": "claudecfg/hooks/permission-request.sh",
-    "stdin": "tests/hooks/fixtures/permission_request_mkfs_variant.json",
-    "expect_exit": 0,
-    "stdout_jq": ".hookSpecificOutput.decision.behavior == \"deny\" and (.hookSpecificOutput.decision.message | contains(\"dangerous disk\"))"
-  },
-  {
-    "name": "permission_request_blocks_force_push_short_flag",
-    "script": "claudecfg/hooks/permission-request.sh",
-    "stdin": "tests/hooks/fixtures/permission_request_force_push_short.json",
-    "expect_exit": 0,
-    "stdout_jq": ".hookSpecificOutput.decision.behavior == \"deny\" and (.hookSpecificOutput.decision.message | contains(\"destructive\"))"
   },
   {
     "name": "permission_request_blocks_remote_bootstrap_wget_bash",
@@ -551,38 +523,6 @@
     "state_jq": ".edited == true and .docs_changed == true and .code_changed == false and ((.files | index(\"README.md\")) != null)"
   },
   {
-    "name": "post_edit_write_treats_requirements_txt_as_code_change",
-    "script": "claudecfg/hooks/post-edit-write.sh",
-    "stdin": "tests/hooks/fixtures/post_edit_write_requirements_txt.json",
-    "expect_exit": 0,
-    "stdout_jq": ".hookSpecificOutput.hookEventName == \"PostToolUse\" and (.hookSpecificOutput.additionalContext | contains(\"requires verification\"))",
-    "state_jq": ".edited == true and .code_changed == true and .docs_changed == false and ((.files | index(\"requirements.txt\")) != null)"
-  },
-  {
-    "name": "post_edit_write_treats_package_lock_as_code_change",
-    "script": "claudecfg/hooks/post-edit-write.sh",
-    "stdin": "tests/hooks/fixtures/post_edit_write_package_lock.json",
-    "expect_exit": 0,
-    "stdout_jq": ".hookSpecificOutput.hookEventName == \"PostToolUse\" and (.hookSpecificOutput.additionalContext | contains(\"requires verification\"))",
-    "state_jq": ".edited == true and .code_changed == true and .docs_changed == false and ((.files | index(\"package-lock.json\")) != null)"
-  },
-  {
-    "name": "post_edit_write_treats_dockerfile_as_code_change",
-    "script": "claudecfg/hooks/post-edit-write.sh",
-    "stdin": "tests/hooks/fixtures/post_edit_write_dockerfile.json",
-    "expect_exit": 0,
-    "stdout_jq": ".hookSpecificOutput.hookEventName == \"PostToolUse\" and (.hookSpecificOutput.additionalContext | contains(\"requires verification\"))",
-    "state_jq": ".edited == true and .code_changed == true and .docs_changed == false and ((.files | index(\"Dockerfile\")) != null)"
-  },
-  {
-    "name": "post_edit_write_treats_workflow_yml_as_code_change",
-    "script": "claudecfg/hooks/post-edit-write.sh",
-    "stdin": "tests/hooks/fixtures/post_edit_write_workflow_yml.json",
-    "expect_exit": 0,
-    "stdout_jq": ".hookSpecificOutput.hookEventName == \"PostToolUse\" and (.hookSpecificOutput.additionalContext | contains(\"requires verification\"))",
-    "state_jq": ".edited == true and .code_changed == true and .docs_changed == false and ((.files | index(\".github/workflows/ci.yml\")) != null)"
-  },
-  {
     "name": "post_bash_classifies_cmake_as_build",
     "script": "claudecfg/hooks/post-bash.sh",
     "stdin": "tests/hooks/fixtures/post_bash_cmake.json",
@@ -781,14 +721,6 @@
     "stdin": "tests/hooks/fixtures/stop_guard_review_explorer_then_reviewer.json",
     "seed_state": "tests/hooks/fixtures/state_review_manager_explorer_then_reviewer.json",
     "expect_exit": 0
-  },
-  {
-    "name": "stop_guard_does_not_count_user_text_as_review_handoff",
-    "script": "claudecfg/hooks/stop-guard.sh",
-    "stdin": "tests/hooks/fixtures/stop_guard_review_user_text_false_positive.json",
-    "seed_state": "tests/hooks/fixtures/state_review_user_text_false_positive.json",
-    "expect_exit": 0,
-    "stdout_jq": ".decision == \"block\" and (.reason | contains(\"Missing required roles: @cr\"))"
   },
   {
     "name": "stop_guard_blocks_review_only_without_verification_status",

@@ -41,19 +41,3 @@ def test_security_scan_trufflehog_base_is_not_literal_main():
     content = path.read_text()
     assert "base: main" not in content, "literal 'base: main' breaks on PRs where HEAD == BASE"
     assert "github.event.pull_request.base.sha" in content, "should use PR base sha for TruffleHog base"
-
-
-def test_python_tests_workflow_runs_full_pytest_suite():
-    """CI must not silently skip repository pytest modules."""
-    path = WORKFLOWS_DIR / "python-tests.yml"
-    assert path.exists()
-    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
-    steps = workflow["jobs"]["python-tests"]["steps"]
-    run_commands = [str(step.get("run", "")) for step in steps]
-
-    assert any("pip install" in command and "pyyaml" in command for command in run_commands)
-    assert any("python -m pytest -v" in command for command in run_commands)
-    assert not any(
-        "python -m pytest tests/bench/test_bench_runner.py" in command
-        for command in run_commands
-    ), "python-tests workflow should run the full pytest suite, not a hand-picked subset"

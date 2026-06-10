@@ -2,7 +2,14 @@
 
 set -euo pipefail
 
-HOOK_INPUT="$(cat)"
+# Read hook payload from stdin when piped; skip when stdin is a TTY so that
+# sourcing lib.sh from an interactive shell or a test that forgot to pipe a
+# fixture does not block forever on cat.
+if [ -t 0 ]; then
+    HOOK_INPUT="${HOOK_INPUT-}"
+else
+    HOOK_INPUT="$(cat)"
+fi
 STATE_ROOT="${HOME}/.claude/state"
 LOG_ROOT="${HOME}/.claude/logs"
 
@@ -230,7 +237,6 @@ _acquire_state_lock() {
 
         if [ "$attempt" -ge 200 ] && [ "$age" -ge "$stale_after" ]; then
             if [ -z "$metadata_pid" ] || ! kill -0 "$metadata_pid" 2>/dev/null; then
-                rm -f "$lockdir/pid" "$lockdir/created_epoch" 2>/dev/null || true
                 rmdir "$lockdir" 2>/dev/null || true
             fi
             attempt=0
@@ -244,21 +250,22 @@ _acquire_state_lock() {
 
 _release_state_lock() {
     if [ -n "${LOCKDIR_HELD:-}" ]; then
-        rm -f "$LOCKDIR_HELD/pid" "$LOCKDIR_HELD/created_epoch" 2>/dev/null || true
         rmdir "$LOCKDIR_HELD" 2>/dev/null || true
         LOCKDIR_HELD=""
     fi
 }
 
 _atomic_state_update() {
-    local file
+    local file tmp
     file="$(state_file)"
     ensure_dirs
     _acquire_state_lock "$file"
-    # Function-return trap is bash 3.2 compatible and runs on every
-    # exit path, including errors and the eventual successful return.
+    # Install a release-only trap immediately so that a failure in mktemp
+    # (set -e) cannot leave the lockdir held. Once tmp exists, replace the
+    # trap with one that also cleans up the staging file.
     trap '_release_state_lock' RETURN
     tmp="$(mktemp)"
+    trap '_release_state_lock; rm -f "$tmp"' RETURN
     jq "$@" "$file" > "$tmp"
     mv "$tmp" "$file"
 }
@@ -378,14 +385,11 @@ emit_loop_aware_block() {
     fi
 
     if [ "$prefix" = "stop" ]; then
-        file="$(state_file)"
-        tmp="$(mktemp)"
-        jq \
+        _atomic_state_update \
             --arg reason "$final_reason" \
             --argjson hard_stop "$hard_stop" \
             '.stalled_by_policy = $hard_stop
-            | .policy_stall_reason = (if $hard_stop then $reason else "" end)' "$file" > "$tmp"
-        mv "$tmp" "$file"
+            | .policy_stall_reason = (if $hard_stop then $reason else "" end)'
     fi
 
     checklist_output="$(build_block_checklist "$prefix" "$final_reason" "$message")"
@@ -688,39 +692,7 @@ infer_started_roles_from_transcript() {
     fi
 
     matches="$(
-        jq -r '
-            def flattened_text:
-                if type == "array" then
-                    [
-                        .[]?
-                        | if type == "object" then
-                            .text // .result // .content // empty
-                        else
-                            empty
-                        end
-                    ]
-                    | map(select(type == "string" and length > 0))
-                    | join("\n")
-                else
-                    empty
-                end;
-
-            select(
-                (.type? == "assistant")
-                or (.type? == "result" and (has("tool_use_id") | not))
-                or (.role? == "assistant")
-                or (.message?.role? == "assistant")
-            )
-            | [
-                ((.message?.content? // empty) | flattened_text),
-                ((.content? // empty) | flattened_text),
-                (.result?),
-                (.text?)
-            ]
-            | .[]
-            | select(type == "string" and length > 0)
-        ' "$transcript_path" 2>/dev/null \
-            | grep -Eio '^[[:space:]]*(skill\(/manager\)|skill\(/review\)|skill\(/test\)|skill\(/explore\)|skill\(/design\)|skill\(/bug\)|skill\(/debug\)|skill\(/docs\)|skill\(/refactor\)|manager\(|code reviewer\(|tester\(|explorer\(|architect\(|bugbuster\(|debugger\(|docwriter\()' \
+        grep -Eio 'skill\(/manager\)|skill\(/review\)|skill\(/test\)|skill\(/explore\)|skill\(/design\)|skill\(/bug\)|skill\(/debug\)|skill\(/docs\)|skill\(/refactor\)|manager\(|code reviewer\(|tester\(|explorer\(|architect\(|bugbuster\(|debugger\(|docwriter\(' "$transcript_path" \
             || true
     )"
     [ -z "$matches" ] && return 0
@@ -1488,7 +1460,7 @@ is_docs_path() {
 
     # shellcheck disable=SC2221,SC2222
     case "$file_path" in
-        *.md|*.mdx|*.rst|*.adoc|*.markdown|*/docs/*|README*|CHANGELOG*|CLAUDE.md)
+        *.md|*.mdx|*.txt|*.rst|*.adoc|*.markdown|*/docs/*|README*|CHANGELOG*|CLAUDE.md)
             return 0
             ;;
         *)

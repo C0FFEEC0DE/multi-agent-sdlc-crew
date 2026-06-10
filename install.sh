@@ -19,7 +19,7 @@ fi
 # Backup current directory
 if [ -d "$HOME/.claude" ]; then
     echo "[1/3] Creating backup: $BACKUP_DIR"
-    cp -r "$HOME/.claude" "$BACKUP_DIR"
+    cp -R "$HOME/.claude" "$BACKUP_DIR"
     echo "      Backup created!"
 else
     echo "[1/3] No existing .claude directory, skipping backup"
@@ -28,7 +28,12 @@ fi
 # Install new config
 echo "[2/3] Installing new config..."
 mkdir -p "$HOME/.claude"
-cp -r "$CONFIG_DIR"/* "$HOME/.claude/"
+# dotglob ensures dotfiles like .claudeignore are copied; nullglob avoids the
+# literal "*" pattern when CONFIG_DIR is somehow empty.
+(
+    shopt -s dotglob nullglob
+    cp -R "$CONFIG_DIR"/* "$HOME/.claude/"
+)
 mkdir -p "$HOME/.claude/state" "$HOME/.claude/logs"
 find "$HOME/.claude/hooks" -type f -name "*.sh" -exec chmod +x {} \;
 echo "      Done!"
@@ -46,4 +51,4 @@ echo ""
 echo "=== Installation complete! ==="
 echo "Restart Claude Code to use new config."
 echo ""
-echo "To restore backup: cp -r $BACKUP_DIR/* $HOME/.claude/"
+echo "To restore backup: rm -rf \"$HOME/.claude\" && cp -R \"$BACKUP_DIR\" \"$HOME/.claude\""

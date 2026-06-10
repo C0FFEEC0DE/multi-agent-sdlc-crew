@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 
 import argparse
+import email.utils
 import json
 import os
 import sys
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 from typing import Iterable
 
 
@@ -21,6 +23,16 @@ ACTIVE_STATUSES = {"queued", "in_progress", "waiting", "pending", "requested"}
 
 RATE_LIMIT_BODY_MARKERS = frozenset(["rate_limit_exceeded", "rate limit exceeded", "rate limit"])
 
+def _read_body_once(exc: urllib.error.HTTPError) -> str:
+    """Cache the response body on the exception so we can read it more than once."""
+    cached = getattr(exc, "_body_cache", None)
+    if cached is not None:
+        return cached
+    body = exc.read().decode("utf-8", errors="replace")
+    exc._body_cache = body  # type: ignore[attr-defined]
+    return body
+
+
 def is_github_rate_limit(exc: urllib.error.HTTPError) -> bool:
     """Return True if this HTTP 403 is a GitHub API rate-limit response."""
     if exc.code != 403:
@@ -28,15 +40,39 @@ def is_github_rate_limit(exc: urllib.error.HTTPError) -> bool:
     remaining = exc.headers.get("X-RateLimit-Remaining", "")
     if remaining == "0":
         return True
-    body = exc.read().decode("utf-8", errors="replace")
-    exc._body_cache = body  # type: ignore[attr-defined]
+    body = _read_body_once(exc)
     return any(marker in body.lower() for marker in RATE_LIMIT_BODY_MARKERS)
+
+
+def parse_retry_after(value: str | None) -> int | None:
+    """Parse a Retry-After header (seconds or HTTP-date). Return None on failure."""
+    if not value:
+        return None
+    candidate = value.strip()
+    if not candidate:
+        return None
+    try:
+        seconds = int(candidate)
+    except ValueError:
+        seconds = None
+    if seconds is not None:
+        return max(0, seconds)
+    try:
+        when = email.utils.parsedate_to_datetime(candidate)
+    except (TypeError, ValueError):
+        return None
+    if when is None:
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    delta = (when - datetime.now(timezone.utc)).total_seconds()
+    return max(0, int(delta))
 
 
 def handle_rate_limit(exc: urllib.error.HTTPError) -> int | None:
     """Sleep for the Retry-After period on a rate-limit hit; return None to retry."""
-    retry_after = exc.headers.get("Retry-After")
-    wait_seconds = int(retry_after) if retry_after and retry_after.isdigit() else 60
+    parsed = parse_retry_after(exc.headers.get("Retry-After"))
+    wait_seconds = parsed if parsed is not None else 60
     print(
         f"GitHub API rate limit hit (HTTP 403). "
         f"Retrying after {wait_seconds}s (Retry-After header, default 60).",
@@ -147,7 +183,17 @@ def main() -> int:
                 if handle_transient_error(exc, transient_attempt):
                     transient_attempt += 1
                     continue
-            print(f"GitHub API request failed with HTTP {exc.code}", file=sys.stderr)
+            try:
+                body_snippet = _read_body_once(exc)[:500]
+            except Exception:  # noqa: BLE001 - body may already be consumed
+                body_snippet = ""
+            if body_snippet:
+                print(
+                    f"GitHub API request failed with HTTP {exc.code}: {body_snippet}",
+                    file=sys.stderr,
+                )
+            else:
+                print(f"GitHub API request failed with HTTP {exc.code}", file=sys.stderr)
             return 1
         except urllib.error.URLError as exc:
             if handle_transient_error(exc, transient_attempt):

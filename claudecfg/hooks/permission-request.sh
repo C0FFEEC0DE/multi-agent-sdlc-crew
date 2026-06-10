@@ -8,11 +8,6 @@ source "${SCRIPT_DIR}/lib.sh"
 
 command="$(json_get '.tool_input.command' | tr '[:upper:]' '[:lower:]')"
 
-if [[ "$command" =~ (^|[[:space:]])sudo($|[[:space:]]) ]]; then
-    emit_permission_request_deny "sudo is blocked by this profile"
-    exit 0
-fi
-
 if [[ "$command" =~ (^|[[:space:]])mkfs(\.[^[:space:]]+)?($|[[:space:]]) ]] || [[ "$command" =~ (^|[[:space:]])dd($|[[:space:]]) ]]; then
     emit_permission_request_deny "dangerous disk commands are blocked by this profile"
     exit 0

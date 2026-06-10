@@ -3,7 +3,7 @@
 import argparse
 import json
 import pathlib
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 
 
 def parse_args() -> argparse.Namespace:
@@ -160,7 +160,7 @@ def merge_summaries(summary_payloads: list[dict]) -> dict:
         "schema_version": first["schema_version"],
         "mode": first["mode"],
         "runner": first["runner"],
-        "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "source_ref": first["source_ref"],
         "source_sha": first["source_sha"],
         "task_glob": first["task_glob"],
