@@ -63,8 +63,16 @@ done < <(find "$REPO_ROOT" -name "*.json" -type f | sort)
 echo ""
 
 echo "--- Checking shell syntax ---"
+# Prefer /bin/bash so macOS bash 3.2 parses the same way it does at runtime;
+# Linux /bin/bash is bash 4/5 so this also works there. Fall back to PATH bash
+# only if /bin/bash is missing (uncommon).
+if [ -x /bin/bash ]; then
+    SYNTAX_BASH="/bin/bash"
+else
+    SYNTAX_BASH="bash"
+fi
 while IFS= read -r shell_file; do
-    if ! bash -n "$shell_file"; then
+    if ! "$SYNTAX_BASH" -n "$shell_file"; then
         report_error "Shell syntax error: $shell_file"
     else
         echo "OK: $shell_file"
@@ -134,7 +142,7 @@ if [ -d "$AGENT_DIR" ]; then
             continue
         fi
 
-        frontmatter="$(sed -n '/^---$/,/^---$/p' "$agent_file" | tail -n +2 | head -n -1)"
+        frontmatter="$(awk '/^---$/{n++; next} n==1' "$agent_file")"
         for field in name alias description type; do
             if ! grep -q "^${field}:" <<<"$frontmatter"; then
                 report_error "Missing '$field' in $filename frontmatter"

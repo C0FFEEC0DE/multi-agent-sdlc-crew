@@ -121,16 +121,16 @@ if [ -n "$TASK_LIST_FILE" ]; then
     fi
     task_files=()
     while IFS= read -r task_path; do
-        [ -n "$task_path" ] && task_files+=("$task_path")
-    done < <(
-        sed '/^[[:space:]]*$/d' "$TASK_LIST_FILE" \
-        | while IFS= read -r task_path; do
-            case "$task_path" in
-                /*) printf '%s\n' "$task_path" ;;
-                *) printf '%s\n' "$REPO_ROOT/$task_path" ;;
-            esac
-          done
-    )
+        [ -z "$task_path" ] && continue
+        case "$task_path" in
+            [[:space:]]*) task_path="$(printf '%s' "$task_path" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')" ;;
+        esac
+        [ -z "$task_path" ] && continue
+        case "$task_path" in
+            /*) task_files+=("$task_path") ;;
+            *)  task_files+=("$REPO_ROOT/$task_path") ;;
+        esac
+    done < "$TASK_LIST_FILE"
 else
     task_files=()
     while IFS= read -r task_path; do
@@ -210,7 +210,9 @@ for task_file in "${task_files[@]}"; do
     if [ "$MODE" = "mock" ]; then
         "$RUNNER_CMD"
     else
-        bash -lc "$RUNNER_CMD"
+        # bash -c (not -lc) so login profiles cannot inject host-specific
+        # PATH/env between macOS and Linux benchmark runs.
+        bash -c "$RUNNER_CMD"
     fi
 
     if [ ! -f "$task_output_dir/result.json" ]; then
@@ -278,7 +280,7 @@ unexecuted_task_ids_json="$(json_array_from_items "${unexecuted_task_ids[@]}")"
 unresolved_task_paths_json="$(json_array_from_items "${unresolved_task_paths[@]}")"
 unresolved_task_ids_json="$(json_array_from_items "${unresolved_task_ids[@]}")"
 
-source_sha="$(git rev-parse --short HEAD)"
+source_sha="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo "unknown")"
 generated_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 jq -s \

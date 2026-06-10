@@ -30,9 +30,12 @@ capture_manifest() {
     local tree_root="$2"
     local output_file="$3"
 
+    # BSD sort grew -z only on macOS 12; use newline-delimited input so this
+    # works on macOS 11 and any Linux. Filenames in .claude/ are controlled
+    # and never contain newlines.
     (
         cd "$root_dir"
-        find "$tree_root" -type f -print0 | sort -z | xargs -0 "${SHA256_CMD[@]}"
+        find "$tree_root" -type f | LC_ALL=C sort | tr '\n' '\0' | xargs -0 "${SHA256_CMD[@]}"
     ) > "$output_file"
 }
 
@@ -60,7 +63,8 @@ capture_backup_manifest() {
 
     (
         cd "$backup_dir"
-        find . -type f -print0 | sort -z | xargs -0 "${SHA256_CMD[@]}" | sed 's#  \./#  .claude/#'
+        find . -type f | LC_ALL=C sort | tr '\n' '\0' | xargs -0 "${SHA256_CMD[@]}" \
+            | sed 's#  \./#  .claude/#'
     ) > "$output_file"
 }
 
