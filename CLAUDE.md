@@ -43,8 +43,8 @@ Commands `/debug`, `/test`, `/design`, `/refactor`, `/review` and the `/docs` sk
 - `@cr` — Code Reviewer (review)
 - `@doc` — Docwriter (documentation)
 
-Subagent handoffs normalize aliases, names, and subagent-type fields from both snake_case and camelCase payloads before generic runtime types are considered.
-Transcript fallback also recognizes slash-skill loads and agent launch lines like `Code Reviewer(...)` when runtimes omit explicit `SubagentStart`.
+Subagent handoffs normalize aliases, names, and subagent-type fields from both snake_case and camelCase payloads before generic runtime types are considered. Generic Task tool types (`general-purpose`, `workflow-subagent`) are filtered from role enforcement since they are tool dispatch types, not agent roles.
+Transcript fallback also recognizes slash-skill loads, agent launch lines like `Code Reviewer(...)`, and `@alias` patterns like `@cr`, `@e`, `@nerd`, `@toxic-senior`, or `@paranoid` when runtimes omit explicit `SubagentStart`.
 
 ## Docs
 

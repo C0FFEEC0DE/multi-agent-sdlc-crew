@@ -1119,5 +1119,85 @@
     "stdin": "tests/hooks/fixtures/stop_guard_no_code_change.json",
     "seed_state": "tests/hooks/fixtures/state_stop_guard_docs_required_no_code_change.json",
     "expect_exit": 0
+  },
+  {
+    "name": "stop_guard_blocks_feature_when_only_generic_types_in_state",
+    "script": "claudecfg/hooks/stop-guard.sh",
+    "stdin": "tests/hooks/fixtures/stop_guard_generic_types_only.json",
+    "seed_state": "tests/hooks/fixtures/state_feature_generic_types_only.json",
+    "expect_exit": 0,
+    "stdout_jq": ".decision == \"block\" and (.reason | contains(\"Missing required roles\"))"
+  },
+  {
+    "name": "stop_guard_allows_feature_when_generic_types_alongside_real_roles",
+    "script": "claudecfg/hooks/stop-guard.sh",
+    "stdin": "tests/hooks/fixtures/stop_guard_generic_and_real_roles.json",
+    "seed_state": "tests/hooks/fixtures/state_feature_generic_and_real_roles.json",
+    "expect_exit": 0
+  },
+  {
+    "name": "stop_guard_allows_review_when_alias_nerd_infers_explorer",
+    "script": "claudecfg/hooks/stop-guard.sh",
+    "stdin": "tests/hooks/fixtures/stop_guard_alias_explorer.json",
+    "seed_state": "tests/hooks/fixtures/state_review_alias_explorer.json",
+    "expect_exit": 0
+  },
+  {
+    "name": "stop_guard_allows_review_when_alias_toxic_senior_infers_code_reviewer",
+    "script": "claudecfg/hooks/stop-guard.sh",
+    "stdin": "tests/hooks/fixtures/stop_guard_alias_reviewer.json",
+    "seed_state": "tests/hooks/fixtures/state_review_alias_reviewer.json",
+    "expect_exit": 0
+  },
+  {
+    "name": "stop_guard_allows_feature_when_multiple_aliases_in_transcript",
+    "script": "claudecfg/hooks/stop-guard.sh",
+    "stdin": "tests/hooks/fixtures/stop_guard_alias_multiple.json",
+    "seed_state": "tests/hooks/fixtures/state_feature_alias_multiple.json",
+    "expect_exit": 0
+  },
+  {
+    "name": "stop_guard_allows_review_when_alias_short_cr_matches",
+    "script": "claudecfg/hooks/stop-guard.sh",
+    "stdin": "tests/hooks/fixtures/stop_guard_alias_short_cr.json",
+    "seed_state": "tests/hooks/fixtures/state_review_alias_reviewer.json",
+    "expect_exit": 0
+  },
+  {
+    "name": "stop_guard_allows_review_when_alias_short_e_matches",
+    "script": "claudecfg/hooks/stop-guard.sh",
+    "stdin": "tests/hooks/fixtures/stop_guard_alias_short_e.json",
+    "seed_state": "tests/hooks/fixtures/state_review_alias_explorer.json",
+    "expect_exit": 0
+  },
+  {
+    "name": "stop_guard_does_not_false_positive_on_email_in_transcript",
+    "script": "claudecfg/hooks/stop-guard.sh",
+    "stdin": "tests/hooks/fixtures/stop_guard_no_false_positive.json",
+    "seed_state": "tests/hooks/fixtures/state_review_alias_explorer.json",
+    "expect_exit": 0,
+    "stdout_jq": ".decision == \"block\""
+  },
+  {
+    "name": "stop_guard_deduplicates_alias_and_explicit_pattern_in_transcript",
+    "script": "claudecfg/hooks/stop-guard.sh",
+    "stdin": "tests/hooks/fixtures/stop_guard_alias_dedup.json",
+    "seed_state": "tests/hooks/fixtures/state_review_alias_dedup.json",
+    "expect_exit": 0
+  },
+  {
+    "name": "task_completed_blocks_when_only_generic_types_in_state",
+    "script": "claudecfg/hooks/task-completed.sh",
+    "stdin": "tests/hooks/fixtures/task_completed_incomplete.json",
+    "seed_state": "tests/hooks/fixtures/state_feature_generic_types_only.json",
+    "expect_exit": 2,
+    "stderr_regex": "Missing required roles.*@cr"
+  },
+  {
+    "name": "task_completed_allows_when_generic_types_alongside_real_roles",
+    "script": "claudecfg/hooks/task-completed.sh",
+    "stdin": "tests/hooks/fixtures/task_completed_incomplete.json",
+    "seed_state": "tests/hooks/fixtures/state_feature_generic_and_real_roles.json",
+    "expect_exit": 0
   }
 ]

@@ -18,7 +18,7 @@ Current task assertions include:
 - implementation tasks verify the final Claude response includes exact stop-safe summary lines for `Verification status:`, `Review outcome:`, `Changed files:` or `No files changed:`, and `Remaining risks:`
 - transcript-sensitive tasks verify handoff markers only when the benchmark is explicitly about stable output shape
 - workflow-combination tasks prefer `required_used_agents` and `required_used_agent_groups` so CI checks which specialist roles actually ran instead of brittle `Task:` headings
-- role-sensitive tasks resolve actual subagent usage from `SubagentStart` and recorded handoff lines in the debug log
+- role-sensitive tasks resolve actual subagent usage from `SubagentStart` and recorded handoff lines in the debug log; `@alias` patterns in transcript entries (e.g. `@nerd`, `@toxic-senior`, `@cr`) are canonicalized to canonical role aliases
 - docs-required tasks changed documentation
 - docs-only tasks did not change non-doc files
 

@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- `claudecfg/hooks/lib.sh`: filtered generic Task tool types (`general-purpose`, `workflow-subagent`) from `effective_started_roles()` so they no longer block agent enforcement when the Task tool records a generic type instead of the actual agent alias
+- `claudecfg/hooks/lib.sh`: added `@alias` transcript pattern inference in `infer_started_roles_from_transcript()` so agent mentions like `@nerd`, `@toxic-senior`, `@paranoid`, `@cr`, `@e` in transcript completion lines are canonicalized via `aliases.json` and satisfy specialist handoff gates
+- `claudecfg/hooks/lib.sh`: replaced GNU `\b` word boundary in `@alias` grep pattern with POSIX-compatible `($|[^a-z0-9-])` for macOS BSD grep portability
+
 ## [0.22] - 2026-06-02
 
 ### Added

@@ -693,7 +693,21 @@ infer_started_roles_from_transcript() {
         grep -Eio 'skill\(/manager\)|skill\(/review\)|skill\(/test\)|skill\(/explore\)|skill\(/design\)|skill\(/bug\)|skill\(/debug\)|skill\(/docs\)|skill\(/refactor\)|manager\(|code reviewer\(|tester\(|explorer\(|architect\(|bugbuster\(|debugger\(|docwriter\(' "$transcript_path" \
             || true
     )"
-    [ -z "$matches" ] && return 0
+
+    alias_matches=""
+    if [ -n "$ALIASES_JSON" ] && [ -f "$ALIASES_JSON" ]; then
+        alias_matches="$(
+            grep -Eio '@(m|e|a|t|cr|bug|dbg|doc|manager|explorer|architect|tester|code-reviewer|code-review|reviewer|bugbuster|debugger|docwriter|big-boss|nerd|toxic-senior|paranoid|the-architect|wiki-wiki)($|[^a-z0-9-])' "$transcript_path" \
+                | sed 's/^@//' \
+                | while IFS= read -r raw; do
+                    canonicalize_subagent_label "$raw"
+                    printf '\n'
+                done \
+                || true
+        )"
+    fi
+
+    [ -z "$matches" ] && [ -z "$alias_matches" ] && return 0
 
     while IFS= read -r match; do
         case "$(printf "%s" "$match" | tr '[:upper:]' '[:lower:]')" in
@@ -724,6 +738,10 @@ infer_started_roles_from_transcript() {
         esac
     done <<<"$matches"
 
+    while IFS= read -r alias; do
+        [ -n "$alias" ] && roles="${roles}"$'\n'"$alias"
+    done <<<"$alias_matches"
+
     printf "%s\n" "$roles" | sorted_unique_lines
 }
 
@@ -731,7 +749,7 @@ effective_started_roles() {
     local state explicit_roles inferred_roles
 
     state="$(state_file)"
-    explicit_roles="$(jq -r '.subagents_started[]? // empty' "$state")"
+    explicit_roles="$(jq -r '.subagents_started[]? // empty' "$state" | grep -Ev '^(general-purpose|workflow-subagent)$' || true)"
     inferred_roles="$(infer_started_roles_from_transcript)"
 
     printf "%s\n%s\n" "$explicit_roles" "$inferred_roles" | sorted_unique_lines

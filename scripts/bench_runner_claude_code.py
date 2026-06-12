@@ -29,14 +29,39 @@ def _load_aliases_json() -> dict[str, str]:
     else:
         # Fallback for benchmark unit tests that run with a dummy repo root
         mapping = {
-            "a": "a", "architect": "a", "the-architect": "a", "design": "a", "plan": "a",
-            "e": "e", "explorer": "e", "explore": "e", "nerd": "e",
-            "bug": "bug", "bugbuster": "bug", "bug-pattern-hunter": "bug", "bug-pattern": "bug",
-            "dbg": "dbg", "debugger": "dbg", "debugging-specialist": "dbg",
-            "t": "t", "tester": "t", "testing": "t", "paranoid": "t",
-            "cr": "cr", "code-reviewer": "cr", "code-review": "cr", "reviewer": "cr", "toxic-senior": "cr",
-            "doc": "doc", "docwriter": "doc", "documentation-writer": "doc", "docs-writer": "doc", "docs": "doc",
-            "m": "m", "manager": "m", "big-boss": "m",
+            "a": "a",
+            "architect": "a",
+            "the-architect": "a",
+            "design": "a",
+            "plan": "a",
+            "e": "e",
+            "explorer": "e",
+            "explore": "e",
+            "nerd": "e",
+            "bug": "bug",
+            "bugbuster": "bug",
+            "bug-pattern-hunter": "bug",
+            "bug-pattern": "bug",
+            "dbg": "dbg",
+            "debugger": "dbg",
+            "debugging-specialist": "dbg",
+            "t": "t",
+            "tester": "t",
+            "testing": "t",
+            "paranoid": "t",
+            "cr": "cr",
+            "code-reviewer": "cr",
+            "code-review": "cr",
+            "reviewer": "cr",
+            "toxic-senior": "cr",
+            "doc": "doc",
+            "docwriter": "doc",
+            "documentation-writer": "doc",
+            "docs-writer": "doc",
+            "docs": "doc",
+            "m": "m",
+            "manager": "m",
+            "big-boss": "m",
         }
     return mapping
 
@@ -52,9 +77,6 @@ def task_path_for_output(task_file: pathlib.Path) -> str:
 
 
 TASK_PATH = task_path_for_output(TASK_FILE)
-
-
-
 
 
 def env_or_default(name: str, default: str) -> str:
@@ -88,7 +110,11 @@ def normalize_subagent_key(raw: str) -> str:
     return re.sub(
         r"-+",
         "-",
-        re.sub(r"[^a-z0-9.-]+", "-", raw.strip().lstrip("@").casefold().replace("_", "-").replace(" ", "-")),
+        re.sub(
+            r"[^a-z0-9.-]+",
+            "-",
+            raw.strip().lstrip("@").casefold().replace("_", "-").replace(" ", "-"),
+        ),
     ).strip("-.")
 
 
@@ -182,14 +208,18 @@ def snapshot_files(root: pathlib.Path) -> dict[str, dict[str, object]]:
     return snapshot
 
 
-def build_patch(before: dict[str, dict[str, object]], after: dict[str, dict[str, object]]) -> str:
+def build_patch(
+    before: dict[str, dict[str, object]], after: dict[str, dict[str, object]]
+) -> str:
     chunks: list[str] = []
     for rel_path in sorted(set(before) | set(after)):
         old = before.get(rel_path)
         new = after.get(rel_path)
         if old == new:
             continue
-        if (old is not None and old.get("kind") != "text") or (new is not None and new.get("kind") != "text"):
+        if (old is not None and old.get("kind") != "text") or (
+            new is not None and new.get("kind") != "text"
+        ):
             chunks.append(f"Binary files differ: {rel_path}\n")
             continue
         old_text = "" if old is None else str(old.get("text", ""))
@@ -208,13 +238,17 @@ def build_patch(before: dict[str, dict[str, object]], after: dict[str, dict[str,
 
 
 def build_prompt(task: dict, verification_label: str) -> str:
-    success_criteria = "\n".join(f"- {item}" for item in task.get("success_criteria", []))
+    success_criteria = "\n".join(
+        f"- {item}" for item in task.get("success_criteria", [])
+    )
     must_not = "\n".join(f"- {item}" for item in task.get("must_not", []))
     category = str(task["category"])
     if task.get("verification_required") and verification_label != "verification":
         verification_hint = f"If verification is required, run the relevant tests locally ({verification_label})."
     else:
-        verification_hint = "If verification is required, run the relevant tests locally."
+        verification_hint = (
+            "If verification is required, run the relevant tests locally."
+        )
     workflow_override = (
         f"Workflow override: treat this as a {category} workflow, not a review-only workflow. "
         "Implementation and file edits are in scope when the task asks for them. "
@@ -230,7 +264,11 @@ def build_prompt(task: dict, verification_label: str) -> str:
         "Do not rename, relocate, or duplicate source or test files unless the task explicitly requires it. "
         "If the fixture already contains a test file, update that file instead of creating a second copy under a new path."
     )
-    required_used_agent_list = [alias for alias in task.get("required_used_agents", []) if isinstance(alias, str)]
+    required_used_agent_list = [
+        alias
+        for alias in task.get("required_used_agents", [])
+        if isinstance(alias, str)
+    ]
     required_used_agents = ", ".join(f"@{alias}" for alias in required_used_agent_list)
     required_transcript_hints = transcript_contract_hints(task)
     required_used_agent_note = ""
@@ -244,7 +282,9 @@ def build_prompt(task: dict, verification_label: str) -> str:
 - Every required role must be launched as a real handoff in this order: {ordered}
 - A prose summary that claims a handoff happened does not count as the handoff itself."""
             if required_used_agent_list[0] == "m" and len(required_used_agent_list) > 1:
-                downstream = " -> ".join(f"@{alias}" for alias in required_used_agent_list[1:])
+                downstream = " -> ".join(
+                    f"@{alias}" for alias in required_used_agent_list[1:]
+                )
                 sequence_note += f"""
 - For this manager-led run, launch @m first. Then the manager must launch the remaining required roles in order: {downstream}."""
         if required_used_agent_list[-1] == "cr":
@@ -268,12 +308,16 @@ Required specialist handoff:
 - Do not burn turns probing avoidable skill path/tool restrictions before the required alias handoff lands."""
     transcript_contract_note = ""
     if required_transcript_hints:
-        transcript_contract_note = """
+        transcript_contract_note = (
+            """
 
 Transcript contract:
 - The assistant-visible handoff/final response must include these exact labels somewhere in the transcript:
-""" + "\n".join(f"- {hint}" for hint in required_transcript_hints) + """
+"""
+            + "\n".join(f"- {hint}" for hint in required_transcript_hints)
+            + """
 - Do not replace these labels with markdown section titles or synonyms."""
+        )
 
     return f"""You are running in a tiny benchmark repository fixture.
 
@@ -583,7 +627,9 @@ def try_provider_retry(
             break
 
         retry_debug_log_path = OUTPUT_DIR / f"claude-debug-provider-retry-{attempt}.log"
-        retry_stderr_log_path = OUTPUT_DIR / f"claude-stderr-provider-retry-{attempt}.log"
+        retry_stderr_log_path = (
+            OUTPUT_DIR / f"claude-stderr-provider-retry-{attempt}.log"
+        )
         retry_exit_code = 0
         retry_raw_stdout = ""
         retry_raw_stderr = ""
@@ -689,7 +735,12 @@ def safe_session_id(raw: str) -> str:
 
 
 def state_file_for_session(session_id: str) -> pathlib.Path:
-    return pathlib.Path.home() / ".claude" / "state" / f"{safe_session_id(session_id)}.json"
+    return (
+        pathlib.Path.home()
+        / ".claude"
+        / "state"
+        / f"{safe_session_id(session_id)}.json"
+    )
 
 
 def resolve_transcript_path(payload: dict | None) -> pathlib.Path | None:
@@ -802,15 +853,25 @@ def extract_result_text_from_transcript(payload: dict | None) -> str:
     return best_text if best_score > 0 else ""
 
 
-def detect_verification_target(workdir: pathlib.Path) -> tuple[list[str] | None, str | None]:
+def detect_verification_target(
+    workdir: pathlib.Path,
+) -> tuple[list[str] | None, str | None]:
     package_json = workdir / "package.json"
     if package_json.exists():
         try:
             package_payload = json.loads(package_json.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             return None, None
-        scripts = package_payload.get("scripts") if isinstance(package_payload, dict) else None
-        if isinstance(scripts, dict) and isinstance(scripts.get("test"), str) and scripts["test"].strip():
+        scripts = (
+            package_payload.get("scripts")
+            if isinstance(package_payload, dict)
+            else None
+        )
+        if (
+            isinstance(scripts, dict)
+            and isinstance(scripts.get("test"), str)
+            and scripts["test"].strip()
+        ):
             return ["npm", "run", "test", "--silent"], "npm run test"
     if (workdir / "Cargo.toml").exists():
         return ["cargo", "test", "--quiet"], "cargo test"
@@ -853,7 +914,11 @@ def has_line_prefix(text: str, prefix: str) -> bool:
 
 
 def missing_summary_prefixes(text: str) -> list[str]:
-    return [prefix for prefix in REQUIRED_SUMMARY_PREFIXES if not has_line_prefix(text, prefix)]
+    return [
+        prefix
+        for prefix in REQUIRED_SUMMARY_PREFIXES
+        if not has_line_prefix(text, prefix)
+    ]
 
 
 def extract_prefixed_line(text: str, prefix: str) -> str:
@@ -921,9 +986,13 @@ def synthesize_footer(
     review_present: bool,
 ) -> list[str]:
     return [
-        verification_status_line(verification_required, tests_run, tests_passed, verification_label),
+        verification_status_line(
+            verification_required, tests_run, tests_passed, verification_label
+        ),
         review_outcome_line(review_required, review_present),
-        remaining_risks_line(verification_required, tests_run, tests_passed, review_required),
+        remaining_risks_line(
+            verification_required, tests_run, tests_passed, review_required
+        ),
     ]
 
 
@@ -948,7 +1017,9 @@ def completed_task_recovery_mode(
 ) -> str:
     if not completed:
         return "none"
-    if verification_required and not (tests_run and tests_passed and verification_summary_present):
+    if verification_required and not (
+        tests_run and tests_passed and verification_summary_present
+    ):
         return "none"
     if review_required and not review_present:
         return "none"
@@ -1063,7 +1134,9 @@ def first_permission_denial_summary(denials: list[dict]) -> str:
     return str(tool_name)
 
 
-def forbidden_doc_pattern_hits(task: dict, after: dict[str, str], changed_files: list[str]) -> list[str]:
+def forbidden_doc_pattern_hits(
+    task: dict, after: dict[str, str], changed_files: list[str]
+) -> list[str]:
     patterns = task.get("forbidden_doc_patterns", [])
     if not isinstance(patterns, list):
         return []
@@ -1184,7 +1257,10 @@ def required_transcript_pattern_misses(
     for pattern in patterns:
         if not isinstance(pattern, str) or not pattern.strip():
             continue
-        if not any(re.search(pattern, text, re.IGNORECASE | re.MULTILINE) for _, text in entries):
+        if not any(
+            re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
+            for _, text in entries
+        ):
             misses.append(pattern)
     return True, misses
 
@@ -1194,7 +1270,9 @@ def effective_required_transcript_misses(
     *,
     recovered_nonzero_exit: bool,
 ) -> list[str]:
-    if recovered_nonzero_exit and required_transcript_misses == ["<assistant transcript unavailable>"]:
+    if recovered_nonzero_exit and required_transcript_misses == [
+        "<assistant transcript unavailable>"
+    ]:
         return []
     return required_transcript_misses
 
@@ -1231,6 +1309,21 @@ def infer_used_agent_aliases_from_transcript(payload: dict | None) -> list[str]:
         if alias not in seen and re.search(pattern, text, re.IGNORECASE | re.MULTILINE):
             seen.add(alias)
             aliases.append(alias)
+
+    alias_pattern = re.compile(
+        r"@(m|e|a|t|cr|bug|dbg|doc|manager|explorer|architect|tester|"
+        r"code-reviewer|code-review|reviewer|bugbuster|debugger|docwriter|"
+        r"big-boss|nerd|toxic-senior|paranoid|the-architect|wiki-wiki)"
+        r"(?:$|[^a-z0-9-])",
+        re.IGNORECASE,
+    )
+    for match in alias_pattern.finditer(text):
+        raw_label = match.group(1)
+        alias = canonicalize_subagent_label(raw_label)
+        if alias and alias not in seen:
+            seen.add(alias)
+            aliases.append(alias)
+
     return aliases
 
 
@@ -1341,7 +1434,9 @@ def synthesized_outcome_line(task: dict, changed_files: list[str]) -> str:
     if alias == "bug":
         return "Outcome: confirmed and fixed the scoped bug, then documented and verified the change."
     if alias == "cr":
-        return "Outcome: captured the review findings and documented the review outcome."
+        return (
+            "Outcome: captured the review findings and documented the review outcome."
+        )
     if alias == "dbg":
         return "Outcome: isolated the failing behavior and documented the root cause."
     if alias == "e":
@@ -1365,7 +1460,9 @@ def closure_line(
         if review_required:
             return "Next step: carry the verified handoff forward to the next required specialist."
         return "Next step: none."
-    return remaining_risks_line(verification_required, tests_run, tests_passed, review_required)
+    return remaining_risks_line(
+        verification_required, tests_run, tests_passed, review_required
+    )
 
 
 def synthesize_required_transcript_lines(
@@ -1402,24 +1499,44 @@ def synthesize_required_transcript_lines(
         elif r"Task:\s*Housekeeping" in pattern:
             lines.append("Task: Housekeeping — bounded cleanup")
         elif "Coverage:" in pattern:
-            target = ", ".join(changed_files) if changed_files else "the requested documentation surface"
+            target = (
+                ", ".join(changed_files)
+                if changed_files
+                else "the requested documentation surface"
+            )
             lines.append(f"Coverage: updated {target}.")
         elif "Locations:" in pattern:
-            target = ", ".join(changed_files) if changed_files else "the scoped fixture files"
+            target = (
+                ", ".join(changed_files)
+                if changed_files
+                else "the scoped fixture files"
+            )
             lines.append(f"Locations: {target}")
         elif "Findings:|Investigation" in pattern:
             lines.append("Findings:")
-            lines.append(f"- [MAJOR] {task['id']}: completed the scoped fix and captured the concrete change set.")
+            lines.append(
+                f"- [MAJOR] {task['id']}: completed the scoped fix and captured the concrete change set."
+            )
         elif "Plan:" in pattern:
-            lines.append("Plan: keep the change set bounded and hand off the scoped result cleanly.")
+            lines.append(
+                "Plan: keep the change set bounded and hand off the scoped result cleanly."
+            )
         elif "Reproduction:" in pattern:
-            lines.append("Reproduction: follow the task prompt against the fixture files to trigger the scoped behavior.")
+            lines.append(
+                "Reproduction: follow the task prompt against the fixture files to trigger the scoped behavior."
+            )
         elif "Root cause:" in pattern:
-            lines.append("Root cause: the fixture behavior did not yet match the requested benchmark expectation.")
+            lines.append(
+                "Root cause: the fixture behavior did not yet match the requested benchmark expectation."
+            )
         elif "Warnings:" in pattern:
-            lines.append("Warnings: keep the refactor bounded and avoid behavior drift.")
+            lines.append(
+                "Warnings: keep the refactor bounded and avoid behavior drift."
+            )
         elif "Gaps:" in pattern:
-            lines.append("Gaps: no additional gaps were identified beyond the scoped benchmark task.")
+            lines.append(
+                "Gaps: no additional gaps were identified beyond the scoped benchmark task."
+            )
         elif "Outcome:|Fix:" in pattern or pattern.strip() == "Outcome:":
             lines.append(synthesized_outcome_line(task, changed_files))
         elif "Changed files:|No files changed:" in pattern:
@@ -1429,7 +1546,11 @@ def synthesize_required_transcript_lines(
         elif pattern.strip() == "No files changed:" and not changed_files:
             lines.append(changed_files_line(changed_files))
         elif "Verification status:" in pattern:
-            lines.append(verification_status_line(verification_required, tests_run, tests_passed, verification_label))
+            lines.append(
+                verification_status_line(
+                    verification_required, tests_run, tests_passed, verification_label
+                )
+            )
         elif "Review outcome:" in pattern:
             lines.append(review_outcome_line(review_required, review_present))
         elif pattern.strip() == "Next step:":
@@ -1466,7 +1587,9 @@ def merge_required_transcript_block(text: str, transcript_lines: list[str]) -> s
     if not transcript_lines:
         return text
 
-    footer_lines = [extract_prefixed_line(text, prefix) for prefix in REQUIRED_SUMMARY_PREFIXES]
+    footer_lines = [
+        extract_prefixed_line(text, prefix) for prefix in REQUIRED_SUMMARY_PREFIXES
+    ]
     body_lines = []
     for line in text.splitlines():
         stripped = line.lstrip()
@@ -1494,7 +1617,9 @@ def required_used_agent_misses(task: dict, used_agent_aliases: list[str]) -> lis
     return misses
 
 
-def required_used_agent_group_misses(task: dict, used_agent_aliases: list[str]) -> list[list[str]]:
+def required_used_agent_group_misses(
+    task: dict, used_agent_aliases: list[str]
+) -> list[list[str]]:
     raw_groups = task.get("required_used_agent_groups", [])
     if not isinstance(raw_groups, list) or not raw_groups:
         return []
@@ -1504,7 +1629,11 @@ def required_used_agent_group_misses(task: dict, used_agent_aliases: list[str]) 
     for raw_group in raw_groups:
         if not isinstance(raw_group, list):
             continue
-        group = [alias for alias in (normalize_required_used_agent(raw) for raw in raw_group) if alias]
+        group = [
+            alias
+            for alias in (normalize_required_used_agent(raw) for raw in raw_group)
+            if alias
+        ]
         if group and not any(alias in used_aliases for alias in group):
             misses.append(group)
     return misses
@@ -1620,7 +1749,9 @@ def main() -> int:
     effective_stderr_log_path = stderr_log_path
 
     try:
-        exit_code, raw_stdout, raw_stderr = run_claude(prompt, debug_log_path, stderr_log_path)
+        exit_code, raw_stdout, raw_stderr = run_claude(
+            prompt, debug_log_path, stderr_log_path
+        )
         payload = extract_result_payload(raw_stdout)
         result_text = extract_result_text(payload)
         if not result_text.strip():
@@ -1671,7 +1802,8 @@ def main() -> int:
         output_budget_repaired_by = output_budget_retry_source
         write_text(
             OUTPUT_DIR / "output-budget-retry-attempts.json",
-            json.dumps(output_budget_retry_summaries, ensure_ascii=False, indent=2) + "\n",
+            json.dumps(output_budget_retry_summaries, ensure_ascii=False, indent=2)
+            + "\n",
         )
 
     (
@@ -1707,14 +1839,19 @@ def main() -> int:
     write_text(OUTPUT_DIR / "claude-result.json", raw_stdout)
     write_text(OUTPUT_DIR / "claude-result.txt", result_text)
     debug_log_text = (
-        effective_debug_log_path.read_text(encoding="utf-8") if effective_debug_log_path.exists() else ""
+        effective_debug_log_path.read_text(encoding="utf-8")
+        if effective_debug_log_path.exists()
+        else ""
     )
     payload_subtype = payload_string(payload, "subtype")
     payload_stop_reason = payload_string(payload, "stop_reason")
     payload_hard_stop = payload_bool(payload, "hardStop")
     permission_denials = payload_permission_denials(payload)
     if raw_stderr.strip():
-        write_text(OUTPUT_DIR / "claude-stderr-tail.txt", "\n".join(raw_stderr.splitlines()[-200:]) + "\n")
+        write_text(
+            OUTPUT_DIR / "claude-stderr-tail.txt",
+            "\n".join(raw_stderr.splitlines()[-200:]) + "\n",
+        )
 
     verification_required = bool(task["verification_required"])
     tests_run = False
@@ -1722,10 +1859,14 @@ def main() -> int:
     verification_output = ""
     repair_after = snapshot_files(WORKDIR)
     repair_changed_files = sorted(
-        path for path in set(before) | set(repair_after) if before.get(path) != repair_after.get(path)
+        path
+        for path in set(before) | set(repair_after)
+        if before.get(path) != repair_after.get(path)
     )
     if verification_required:
-        tests_run, tests_passed, verification_output, verification_label = run_verification()
+        tests_run, tests_passed, verification_output, verification_label = (
+            run_verification()
+        )
 
     review_required = bool(task["review_required"])
     docs_required = bool(task["docs_required"])
@@ -1788,7 +1929,10 @@ def main() -> int:
             if repair_exit_code != 0 or not repair_text.strip():
                 continue
 
-            footer_lines = [extract_prefixed_line(repair_text, prefix) for prefix in REQUIRED_SUMMARY_PREFIXES]
+            footer_lines = [
+                extract_prefixed_line(repair_text, prefix)
+                for prefix in REQUIRED_SUMMARY_PREFIXES
+            ]
             if all(footer_lines):
                 result_text = merge_footer(result_text, footer_lines)
                 summary_repaired_by = "retry"
@@ -1801,12 +1945,17 @@ def main() -> int:
         )
 
     after = snapshot_files(WORKDIR)
-    changed_files = sorted(path for path in set(before) | set(after) if before.get(path) != after.get(path))
+    changed_files = sorted(
+        path for path in set(before) | set(after) if before.get(path) != after.get(path)
+    )
     expect_changes = bool(task.get("expect_changes", True))
     completed = len(changed_files) > 0 or not expect_changes
     patch_text = build_patch(before, after)
     write_text(OUTPUT_DIR / "workspace.patch", patch_text)
-    write_text(OUTPUT_DIR / "changed-files.json", json.dumps(changed_files, ensure_ascii=False, indent=2) + "\n")
+    write_text(
+        OUTPUT_DIR / "changed-files.json",
+        json.dumps(changed_files, ensure_ascii=False, indent=2) + "\n",
+    )
     write_text(OUTPUT_DIR / "task-prompt.txt", prompt + "\n")
 
     verification_summary_present = has_line_prefix(result_text, "Verification status:")
@@ -1824,15 +1973,21 @@ def main() -> int:
                 review_present=review_present,
             ),
         )
-        summary_repaired_by = "synthetic-footer" if summary_repaired_by == "none" else summary_repaired_by
-        verification_summary_present = has_line_prefix(result_text, "Verification status:")
+        summary_repaired_by = (
+            "synthetic-footer" if summary_repaired_by == "none" else summary_repaired_by
+        )
+        verification_summary_present = has_line_prefix(
+            result_text, "Verification status:"
+        )
         review_present = has_line_prefix(result_text, "Review outcome:")
         risks_present = has_line_prefix(result_text, "Remaining risks:")
 
-    required_transcript_scanned, required_transcript_misses = required_transcript_pattern_misses(
-        task,
-        payload,
-        result_text=result_text,
+    required_transcript_scanned, required_transcript_misses = (
+        required_transcript_pattern_misses(
+            task,
+            payload,
+            result_text=result_text,
+        )
     )
     if completed and required_transcript_misses:
         transcript_lines = synthesize_required_transcript_lines(
@@ -1847,10 +2002,12 @@ def main() -> int:
         )
         if transcript_lines:
             result_text = merge_required_transcript_block(result_text, transcript_lines)
-            required_transcript_scanned, required_transcript_misses = required_transcript_pattern_misses(
-                task,
-                payload,
-                result_text=result_text,
+            required_transcript_scanned, required_transcript_misses = (
+                required_transcript_pattern_misses(
+                    task,
+                    payload,
+                    result_text=result_text,
+                )
             )
 
     write_text(OUTPUT_DIR / "claude-result.txt", result_text)
@@ -1869,7 +2026,9 @@ def main() -> int:
         result_text=result_text,
     )
     missing_required_used_agents = required_used_agent_misses(task, used_agent_aliases)
-    missing_required_used_agent_groups = required_used_agent_group_misses(task, used_agent_aliases)
+    missing_required_used_agent_groups = required_used_agent_group_misses(
+        task, used_agent_aliases
+    )
 
     recovery_mode = completed_task_recovery_mode(
         exit_code=exit_code,
@@ -2007,7 +2166,10 @@ def main() -> int:
         "failures": failures,
     }
 
-    write_text(OUTPUT_DIR / "result.json", json.dumps(result, ensure_ascii=False, indent=2) + "\n")
+    write_text(
+        OUTPUT_DIR / "result.json",
+        json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+    )
     write_text(
         OUTPUT_DIR / "task-summary.txt",
         build_task_summary(
