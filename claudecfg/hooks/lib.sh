@@ -208,19 +208,24 @@ _acquire_state_lock() {
     # same filesystem, so the mktemp+mv atomic-rename inside the
     # critical section remains valid. flock is Linux-only, so on macOS
     # we fall back to this.
+    #
+    # Stale recovery: if a hook process is killed mid-update (SIGKILL,
+    # session abort, hook timeout) the RETURN trap never fires and the
+    # lockdir is orphaned. We break stale locks on the FIRST failed
+    # mkdir instead of after a long spin, and we break purely on age —
+    # a holder older than stale_after is stuck regardless of whether its
+    # recorded PID still looks alive (PID reuse would otherwise hang here
+    # forever). A failed-recovery backstop guarantees we can never block the
+    # agent indefinitely even if breaking the lock itself fails; it counts
+    # only consecutive failed breaks, so legitimate contention (holders
+    # turning over normally) can never trip it.
     local file="$1"
     local lockdir="${file}.lock"
-    local metadata_pid metadata_epoch now age
     local stale_after="${CLAUDE_CREW_LOCK_STALE_SECONDS:-120}"
-    local attempt=0
-    while ! mkdir "$lockdir" 2>/dev/null; do
-        attempt=$((attempt + 1))
+    local recover_attempts=0 missing_epoch_streak=0 metadata_epoch now age
 
-        metadata_pid=""
+    while ! mkdir "$lockdir" 2>/dev/null; do
         metadata_epoch=""
-        if [ -f "$lockdir/pid" ]; then
-            metadata_pid="$(cat "$lockdir/pid" 2>/dev/null || true)"
-        fi
         if [ -f "$lockdir/created_epoch" ]; then
             metadata_epoch="$(cat "$lockdir/created_epoch" 2>/dev/null || true)"
         fi
@@ -235,15 +240,52 @@ _acquire_state_lock() {
                 ;;
         esac
 
-        if [ "$attempt" -ge 200 ] && [ "$age" -ge "$stale_after" ]; then
-            if [ -z "$metadata_pid" ] || ! kill -0 "$metadata_pid" 2>/dev/null; then
+        if [ "$age" -ge "$stale_after" ]; then
+            # Stale by age: break it. Age alone decides so a holder whose
+            # recorded PID was reused by a live process cannot hang us.
+            rm -f "$lockdir/pid" "$lockdir/created_epoch" 2>/dev/null || true
+            rmdir "$lockdir" 2>/dev/null || true
+            recover_attempts=$((recover_attempts + 1))
+            missing_epoch_streak=0
+            if [ "$recover_attempts" -ge 50 ]; then
+                # Recovery keeps failing (e.g. rmdir denied): give up rather
+                # than hang the agent. Legitimate holders reset this counter,
+                # so normal contention cannot trip it.
+                return 0
+            fi
+            continue
+        fi
+
+        if [ -z "$metadata_epoch" ]; then
+            # No recorded age yet. A real holder writes created_epoch
+            # microseconds after mkdir, so a persistently missing epoch
+            # means an orphaned lockdir whose holder died before recording
+            # its age. Wait briefly, then treat a long enough streak as
+            # stale and break it — well past the microsecond acquire race,
+            # so a live holder will have recorded its epoch first.
+            missing_epoch_streak=$((missing_epoch_streak + 1))
+            if [ "$missing_epoch_streak" -ge 20 ]; then
                 rm -f "$lockdir/pid" "$lockdir/created_epoch" 2>/dev/null || true
                 rmdir "$lockdir" 2>/dev/null || true
+                recover_attempts=$((recover_attempts + 1))
+                missing_epoch_streak=0
+                if [ "$recover_attempts" -ge 50 ]; then
+                    return 0
+                fi
+                continue
             fi
-            attempt=0
+            sleep 0.05
+            continue
         fi
+
+        # Legitimate holder still working (fresh epoch, age < stale_after):
+        # wait and reset the failed-recovery counter, since the lock is
+        # turning over normally and contention must not trip the backstop.
+        recover_attempts=0
+        missing_epoch_streak=0
         sleep 0.05
     done
+
     printf "%s\n" "$$" > "$lockdir/pid" 2>/dev/null || true
     date +%s > "$lockdir/created_epoch" 2>/dev/null || true
     LOCKDIR_HELD="$lockdir"
