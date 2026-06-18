@@ -39,11 +39,21 @@ Full names work too: `@code-reviewer`, `@tester`, etc.
 @manager implement new feature: user authentication
 ```
 
-Or use slash commands:
+### Slash Commands
 
-```
-/manager  /explore  /bug  /debug  /test  /design  /refactor  /review  /docs
-```
+- `/manager` — manager-led orchestration session (invokes @manager)
+- `/explore` — codebase exploration session (invokes @explorer)
+- `/bug` — bug-hunting session (invokes @bugbuster)
+- `/debug` — debugging session
+- `/test` — testing session (invokes @tester)
+- `/design` — design session (invokes @architect)
+- `/refactor` — refactoring session (invokes @architect)
+- `/review` — code review (invokes @code-reviewer)
+- `/docs` — documentation session (invokes @docwriter)
+
+### Workflows
+
+Slash commands are the documented entry points; the hooks enforce the actual handoff and stop gates (see `## Workflow`).
 
 ## Workflow
 
@@ -52,6 +62,8 @@ The hooks enforce this flow for code changes:
 ```
 discover -> design -> implement -> verify -> review -> docs -> cleanup
 ```
+
+Runtime `Notification` events are logged to `notification.jsonl` for observability.
 
 Required handoffs:
 
