@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.28] - 2026-06-20
+
+### Fixed
+- `claudecfg/settings.json`: track `PostToolUse` state for all file-writing tools (`Edit`, `MultiEdit`, `Write`, and `NotebookEdit`) so Stop gate enforcement no longer misses edits made through multi-edit or notebook-edit payloads
+- `claudecfg/hooks/post-edit-write.sh`: normalize changed file paths from `file_path`, `path`, and `notebook_path` payload fields before updating session state
+
+### Added
+- Hook regression coverage for `MultiEdit`, `tool_input.path`, and `tool_input.notebook_path` payloads, plus a settings assertion that all file-writing tools remain wired into Stop gate state tracking
+
 ## [0.27] - 2026-06-20
 
 Portfolio-readiness release: drift fixes, a minimal-cognitive-load README, a
