@@ -18,7 +18,7 @@ Current task assertions include:
 - implementation tasks verify the final Claude response includes exact stop-safe summary lines for `Verification status:`, `Review outcome:`, `Changed files:` or `No files changed:`, and `Remaining risks:`
 - transcript-sensitive tasks verify handoff markers only when the benchmark is explicitly about stable output shape
 - workflow-combination tasks prefer `required_used_agents` and `required_used_agent_groups` so CI checks which specialist roles actually ran instead of brittle `Task:` headings
-- role-sensitive tasks resolve actual subagent usage from `SubagentStart` and recorded handoff lines in the debug log; `@alias` patterns in transcript entries (e.g. `@nerd`, `@toxic-senior`, `@cr`) are canonicalized to canonical role aliases
+- role-sensitive tasks resolve actual subagent usage from `SubagentStart` and recorded handoff lines in the debug log; `@alias` patterns in transcript entries (e.g. `@code-reviewer`, `@explorer`, `@cr`) are canonicalized to canonical role aliases
 - docs-required tasks changed documentation
 - docs-only tasks did not change non-doc files
 
@@ -106,9 +106,13 @@ Concurrent benchmark runs are limited by a two-slot gate enforced through `scrip
 - If the slot check returns HTTP 403, the script reads the `Retry-After` header and sleeps for the requested interval before retrying.
 - This handles GitHub API secondary-rate-limit errors gracefully without burning CI minutes on tight polling loops.
 
-**Log rotation for notification telemetry:**
+**Log rotation for hook telemetry:**
 
-Notification hooks write session events to `~/.claude/logs/notification.jsonl`. To prevent unbounded log growth on long-running CI runners, the hook installation step rotates existing logs: if `notification.jsonl` exceeds a configured size threshold, the file is renamed with a timestamp suffix and a fresh log is started. The rotation threshold is set in the hook configuration in `claudecfg/hooks/notification.sh`.
+Hooks write session events to `~/.claude/logs/*.jsonl` (notifications, compact
+markers, config changes, session index). To prevent unbounded log growth on
+long-running CI runners, `append_jsonl` in `claudecfg/hooks/lib.sh` rotates
+every stream past `CLAUDE_CREW_LOG_MAX_BYTES` (default 1 MB): the file is moved
+to a `.old` sidecar and a fresh log is started.
 
 **Node.js 24 requirement:**
 
@@ -128,10 +132,11 @@ Repository settings:
 8. Optionally add `BEHAVIOR_BENCHMARK_MAX_RECOVERED_TASKS` to enable strict gating on recovered tasks
 9. Optionally add `BEHAVIOR_BENCHMARK_MAX_SUMMARY_REPAIRED_TASKS` to enable strict gating on summary-repaired tasks
 
-Required benchmark model:
+Required benchmark model: set `OLLAMA_MODEL` (or `BEHAVIOR_BENCHMARK_MODEL` in CI) to whichever model id the runner should use — the profile pins none.
 
 ```text
-qwen3.5:cloud
+# example only — use any model id your runner targets
+export OLLAMA_MODEL="your-model-id"
 ```
 
 Recommended benchmark timeout:
@@ -157,7 +162,7 @@ export OLLAMA_API_KEY=...
 export ANTHROPIC_BASE_URL=https://ollama.com
 export ANTHROPIC_AUTH_TOKEN="$OLLAMA_API_KEY"
 export ANTHROPIC_API_KEY=
-export OLLAMA_MODEL="${OLLAMA_MODEL:-qwen3.5:cloud}"
+export OLLAMA_MODEL="${OLLAMA_MODEL:-your-model-id}"
 export CLAUDE_CODE_MAX_OUTPUT_TOKENS="${CLAUDE_CODE_MAX_OUTPUT_TOKENS:-768}"
 export BENCH_RUNNER_CMD="python3 scripts/bench_runner_claude_code.py"
 bash scripts/run-benchmark.sh --output-dir /tmp/claude-bench --mode command

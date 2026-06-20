@@ -30,8 +30,8 @@ class TestBug1_StopSafeNoChangeFooterHint:
         # The function is used via: $(stop_safe_no_change_footer_hint)
         # We grep for the function name being invoked
         assert "stop_safe_no_change_footer_hint" in content, (
-            f"stop_safe_no_change_footer_hint is NOT called in stop-guard.sh. "
-            f"It may be dead code (defined but never used)."
+            "stop_safe_no_change_footer_hint is NOT called in stop-guard.sh. "
+            "It may be dead code (defined but never used)."
         )
 
     def test_function_is_not_duplicated_inline(self):
@@ -60,8 +60,8 @@ class TestBug2_SessionManagerIdleReason:
                 calls_found.append(str(script.name))
 
         assert len(calls_found) > 0, (
-            f"session_manager_idle_reason is NOT called by any hook script. "
-            f"Defined in lib.sh but never used - dead code."
+            "session_manager_idle_reason is NOT called by any hook script. "
+            "Defined in lib.sh but never used - dead code."
         )
 
 
@@ -121,9 +121,9 @@ class TestBug3_TaskTypeRequiresSpecialistHandoffs:
         specialist_body = self._extract_function_body(content, "task_type_requires_specialist_handoffs")
 
         assert impl_body != specialist_body, (
-            f"The function BODIES (excluding function name) are byte-for-byte IDENTICAL. "
-            f"task_type_requires_specialist_handoffs must have DIFFERENT logic from "
-            f"task_type_requires_implementation_summary."
+            "The function BODIES (excluding function name) are byte-for-byte IDENTICAL. "
+            "task_type_requires_specialist_handoffs must have DIFFERENT logic from "
+            "task_type_requires_implementation_summary."
         )
 
     def _extract_function_body(self, content: str, func_name: str) -> str:

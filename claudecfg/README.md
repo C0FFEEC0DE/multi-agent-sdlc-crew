@@ -21,7 +21,7 @@ The `settings.json` profile uses `outputStyle: "Default"` so coding instructions
 The repository validator also checks that the bundled slash-command file inventory and the published slash-command lists stay in sync.
 It also checks that golden subagent benchmark tasks keep the shared handoff-footer transcript markers aligned with the hook contract.
 
-Current bundled slash commands:
+## Bundled slash commands
 
 These are the documented entry points for the configured agents; hook enforcement still applies at runtime.
 

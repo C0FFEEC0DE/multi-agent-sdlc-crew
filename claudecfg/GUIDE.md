@@ -1,7 +1,8 @@
 # Claude Code — Cheatsheet
 
 ## Model
-- Current default: `minimax-m2.5:cloud`
+- No model is pinned in this profile; your runtime default applies. Set one in `settings.json` (`"model": "<your-model-id>"`) or via your Claude Code environment if you want a specific model.
+- `effortLevel` defaults to `medium` (lower token spend). Raise to `high` for hard design/verify/judge stages only.
 - Output style: `Default` (keeps built-in coding instructions active)
 
 ## Navigation
@@ -102,9 +103,25 @@ Main checkpoints:
 - `Notification` — log runtime notifications for observability
 - `SessionEnd` — log transcript path and session metadata for later indexing
 
-`Stop` is shell-enforced by `hooks/stop-guard.sh`, and `SubagentStop` is shell-enforced by `hooks/subagent-stop-guard.sh`. After code or config changes, the final assistant summary must include explicit summary lines for verification status, review outcome or pending review, changed files or `no files changed`, and remaining risks or `none` only for implementation workflows. If the repo exposes no detectable `test`, `lint`, or `build` command, the stop guard allows completion without deadlock, but the summary must explicitly say verification was not run and why. Feature, bugfix, refactor, review, and docs workflows also require role-specific specialist handoffs before completion, tracked in shared session state with alias normalization such as `@code-reviewer -> cr`. Manager-led orchestration itself is tracked separately through `manager_mode=orchestrate`, so top-level `@m` use is not treated as a required specialist handoff. For feature, bugfix, and refactor work, a recorded successful test command satisfies the tester side of that gate; otherwise `@t` is still required. `SubagentStart` normalization also accepts alias/name/subagent-type fields in both snake_case and camelCase before falling back to generic runtime types. When a runtime loads slash skills like `/review` without emitting `SubagentStart`, or records specialist launches only as transcript lines like `Code Reviewer(...)`, the hooks fall back to transcript evidence so those handoffs still satisfy review/docs/test specialist gates. Transcript inference also matches `@alias` patterns like `@nerd`, `@toxic-senior`, `@paranoid`, `@cr`, `@e`, etc. and canonicalizes them to their canonical role aliases via `aliases.json`, so agent mentions in completion lines are recognized as valid handoffs. Generic Task tool types (`general-purpose`, `workflow-subagent`) are filtered from role enforcement since they are tool dispatch types, not agent roles. When a runtime backgrounds a live manager-led workflow before any code/config changes, `Stop` defers the specialist-role gate for that turn instead of treating the background handoff as a failed final response. After three identical `Stop` blocks, the hook marks the session as policy-stalled and emits `continue: false`, which is the Claude Code stop signal that prevents retrying the same summary forever. `TeammateIdle` additionally blocks manager-led workflows that have not yet handed off to any specialist.
-`SessionStart` prefers explicit project task-runner commands where available, such as `npm run test`/`npm run lint` or `make test`/`make lint`, before falling back to language-specific defaults. This keeps verification detection usable for projects in any programming language that expose standard task targets.
-General informational questions are not implementation workflows by themselves. Mentions of models, Ollama, or OpenRouter should stay `other` unless the prompt also asks for a repository change such as implementing, integrating, adding support, or changing configuration. OS, device, and troubleshooting prompts without repository-change signals are classified as `support`, which keeps them in advisory mode without specialist handoff gates.
+`Stop` is shell-enforced by `hooks/stop-guard.sh`, and `SubagentStop` is shell-enforced by `hooks/subagent-stop-guard.sh`. Behavior details:
+
+**Stop summary (after code/config changes):** the final summary must include explicit lines for verification status, review outcome (or pending), changed files (or `no files changed`), and remaining risks (`none` only for implementation workflows). If the repo exposes no detectable `test`/`lint`/`build` command, the stop guard allows completion without deadlock, but the summary must say verification was not run and why.
+
+**Specialist handoffs:** feature, bugfix, refactor, review, and docs workflows require role-specific specialist handoffs before completion, tracked in shared session state with alias normalization (e.g. `@code-reviewer -> cr`).
+
+- Manager-led orchestration is tracked separately (`manager_mode=orchestrate`), so top-level `@m` use is not treated as a required specialist handoff.
+- For feature, bugfix, and refactor work, a recorded successful test command satisfies the tester side of that gate; otherwise `@t` is still required.
+- `SubagentStart` normalization accepts alias / name / subagent-type fields in both snake_case and camelCase before falling back to generic runtime types.
+- When a runtime loads slash skills like `/review` without emitting `SubagentStart`, or records launches only as transcript lines like `Code Reviewer(...)`, the hooks fall back to transcript evidence so those handoffs still satisfy review/docs/test gates.
+- Transcript inference matches `@alias` patterns (`@cr`, `@e`, `@code-reviewer`, …, plus legacy persona aliases kept for backward compatibility) and canonicalizes them via `aliases.json`, so agent mentions in completion lines count as valid handoffs.
+- Generic Task tool types (`general-purpose`, `workflow-subagent`) are filtered from role enforcement — they are tool dispatch types, not agent roles.
+- When a runtime backgrounds a live manager-led workflow before any code/config changes, `Stop` defers the specialist-role gate for that turn instead of treating the background handoff as a failed final response.
+- After three identical `Stop` blocks, the hook marks the session policy-stalled and emits `continue: false` — the Claude Code stop signal that prevents retrying the same summary forever.
+- `TeammateIdle` additionally blocks manager-led workflows that have not yet handed off to any specialist.
+
+**Command detection:** `SessionStart` prefers explicit project task-runner commands (`npm run test` / `npm run lint`, `make test` / `make lint`) before falling back to language-specific defaults, so verification detection works for any language that exposes standard task targets.
+
+**Classification notes:** general informational questions are not implementation workflows by themselves. Mentions of models, Ollama, or OpenRouter stay `other` unless the prompt also asks for a repository change (implement, integrate, add support, change config). OS/device/troubleshooting prompts without repository-change signals are classified as `support`, which keeps them advisory without specialist handoff gates.
 
 If a later reply in the same session makes no additional changes after earlier code or config edits, keep reporting the actual verification, review status, changed files, and remaining risks instead of switching to a no-change footer.
 
@@ -202,8 +219,7 @@ Repository-level checks are separate from the local Claude profile:
 
 - `.github/workflows/validate.yml` — structural validation on every push and PR
 - `.github/workflows/hooks-test.yml` — deterministic hook behavior tests on every push and PR
-- `.github/workflows/behavior-benchmark.yml` — fast behavioral smoke coverage for benchmark-relevant PR changes
-- `.github/workflows/behavior-benchmark-subagents-smoke.yml` — per-agent coverage for benchmark-relevant PR changes
+- `.github/workflows/behavior-benchmark-subagents-smoke.yml` — per-agent behavioral smoke coverage for benchmark-relevant PR changes (matrix shards, two-slot gate)
 - `.github/workflows/security-scan.yml` — repository secret scan on every push and PR, plus weekly schedule
 
 Behavior benchmark recovery metrics are always reported in `summary.json` and the GitHub step summary. By default they are informational only; strict recovery caps are enabled only when `BEHAVIOR_BENCHMARK_MAX_RECOVERED_TASKS` or `BEHAVIOR_BENCHMARK_MAX_SUMMARY_REPAIRED_TASKS` are set explicitly, or when matching `workflow_dispatch` inputs are provided. The live workflow defaults to a `400` second per-task timeout and can optionally use a dedicated `BEHAVIOR_BENCHMARK_MODEL` variable before falling back to the repository-wide `OLLAMA_MODEL`.

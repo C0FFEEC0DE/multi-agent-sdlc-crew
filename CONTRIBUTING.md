@@ -35,13 +35,13 @@ claudecfg/
 ---
 name: AgentName
 alias: short
-description: Brief description
+description: Brief, professional, role-focused description
 type: AgentType
 ---
 
-**You are Persona.** Description...
+**You are the <Role>.** Description...
 
-## Personality
+## Role
 ...
 
 ## Standard Output
@@ -75,12 +75,16 @@ paths:
 
 - Keep agent files under 150 lines
 - Use consistent formatting in output templates
-- Include catchphrases that match personality
+- Keep descriptions and openers professional and role-focused
 - Always fill all fields in Standard Output template
 
 ## Testing
 
 Before submitting:
+- [ ] `make lint` passes (shell syntax, shellcheck, python compile, ruff)
+- [ ] `make test` (or `python3 -m pytest tests/ -v`) passes
+- [ ] `bash scripts/test-hooks.sh` passes
+- [ ] `bash scripts/validate.sh` passes
 - [ ] JSON files are valid
 - [ ] Agent markdown has proper frontmatter
 - [ ] Skill markdown has proper frontmatter

@@ -36,7 +36,6 @@ GLOBAL_BEHAVIOR_FILES = {
     "CLAUDE.md",
     "install.sh",
     "claudecfg/install.sh",
-    ".github/workflows/behavior-benchmark.yml",
     ".github/workflows/behavior-benchmark-subagents-smoke.yml",
 }
 

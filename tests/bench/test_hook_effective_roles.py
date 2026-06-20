@@ -11,7 +11,6 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-import pytest
 
 HOOKS_DIR = Path(__file__).resolve().parents[2] / "claudecfg" / "hooks"
 LIB_SH = HOOKS_DIR / "lib.sh"

@@ -1,5 +1,8 @@
 name: Python Tests
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   push:
     branches:
@@ -9,6 +12,28 @@ on:
       - main
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Install lint tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+          sudo apt-get update -y && sudo apt-get install -y shellcheck
+
+      - name: Lint
+        run: make lint
+
   python-tests:
     name: Python Tests
     runs-on: ubuntu-latest
@@ -23,7 +48,9 @@ jobs:
           python-version: '3.x'
 
       - name: Install test dependencies
-        run: pip install pytest
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
 
-      - name: Run benchmark and profile pytest suite
-        run: python -m pytest tests/bench/test_bench_runner.py tests/bench/test_benchmark_task_selection.py tests/bench/test_collect_benchmark_changes.py tests/test_skills_frontmatter.py -v
+      - name: Run full pytest suite
+        run: python -m pytest tests/ -v

@@ -253,7 +253,7 @@ class TestTaskFixtureAlignment:
                             line_counts[stripped] = line_counts.get(stripped, 0) + 1
 
                     # If no lines are repeated, fixture might already be refactored
-                    max_repeats = max(line_counts.values()) if line_counts else 0
+                    _max_repeats = max(line_counts.values()) if line_counts else 0
                     # Note: This is informational only, not a failure
                     # Could log warning if needed
 
@@ -291,11 +291,11 @@ class TestTaskFixtureAlignment:
 
             # Check if at least one success criterion mentions category-relevant keyword
             criteria_text = " ".join(success_criteria).lower()
-            has_relevant_keyword = any(kw in criteria_text for kw in keywords)
+            _has_relevant_keyword = any(kw in criteria_text for kw in keywords)
 
             # Allow flexibility - this is a soft check, not a hard failure
             # Just warn if success criteria seem completely unrelated to category
-            task_id = task["id"]
+            _task_id = task["id"]
 
     def test_required_transcript_patterns_present_for_used_agents(self):
         """
@@ -308,7 +308,7 @@ class TestTaskFixtureAlignment:
         for task in tasks:
             required_agents = task.get("required_used_agents", [])
             patterns = task.get("required_transcript_patterns", [])
-            task_id = task["id"]
+            _task_id = task["id"]
 
             # Manager-led tasks should have footer patterns
             if "m" in required_agents:
@@ -319,7 +319,7 @@ class TestTaskFixtureAlignment:
 
             # Review tasks should mention review outcome
             if "cr" in required_agents:
-                has_review = any("Review" in p for p in patterns) if patterns else True
+                _has_review = any("Review" in p for p in patterns) if patterns else True
                 # Empty patterns means defaults are used, which include review patterns
 
     def test_prompt_mentions_category_actions(self):
@@ -352,7 +352,7 @@ class TestTaskFixtureAlignment:
             if not actions:
                 continue
 
-            has_relevant_action = any(action in prompt for action in actions)
+            _has_relevant_action = any(action in prompt for action in actions)
 
             # Soft check - warn but don't fail
             # Some tasks may have category that doesn't match prompt exactly

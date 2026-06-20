@@ -209,7 +209,6 @@ class TestBug6_StopGuardBlockReasonMissingTaskType:
         for i, line in enumerate(lines):
             if 'code_changed' in line and '= "true"' in line:
                 # Check subsequent lines for the empty message check + emit
-                block_start = i
                 for j in range(i, min(i + 8, len(lines))):
                     if '-z "$last_message"' in lines[j] or "-z \"$last_message\"" in lines[j]:
                         # Found the empty message check - find the emit right after
