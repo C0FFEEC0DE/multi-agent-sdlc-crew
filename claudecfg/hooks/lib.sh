@@ -475,7 +475,34 @@ append_jsonl() {
     local name="$1"
     local payload="$2"
     ensure_dirs
+    rotate_jsonl_if_needed "$name"
     printf "%s\n" "$payload" >> "${LOG_ROOT}/${name}"
+}
+
+# Shared rotation threshold for every hook JSONL stream (notifications, session
+# index, compact markers, config changes, instructions-loaded audit log). Keeps
+# any single log from growing without bound; the .old sidecar is overwritten.
+JSONL_MAX_SIZE="${CLAUDE_CREW_LOG_MAX_BYTES:-1048576}"
+
+rotate_jsonl_if_needed() {
+    local name="$1"
+    local file="${LOG_ROOT}/${name}"
+    [ -f "$file" ] || return 0
+
+    # GNU stat uses -c%s; BSD/macOS stat uses -f%z. Probe once and cache the
+    # correct flag so the size check works on every Unix.
+    local size
+    if stat -c%s "$file" >/dev/null 2>&1; then
+        size="$(stat -c%s "$file" 2>/dev/null || echo 0)"
+    else
+        size="$(stat -f%z "$file" 2>/dev/null || echo 0)"
+    fi
+
+    if [ "${size:-0}" -ge "$JSONL_MAX_SIZE" ]; then
+        rm -f "${file}.old"
+        mv "$file" "${file}.old"
+        touch "$file"
+    fi
 }
 
 emit_context() {

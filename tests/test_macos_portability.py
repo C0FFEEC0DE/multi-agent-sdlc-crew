@@ -129,7 +129,7 @@ class TestInstallSmokeShMacOSPortability:
         assert not bare_lines, (
             f"tests/install/install-smoke.sh has {len(bare_lines)} bare 'sha256sum' call(s). "
             f"Each must go through a probed variable. Offending lines:\n"
-            + "\n".join(f"  line {n}: {l}" for n, l in bare_lines)
+            + "\n".join(f"  line {n}: {line_text}" for n, line_text in bare_lines)
         )
 
 

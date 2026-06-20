@@ -28,7 +28,8 @@ def test_bench_smoke_defaults_to_local_ollama_without_auth():
     assert "ANTHROPIC_BASE_URL='http://127.0.0.1:11434'" in output
     assert "ANTHROPIC_AUTH_TOKEN=''" in output
     assert "ANTHROPIC_API_KEY=''" in output
-    assert "OLLAMA_MODEL='qwen3.5:cloud'" in output
+    # No model is pinned by default; the profile is model-agnostic.
+    assert "OLLAMA_MODEL=''" in output
     assert "must-not-be-used-by-local-default" not in output
 
 
@@ -37,9 +38,9 @@ def test_bench_smoke_allows_hosted_ollama_override():
         "bench-smoke",
         "BENCH_ANTHROPIC_BASE_URL=https://ollama.com",
         "BENCH_ANTHROPIC_AUTH_TOKEN=test-token",
-        "OLLAMA_MODEL=qwen3.5:cloud",
+        "OLLAMA_MODEL=example-model",
     )
 
     assert "ANTHROPIC_BASE_URL='https://ollama.com'" in output
     assert "ANTHROPIC_AUTH_TOKEN='test-token'" in output
-    assert "OLLAMA_MODEL='qwen3.5:cloud'" in output
+    assert "OLLAMA_MODEL='example-model'" in output

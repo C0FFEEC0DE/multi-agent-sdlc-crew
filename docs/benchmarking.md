@@ -18,7 +18,7 @@ Current task assertions include:
 - implementation tasks verify the final Claude response includes exact stop-safe summary lines for `Verification status:`, `Review outcome:`, `Changed files:` or `No files changed:`, and `Remaining risks:`
 - transcript-sensitive tasks verify handoff markers only when the benchmark is explicitly about stable output shape
 - workflow-combination tasks prefer `required_used_agents` and `required_used_agent_groups` so CI checks which specialist roles actually ran instead of brittle `Task:` headings
-- role-sensitive tasks resolve actual subagent usage from `SubagentStart` and recorded handoff lines in the debug log; `@alias` patterns in transcript entries (e.g. `@nerd`, `@toxic-senior`, `@cr`) are canonicalized to canonical role aliases
+- role-sensitive tasks resolve actual subagent usage from `SubagentStart` and recorded handoff lines in the debug log; `@alias` patterns in transcript entries (e.g. `@code-reviewer`, `@explorer`, `@cr`) are canonicalized to canonical role aliases
 - docs-required tasks changed documentation
 - docs-only tasks did not change non-doc files
 
@@ -106,9 +106,13 @@ Concurrent benchmark runs are limited by a two-slot gate enforced through `scrip
 - If the slot check returns HTTP 403, the script reads the `Retry-After` header and sleeps for the requested interval before retrying.
 - This handles GitHub API secondary-rate-limit errors gracefully without burning CI minutes on tight polling loops.
 
-**Log rotation for notification telemetry:**
+**Log rotation for hook telemetry:**
 
-Notification hooks write session events to `~/.claude/logs/notification.jsonl`. To prevent unbounded log growth on long-running CI runners, the hook installation step rotates existing logs: if `notification.jsonl` exceeds a configured size threshold, the file is renamed with a timestamp suffix and a fresh log is started. The rotation threshold is set in the hook configuration in `claudecfg/hooks/notification.sh`.
+Hooks write session events to `~/.claude/logs/*.jsonl` (notifications, compact
+markers, config changes, session index). To prevent unbounded log growth on
+long-running CI runners, `append_jsonl` in `claudecfg/hooks/lib.sh` rotates
+every stream past `CLAUDE_CREW_LOG_MAX_BYTES` (default 1 MB): the file is moved
+to a `.old` sidecar and a fresh log is started.
 
 **Node.js 24 requirement:**
 
@@ -128,10 +132,11 @@ Repository settings:
 8. Optionally add `BEHAVIOR_BENCHMARK_MAX_RECOVERED_TASKS` to enable strict gating on recovered tasks
 9. Optionally add `BEHAVIOR_BENCHMARK_MAX_SUMMARY_REPAIRED_TASKS` to enable strict gating on summary-repaired tasks
 
-Required benchmark model:
+Required benchmark model: set `OLLAMA_MODEL` (or `BEHAVIOR_BENCHMARK_MODEL` in CI) to whichever model id the runner should use — the profile pins none.
 
 ```text
-qwen3.5:cloud
+# example only — use any model id your runner targets
+export OLLAMA_MODEL="your-model-id"
 ```
 
 Recommended benchmark timeout:
@@ -157,7 +162,7 @@ export OLLAMA_API_KEY=...
 export ANTHROPIC_BASE_URL=https://ollama.com
 export ANTHROPIC_AUTH_TOKEN="$OLLAMA_API_KEY"
 export ANTHROPIC_API_KEY=
-export OLLAMA_MODEL="${OLLAMA_MODEL:-qwen3.5:cloud}"
+export OLLAMA_MODEL="${OLLAMA_MODEL:-your-model-id}"
 export CLAUDE_CODE_MAX_OUTPUT_TOKENS="${CLAUDE_CODE_MAX_OUTPUT_TOKENS:-768}"
 export BENCH_RUNNER_CMD="python3 scripts/bench_runner_claude_code.py"
 bash scripts/run-benchmark.sh --output-dir /tmp/claude-bench --mode command
@@ -175,6 +180,55 @@ For cheap synthetic checks without the real agent:
 ```bash
 bash scripts/run-benchmark.sh --output-dir /tmp/claude-bench-mock --mode mock
 ```
+
+## Re-running only failed tasks
+
+A full smoke rerun re-executes every canary task and spends Ollama credits on
+the ones that already passed. To re-run only the tasks that did not resolve in
+a prior failed run, use the smoke workflow's `resume` / `auto_resume` selection
+modes — the selector (`scripts/select-benchmark-tasks.py`) loads the previous
+run's summary and selects only its `unresolved_task_ids`.
+
+From your workstation (requires `gh` with workflow permissions):
+
+```bash
+# Re-run the unresolved tasks from the last failed smoke run (<=72h):
+make bench-rerun-failed
+
+# ...or resume a specific prior run by id:
+make bench-rerun-failed RUN_ID=27872932481
+
+# Equivalent direct invocation:
+bash scripts/rerun-failed-benchmark.sh                 # auto_resume
+bash scripts/rerun-failed-benchmark.sh --run-id 27872932481
+bash scripts/rerun-failed-benchmark.sh --ref main       # target a branch
+```
+
+The wrapper dispatches the workflow with `selection_mode=auto_resume` (or
+`resume` with `--run-id`), then prints the new run's URL and a `gh run watch`
+command. `auto_resume` uses `scripts/find-failed-benchmark-run.py` to locate the
+last failed run automatically; if none exists in the last 72 hours it falls back
+to `changed` mode.
+
+For a local (non-CI) re-run of only the failed tasks, select the unresolved
+tasks from a previous summary, then feed that list to the runner:
+
+```bash
+# 1. Select only the unresolved tasks from a previous local summary:
+python3 scripts/select-benchmark-tasks.py --suite subagents_smoke \
+    --selection-mode resume \
+    --previous-summary-file /tmp/claude-bench/summary.json \
+  | python3 -c 'import json,sys; print("\n".join(json.load(sys.stdin)["task_files"]))' \
+  > /tmp/claude-bench-failed.txt
+
+# 2. Re-run only those tasks:
+bash scripts/run-benchmark.sh --output-dir /tmp/claude-bench-resume \
+    --mode command --task-list-file /tmp/claude-bench-failed.txt
+```
+
+(`run-benchmark.sh` itself does not take `--selection-mode`; the selection is
+done by `select-benchmark-tasks.py`, which emits a task list consumed via
+`--task-list-file`.)
 
 ## Output Artifacts
 

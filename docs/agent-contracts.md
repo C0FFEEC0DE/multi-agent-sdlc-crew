@@ -16,7 +16,7 @@ Hook enforcement is shared across agents and workflows:
 
 - `UserPromptSubmit` classifies work and seeds required roles
 - `SubagentStart` normalizes aliases and records actual role use; generic Task tool types (`general-purpose`, `workflow-subagent`) are filtered from enforcement
-- `Stop`, `TaskCompleted`, and `TeammateIdle` fall back to transcript `@alias` patterns (e.g. `@nerd` -> `e`, `@toxic-senior` -> `cr`) when runtimes omit explicit `SubagentStart`
+- `Stop`, `TaskCompleted`, and `TeammateIdle` fall back to transcript `@alias` patterns (e.g. `@explorer` -> `e`, `@code-reviewer` -> `cr`, plus legacy persona aliases) when runtimes omit explicit `SubagentStart`
 - `SubagentStop` requires a concrete handoff footer with `Outcome:`, `Changed files:` or `No files changed:`, `Verification status:`, and one closure line: `Remaining risks:` or `Next step:`
 - `Stop`, `TaskCompleted`, and `TeammateIdle` block incomplete workflow completion
 - `PostToolUse` and `PostToolUseFailure` track edit and verification state

@@ -357,9 +357,9 @@ for command in "${EXPECTED_COMMANDS[@]}"; do
     fi
 done
 
-compare_command_lists "$REPO_ROOT/README.md" "README slash-command list" "### Slash Commands" "### Workflows"
+compare_command_lists "$REPO_ROOT/README.md" "README slash-command list" "### Slash commands" "### Required handoffs"
 compare_command_lists "$REPO_ROOT/claudecfg/GUIDE.md" "GUIDE slash-command list" "## Slash Commands" "## Auto-Execution"
-compare_command_lists "$REPO_ROOT/claudecfg/README.md" "claudecfg README slash-command list" "Current bundled slash commands:" "## Installation"
+compare_command_lists "$REPO_ROOT/claudecfg/README.md" "claudecfg README slash-command list" "## Bundled slash commands" "## Installation"
 echo ""
 
 echo "--- Checking settings policy invariants ---"

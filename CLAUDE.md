@@ -60,8 +60,7 @@ Slash skills under `claudecfg/skills/` use YAML frontmatter for routing/tool con
 Repository CI includes:
 - status badges in `README.md`
 - `Validate`, `Hook Tests`, and `Security Scan` on every push and PR
-- `Behavior Benchmark Smoke` on benchmark-related PRs (matrix shards, max 2 parallel)
-- `Behavior Benchmark Subagents Smoke` on benchmark-related PRs with per-role task selection
+- `Behavior Benchmark Subagents Smoke` on benchmark-related PRs (per-role task selection, matrix shards, two-slot gate)
 
 Concurrent benchmark runs are limited by a **two-slot gate** (`scripts/wait-for-benchmark-slot.py`) that prevents CI overload when multiple workflow dispatches fire simultaneously. The gate polls a GitHub API endpoint, waits with fixed-interval retry, and handles HTTP 403 rate-limit errors by reading the `Retry-After` header before retrying.
 

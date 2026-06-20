@@ -5,7 +5,12 @@
 [![Python Tests](https://github.com/C0FFEEC0DE/claude-crew/actions/workflows/python-tests.yml/badge.svg?branch=main)](https://github.com/C0FFEEC0DE/claude-crew/actions/workflows/python-tests.yml)
 [![Security Checks](https://github.com/C0FFEEC0DE/claude-crew/actions/workflows/security-scan.yml/badge.svg?branch=main)](https://github.com/C0FFEEC0DE/claude-crew/actions/workflows/security-scan.yml)
 
-Hook-gated SDLC profile for Claude Code with 8 specialist agents.
+A **hook-gated SDLC profile for Claude Code**: shell hooks enforce a
+discover → design → implement → verify → review → docs flow, eight specialist
+agents do the work, and a benchmark suite catches agent regressions on every PR.
+
+It gives you: deterministic handoff/stop contracts, token-spend discipline, and
+defense-in-depth command blocking — all as a drop-in `~/.claude` profile.
 
 ## Install
 
@@ -13,7 +18,23 @@ Hook-gated SDLC profile for Claude Code with 8 specialist agents.
 ./install.sh
 ```
 
-Backs up your current `~/.claude` config and installs this one.
+Backs up your current `~/.claude` config, then installs this one. Restart Claude Code.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[Prompt] --> B[Classify]
+    B --> C[Specialists run]
+    C --> D[Tool gates block danger]
+    C --> E[Track edits + verify]
+    E --> F[Enforce handoff footer]
+    F --> G{Stop gate}
+    G -->|missing gate| B
+    G -->|all pass| H[Done]
+```
+
+Full diagram and the pieces: [`docs/architecture.md`](docs/architecture.md).
 
 ## Agents
 
@@ -39,56 +60,50 @@ Full names work too: `@code-reviewer`, `@tester`, etc.
 @manager implement new feature: user authentication
 ```
 
-### Slash Commands
+### Slash commands
 
-- `/manager` — manager-led orchestration session (invokes @manager)
-- `/explore` — codebase exploration session (invokes @explorer)
-- `/bug` — bug-hunting session (invokes @bugbuster)
-- `/debug` — debugging session
-- `/test` — testing session (invokes @tester)
-- `/design` — design session (invokes @architect)
-- `/refactor` — refactoring session (invokes @architect)
-- `/review` — code review (invokes @code-reviewer)
-- `/docs` — documentation session (invokes @docwriter)
+- `/manager` — manager-led orchestration
+- `/explore` — codebase exploration
+- `/bug` — bug hunting
+- `/debug` — debugging
+- `/test` — testing
+- `/design` — design
+- `/refactor` — refactoring
+- `/review` — code review
+- `/docs` — documentation
 
-### Workflows
+These are the documented entry points; the hooks enforce the actual handoff and stop gates.
 
-Slash commands are the documented entry points; the hooks enforce the actual handoff and stop gates (see `## Workflow`).
-
-## Workflow
-
-The hooks enforce this flow for code changes:
-
-```
-discover -> design -> implement -> verify -> review -> docs -> cleanup
-```
-
-Runtime `Notification` events are logged to `notification.jsonl` for observability.
-
-Required handoffs:
+### Required handoffs
 
 | Type | Required |
 |------|----------|
-| feature | `@t` or verification + `@cr` + `@e` or `@a` |
-| bugfix | `@t` or verification + `@cr` + `@bug`, `@e`, or `@dbg` |
-| refactor | `@t` or verification + `@cr` + `@a` or `@e` |
+| feature | verification or `@t` + `@cr` + (`@e` or `@a`) |
+| bugfix | verification or `@t` + `@cr` + (`@bug` / `@e` / `@dbg`) |
+| refactor | verification or `@t` + `@cr` + (`@a` or `@e`) |
 | review | `@cr` |
 | docs | `@doc` |
 
-## Safety
+## Configuration
 
-- Protected paths: `~/.ssh`, `~/.aws`, `/etc`, `/usr`
-- Blocked: `mkfs`, `dd`, `rm -rf /`, force-push, remote bootstrap pipes
-- Auto-execution only in project folders (`~/projects/**`, `~/code/**`, `~/repos/**`, `~/work/**`)
+- **Model:** none pinned — your runtime default applies. Set `"model": "…"` in `claudecfg/settings.json` to fix one.
+- **`effortLevel`:** defaults to `medium` (lower spend); raise to `high` for hard design/verify/judge stages.
+- **Safety:** `permissions.deny` blocks `sudo`, `mkfs`, `dd`, `rm -rf /`, `rm -rf ~`, force-push, and secret reads. Auto-execution only inside project folders.
+- **Observability:** `Notification` and other runtime events log to `~/.claude/logs/*.jsonl` (rotated at 1 MB).
+- See [`docs/token-cost.md`](docs/token-cost.md) for the full spend story.
 
 ## Docs
 
-- `claudecfg/GUIDE.md` — quick reference
-- `docs/benchmarking.md` — benchmark setup
-- `docs/agent-contracts.md` — agent contracts
-- `claudecfg/agents/` — agent definitions
-- `claudecfg/skills/` — slash skills
+- [`claudecfg/GUIDE.md`](claudecfg/GUIDE.md) — cheatsheet
+- [`docs/architecture.md`](docs/architecture.md) — how the hooks fit together
+- [`docs/token-cost.md`](docs/token-cost.md) — minimal token spend
+- [`docs/benchmarking.md`](docs/benchmarking.md) — benchmark setup
+- [`docs/agent-contracts.md`](docs/agent-contracts.md) — agent contracts
+
+## Contributing
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). Run `make lint`, `make test`, `bash scripts/validate.sh` before a PR. Report security issues via [`SECURITY.md`](SECURITY.md).
 
 ## License
 
-MIT
+MIT — see [`LICENSE`](LICENSE).

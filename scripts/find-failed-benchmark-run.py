@@ -159,7 +159,7 @@ def main() -> None:
 
         if output_path:
             with open(output_path, "a", encoding="utf-8") as handle:
-                handle.write(f"found=true\n")
+                handle.write("found=true\n")
                 handle.write(f"run_id={run_id}\n")
                 handle.write(f"display_title={display_title}\n")
                 handle.write(f"created_at={created}\n")
