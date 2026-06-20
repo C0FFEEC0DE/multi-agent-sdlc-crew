@@ -1,6 +1,6 @@
 # Project Context
 
-This directory contains Claude Code configuration for the claude-crew repository — a hook-gated SDLC profile with benchmark-driven agent regression coverage.
+This directory contains Claude Code configuration for the multi-agent-sdlc-crew repository — a hook-gated SDLC profile with benchmark-driven agent regression coverage.
 
 ## Profile
 

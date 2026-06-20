@@ -1,5 +1,5 @@
 #!/bin/bash
-# Validation script for claude-crew repository
+# Validation script for multi-agent-sdlc-crew repository
 # Checks: JSON validity, shell syntax, agent frontmatter, slash-command inventory,
 # benchmark metadata, hook test manifests, and broken internal links.
 

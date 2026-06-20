@@ -101,7 +101,7 @@ def build_request(url: str, token: str) -> urllib.request.Request:
             "Accept": "application/vnd.github+json",
             "Authorization": f"Bearer {token}",
             "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "claude-crew-benchmark-slot-gate",
+            "User-Agent": "multi-agent-sdlc-crew-benchmark-slot-gate",
         },
     )
 

@@ -29,7 +29,7 @@ OPENROUTER_BASE_URL = env_or_default(
     "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1/chat/completions"
 )
 OPENROUTER_SITE_URL = env_or_default("OPENROUTER_SITE_URL", "https://github.com")
-OPENROUTER_APP_NAME = env_or_default("OPENROUTER_APP_NAME", "claude-crew-benchmark")
+OPENROUTER_APP_NAME = env_or_default("OPENROUTER_APP_NAME", "multi-agent-sdlc-crew-benchmark")
 
 
 def is_docs_path(path_str: str) -> bool:

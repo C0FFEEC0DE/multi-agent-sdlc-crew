@@ -1,9 +1,9 @@
-# claude-crew
+# multi-agent-sdlc-crew
 
-[![Repository Checks](https://github.com/C0FFEEC0DE/claude-crew/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/C0FFEEC0DE/claude-crew/actions/workflows/validate.yml)
-[![Hook Contracts](https://github.com/C0FFEEC0DE/claude-crew/actions/workflows/hooks-test.yml/badge.svg?branch=main)](https://github.com/C0FFEEC0DE/claude-crew/actions/workflows/hooks-test.yml)
-[![Python Tests](https://github.com/C0FFEEC0DE/claude-crew/actions/workflows/python-tests.yml/badge.svg?branch=main)](https://github.com/C0FFEEC0DE/claude-crew/actions/workflows/python-tests.yml)
-[![Security Checks](https://github.com/C0FFEEC0DE/claude-crew/actions/workflows/security-scan.yml/badge.svg?branch=main)](https://github.com/C0FFEEC0DE/claude-crew/actions/workflows/security-scan.yml)
+[![Repository Checks](https://github.com/C0FFEEC0DE/multi-agent-sdlc-crew/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/C0FFEEC0DE/multi-agent-sdlc-crew/actions/workflows/validate.yml)
+[![Hook Contracts](https://github.com/C0FFEEC0DE/multi-agent-sdlc-crew/actions/workflows/hooks-test.yml/badge.svg?branch=main)](https://github.com/C0FFEEC0DE/multi-agent-sdlc-crew/actions/workflows/hooks-test.yml)
+[![Python Tests](https://github.com/C0FFEEC0DE/multi-agent-sdlc-crew/actions/workflows/python-tests.yml/badge.svg?branch=main)](https://github.com/C0FFEEC0DE/multi-agent-sdlc-crew/actions/workflows/python-tests.yml)
+[![Security Checks](https://github.com/C0FFEEC0DE/multi-agent-sdlc-crew/actions/workflows/security-scan.yml/badge.svg?branch=main)](https://github.com/C0FFEEC0DE/multi-agent-sdlc-crew/actions/workflows/security-scan.yml)
 
 A **hook-gated SDLC profile for Claude Code**: shell hooks enforce a
 discover → design → implement → verify → review → docs flow, eight specialist
