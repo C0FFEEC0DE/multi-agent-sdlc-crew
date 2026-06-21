@@ -14,13 +14,13 @@ import { dirname, join } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { parseHookInput, readStdin } from './hook-input.mjs';
 import { additionalContext, passthrough, serialize, terminalCancel } from './hook-output.mjs';
-import { resolveDataRoot, resolveSessionId } from './util.mjs';
+import { resolveDataRoot, resolveSessionId, resolveLogRoot, resolveProjectDir } from './util.mjs';
 import { statePaths, appendEvent, loadState } from './state.mjs';
 import {
   classifyPrompt, userPromptResetPatch, sessionBackgroundManagerPending,
   clearLoopBlockPatch, taskTypeRequiresImplementationSummary,
 } from './workflow.mjs';
-import { commandClass, verificationOutcome } from './verification.mjs';
+import { commandClass, verificationOutcome, detectTestCmd, detectLintCmd, detectBuildCmd } from './verification.mjs';
 import {
   extractSubagentLabel, extractSubagentScope, loadAliases, effectiveStartedRoles,
 } from './agents.mjs';
@@ -35,6 +35,14 @@ import {
   messageMentionsDocsStatus, messageMentionsConcreteOutcome, messageMentionsNextStep,
   stopSafeNoChangeFooterHint, exitBlock,
 } from './summary-contract.mjs';
+import {
+  appendJsonl, resolveLogMaxBytes, notificationPayload, instructionsLoadedPayload,
+  preCompactPayload, postCompactPayload, configChangePayload, sessionEndPayload,
+} from './notifications.mjs';
+import {
+  progressLedgerPath, readLedgerForInjection, buildPostCompactContext,
+  resolveLedgerMaxBytes,
+} from './ledger.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || join(here, '..');
@@ -312,12 +320,98 @@ function handleTeammateIdle(parsed) {
   return null;
 }
 
+// SessionStart: detect the project's test/lint/build commands, persist them to
+// session state (so stop-guard's verification gate knows what was detected),
+// and emit the profile-active context message. Mirrors session-start.sh. The
+// bash profile also writes a CLAUDE_ENV_FILE of exports; the Node runtime uses
+// session state as the source of truth, so that env-file step is intentionally
+// not ported.
+function handleSessionStart(parsed) {
+  const projectDir = resolveProjectDir(process.env, parsed.cwd ?? '');
+  const opts = { cwd: projectDir };
+  const testCmd = detectTestCmd(opts) ?? '';
+  const lintCmd = detectLintCmd(opts) ?? '';
+  const buildCmd = detectBuildCmd(opts) ?? '';
+  persistPatch(parsed, {
+    session_id: parsed.sessionId ?? '',
+    cwd: parsed.cwd ?? '',
+    transcript_path: parsed.transcriptPath ?? '',
+    detected_test_command: testCmd,
+    detected_lint_command: lintCmd,
+    detected_build_command: buildCmd,
+  });
+  let message = 'Hook-gated SDLC is active. Required flow: discover -> design -> implement -> verify -> review -> docs when behavior changes -> cleanup. release/deploy automation is intentionally disabled in this profile.';
+  if (testCmd || lintCmd || buildCmd) {
+    message += ' Detected commands:';
+    if (testCmd) message += ` test=${testCmd};`;
+    if (lintCmd) message += ` lint=${lintCmd};`;
+    if (buildCmd) message += ` build=${buildCmd};`;
+  }
+  return additionalContext(message, 'SessionStart');
+}
+
+// --- observability / lifecycle (Task 11) ----------------------------------
+
+// Append one telemetry record to a JSONL stream. Telemetry is best-effort: a
+// write failure is logged to stderr but never blocks the hook runtime.
+function logEvent(parsed, name, payload) {
+  try {
+    appendJsonl(resolveLogRoot(), name, payload, { maxBytes: resolveLogMaxBytes() });
+  } catch (e) {
+    process.stderr.write(`hook-dispatcher: telemetry write failed for ${name}: ${e?.message ?? e}\n`);
+  }
+}
+
+// Notification: record the notification payload to notification.jsonl. The
+// runtime already surfaces notifications to the user natively, so (unlike the
+// bash notification.sh) the Node port does not also spawn notify-send /
+// osascript / powershell — that OS-specific desktop-notify path is intentionally
+// dropped for portability and to avoid child_process spawning in the runtime.
+function handleNotification(parsed) {
+  logEvent(parsed, 'notification.jsonl', notificationPayload(parsed.data ?? {}));
+  return passthrough();
+}
+
+// InstructionsLoaded: audit which memory file was loaded and why.
+function handleInstructionsLoaded(parsed) {
+  logEvent(parsed, 'instructions-loaded.jsonl', instructionsLoadedPayload(parsed.data ?? {}));
+  return passthrough();
+}
+
+// PreCompact: record a compaction marker with a state snapshot.
+function handlePreCompact(parsed) {
+  logEvent(parsed, 'pre-compact.jsonl', preCompactPayload(parsed.data ?? {}, loadStateFor(parsed)));
+  return passthrough();
+}
+
+// PostCompact: record a compaction marker, then best-effort re-inject the
+// durable progress ledger so the agent keeps its place after compaction.
+function handlePostCompact(parsed) {
+  logEvent(parsed, 'post-compact.jsonl', postCompactPayload(parsed.data ?? {}));
+  const projectDir = resolveProjectDir(process.env, parsed.cwd ?? '');
+  const ledger = readLedgerForInjection(progressLedgerPath(projectDir), resolveLedgerMaxBytes());
+  const ctx = buildPostCompactContext(ledger);
+  return ctx ? additionalContext(ctx, 'PostCompact') : passthrough();
+}
+
+// SessionEnd: record the session index entry with a final state snapshot.
+function handleSessionEnd(parsed) {
+  logEvent(parsed, 'session-index.jsonl', sessionEndPayload(parsed.data ?? {}, loadStateFor(parsed)));
+  return passthrough();
+}
+
+// ConfigChange: audit user-settings / config modifications.
+function handleConfigChange(parsed) {
+  logEvent(parsed, 'config-change.jsonl', configChangePayload(parsed.data ?? {}));
+  return passthrough();
+}
+
 // Event handlers. Each takes the parsed input and returns a JSON-serializable
 // output object (or null/undefined for passthrough). Handlers not yet ported
 // return a neutral passthrough so the installed plugin stays inert but safe.
 const handlers = {
-  SessionStart: () => passthrough(),
-  InstructionsLoaded: () => passthrough(),
+  SessionStart: handleSessionStart,
+  InstructionsLoaded: handleInstructionsLoaded,
   UserPromptSubmit: handleUserPromptSubmit,
   PreToolUse: () => passthrough(),
   PermissionRequest: () => passthrough(),
@@ -329,11 +423,11 @@ const handlers = {
   Stop: handleStop,
   TeammateIdle: handleTeammateIdle,
   TaskCompleted: handleTaskCompleted,
-  Notification: () => passthrough(),
-  ConfigChange: () => passthrough(),
-  PreCompact: () => passthrough(),
-  PostCompact: () => passthrough(),
-  SessionEnd: () => passthrough(),
+  Notification: handleNotification,
+  ConfigChange: handleConfigChange,
+  PreCompact: handlePreCompact,
+  PostCompact: handlePostCompact,
+  SessionEnd: handleSessionEnd,
 };
 
 /**

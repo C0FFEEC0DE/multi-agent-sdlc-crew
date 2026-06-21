@@ -7,7 +7,7 @@ import { join } from 'node:path';
 /** UTC timestamp in the same `date -u +%Y-%m-%dT%H:%M:%SZ` form as lib.sh. */
 export function timestampUtc(d = new Date()) {
   const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getUTCFullYear()}-${pad(d.getUTMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}Z`;
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}Z`;
 }
 
 /**
@@ -45,4 +45,25 @@ export function resolveSessionId(sessionId) {
 /** True if a value is a non-empty string. */
 export function isNonEmpty(s) {
   return typeof s === 'string' && s.length > 0;
+}
+
+/**
+ * Resolve the per-plugin log directory for telemetry JSONL streams
+ * (notification, session-index, compact markers, config-change, instructions-
+ * loaded). Lives under the plugin data root so the runtime never writes outside
+ * ${CLAUDE_PLUGIN_DATA} / project-provided paths.
+ */
+export function resolveLogRoot(env = process.env, home = homedir()) {
+  return join(resolveDataRoot(env, home), 'logs');
+}
+
+/**
+ * Resolve the project directory the hook is running in. The runtime sets
+ * CLAUDE_PROJECT_DIR; fall back to the cwd the hook was invoked with. Used for
+ * project-relative paths like the progress ledger.
+ */
+export function resolveProjectDir(env = process.env, cwd = '') {
+  const explicit = env.CLAUDE_PROJECT_DIR;
+  if (explicit && typeof explicit === 'string') return explicit;
+  return cwd || process.cwd();
 }
