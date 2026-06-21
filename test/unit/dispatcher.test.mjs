@@ -3,16 +3,41 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dispatch, eventFromArgs } from '../../plugins/multi-agent-sdlc-crew/modules/hook-dispatcher.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const dispatcher = join(here, '..', '..', 'plugins', 'multi-agent-sdlc-crew', 'modules', 'hook-dispatcher.mjs');
+
+// Tests must never write into the user's real ~/.claude plugin data dir, so
+// point CLAUDE_PLUGIN_DATA at a temp dir for both in-process dispatch and the
+// spawned end-to-end runs.
+let dataRoot;
+test.before(() => {
+  dataRoot = mkdtempSync(join(tmpdir(), 'disp-'));
+  process.env.CLAUDE_PLUGIN_DATA = dataRoot;
+});
+test.after(() => {
+  delete process.env.CLAUDE_PLUGIN_DATA;
+  rmSync(dataRoot, { recursive: true, force: true });
+});
+
 const parsed = { ok: true, empty: false, error: null, data: {}, event: 'Stop', toolName: null, toolInput: {}, sessionId: 's', cwd: null, transcriptPath: null };
 
-test('dispatch: known event returns passthrough in Phase 1', () => {
-  for (const ev of ['Stop', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'SubagentStop']) {
+// Stop / UserPromptSubmit / PreToolUse / PostToolUse all return passthrough
+// against a fresh (no-code-change) session. SubagentStop is no longer inert:
+// with no assistant message it blocks (see the contract test below).
+test('dispatch: stateless events return passthrough against a fresh session', () => {
+  for (const ev of ['Stop', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse']) {
     assert.deepEqual(dispatch(ev, parsed), {}, `${ev} should be passthrough`);
   }
+});
+
+test('dispatch: SubagentStop blocks when no assistant summary is present', () => {
+  const out = dispatch('SubagentStop', parsed);
+  assert.equal(out.decision, 'block');
+  assert.match(out.reason, /No assistant summary message was found/);
 });
 
 test('dispatch: unknown event degrades to passthrough (never blocks)', () => {
@@ -36,7 +61,10 @@ test('eventFromArgs: reads --event, returns null when absent', () => {
 });
 
 function runDispatcher(args, input) {
-  return spawnSync(process.execPath, [dispatcher, ...args], { input, encoding: 'utf8', timeout: 10000 });
+  return spawnSync(process.execPath, [dispatcher, ...args], {
+    input, encoding: 'utf8', timeout: 10000,
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: dataRoot },
+  });
 }
 
 test('end-to-end: valid stdin -> valid JSON stdout, exit 0, clean stderr', () => {

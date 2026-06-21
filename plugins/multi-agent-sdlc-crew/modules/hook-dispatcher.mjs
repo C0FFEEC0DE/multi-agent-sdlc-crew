@@ -11,13 +11,30 @@
 // behavior, so the installed plugin is inert but safe.
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { parseHookInput, readStdin } from './hook-input.mjs';
 import { additionalContext, passthrough, serialize, terminalCancel } from './hook-output.mjs';
 import { resolveDataRoot, resolveSessionId } from './util.mjs';
 import { statePaths, appendEvent, loadState } from './state.mjs';
-import { classifyPrompt, userPromptResetPatch } from './workflow.mjs';
+import {
+  classifyPrompt, userPromptResetPatch, sessionBackgroundManagerPending,
+  clearLoopBlockPatch, taskTypeRequiresImplementationSummary,
+} from './workflow.mjs';
 import { commandClass, verificationOutcome } from './verification.mjs';
-import { extractSubagentLabel, extractSubagentScope, loadAliases } from './agents.mjs';
+import {
+  extractSubagentLabel, extractSubagentScope, loadAliases, effectiveStartedRoles,
+} from './agents.mjs';
+import {
+  resolvedLastAssistantMessage, transcriptIndicatesBackgroundedAgent,
+} from './transcripts.mjs';
+import {
+  sessionBlockReason, sessionAgentEnforcementReason, sessionManagerIdleReason,
+  emitLoopAwareBlock, isDocsPath, messageReportsNoChanges,
+  messageMentionsVerificationStatus, messageMentionsReviewOutcome,
+  messageMentionsChangedFiles, messageMentionsRemainingRisks,
+  messageMentionsDocsStatus, messageMentionsConcreteOutcome, messageMentionsNextStep,
+  stopSafeNoChangeFooterHint, exitBlock,
+} from './summary-contract.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || join(here, '..');
@@ -46,19 +63,57 @@ function handleUserPromptSubmit(parsed) {
   return passthrough();
 }
 
-// PostToolUse (Bash matcher): classify the command and record a successful
-// test/lint/build outcome. Edit/Write family matchers record file changes and
-// are ported with summary-contract.mjs (Task 10); until then they passthrough.
-// The active matcher is passed via --matcher (the runtime fires one
-// registration per matcher; tool_name in stdin is used as a fallback).
+// PostToolUse: the active matcher is passed via --matcher (the runtime fires
+// one registration per matcher; tool_name in stdin is a fallback). The Bash
+// matcher records a successful test/lint/build outcome; the EditWrite matcher
+// records file changes (post-edit-write.sh).
 function handlePostToolUse(parsed) {
-  const isBash = parsed.matcher === 'Bash' || parsed.toolName === 'Bash';
-  if (!isBash) return passthrough();
+  const matcher = parsed.matcher;
+  const isBash = matcher === 'Bash' || (!matcher && parsed.toolName === 'Bash');
+  const isEditWrite = matcher === 'EditWrite'
+    || (!matcher && /^(Edit|MultiEdit|Write|NotebookEdit)$/.test(parsed.toolName || ''));
+  if (isBash) return handlePostToolUseBash(parsed);
+  if (isEditWrite) return handlePostToolUseEditWrite(parsed);
+  return passthrough();
+}
+
+// PostToolUse (Bash matcher): classify the command and record a successful
+// test/lint/build outcome. Mirrors post-tool-use.sh.
+function handlePostToolUseBash(parsed) {
   const command = parsed.toolInput?.command ?? '';
   const outcome = verificationOutcome(commandClass(command), command, { failed: false });
   if (!outcome) return passthrough();
   persistPatch(parsed, outcome.patch);
   return additionalContext(outcome.message, 'PostToolUse');
+}
+
+// PostToolUse (EditWrite matcher): record the file change. Docs paths set
+// docs_changed (not code_changed); everything else sets code_changed. The
+// code_changed / docs_changed flags are OR-ed with the existing value so a
+// session that already recorded a code change keeps it. Mirrors
+// post-edit-write.sh.
+function handlePostToolUseEditWrite(parsed) {
+  const ti = parsed.toolInput ?? {};
+  const data = parsed.data ?? {};
+  const filePath = ti.file_path ?? ti.path ?? ti.notebook_path ?? data.file_path ?? data.path ?? data.notebook_path ?? '';
+  const docs = isDocsPath(filePath);
+  const codeChanged = !docs;
+  const docsChanged = docs;
+  let state = null;
+  try { state = loadState(statePathsFor(parsed)); } catch {}
+  const files = Array.isArray(state?.files) ? state.files.slice() : [];
+  if (filePath && !files.includes(filePath)) files.push(filePath);
+  const patch = {
+    edited: true,
+    code_changed: (state?.code_changed === true) || codeChanged,
+    docs_changed: (state?.docs_changed === true) || docsChanged,
+    files,
+  };
+  persistPatch(parsed, patch);
+  if (codeChanged) {
+    return additionalContext('Recorded a code/config change in session state. This session now requires verification before completion.', 'PostToolUse');
+  }
+  return passthrough();
 }
 
 // PostToolUseFailure: record a failed test/lint/build outcome.
@@ -113,6 +168,150 @@ function handleSubagentStart(parsed) {
   return additionalContext(message, 'SubagentStart');
 }
 
+// Read the full transcript text for role inference (Stop fires once at session
+// end, so reading the whole file matches the bash grep-over-transcript model).
+function readTranscriptText(path) {
+  if (!path) return '';
+  try { return readFileSync(path, 'utf8'); } catch { return ''; }
+}
+
+// Load the session state for a parsed input, or null on error / no session.
+function loadStateFor(parsed) {
+  try { return loadState(statePathsFor(parsed)); } catch { return null; }
+}
+
+// Persist a loop-aware block: record the block + policy-stall patch, then emit
+// the block/terminal output. Mirrors emit_loop_aware_block + the stop-guard
+// call sites.
+function emitBlock(parsed, state, prefix, reason, message) {
+  const { patch, output } = emitLoopAwareBlock(state, prefix, reason, message);
+  persistPatch(parsed, patch);
+  return output;
+}
+
+// Stop: enforce the footer contract and completion gates. Mirrors
+// stop-guard.sh. A previous terminal policy-stall is repeated verbatim so a
+// runtime that re-enters Stop while processing the terminal response does not
+// re-enter the normal blocking path.
+function handleStop(parsed) {
+  const state = loadStateFor(parsed);
+  if (!state) return passthrough();
+  if (state.stalled_by_policy === true) {
+    const reason = state.policy_stall_reason || 'Stop hook policy stalled the session.';
+    return terminalCancel(reason, { hardStop: true });
+  }
+  const transcriptPath = parsed.transcriptPath ?? state.transcript_path ?? '';
+  const transcriptText = readTranscriptText(transcriptPath);
+  const startedRoles = effectiveStartedRoles(state, transcriptText, ALIASES);
+  const lastMessage = resolvedLastAssistantMessage(parsed.data ?? {}, transcriptPath);
+  const docsRequired = state.docs_required === true;
+  const hint = stopSafeNoChangeFooterHint(docsRequired);
+
+  let reason = sessionBlockReason(state);
+  if (reason) return emitBlock(parsed, state, 'stop', reason, lastMessage);
+
+  if (sessionBackgroundManagerPending({
+    taskType: state.task_type, managerMode: state.manager_mode,
+    codeChanged: state.code_changed, backgroundedAgent: transcriptIndicatesBackgroundedAgent(transcriptPath),
+    startedRoles,
+  })) {
+    persistPatch(parsed, clearLoopBlockPatch('stop'));
+    return passthrough();
+  }
+
+  reason = sessionAgentEnforcementReason(state, startedRoles);
+  if (reason) return emitBlock(parsed, state, 'stop', reason, lastMessage);
+
+  if (state.code_changed === true) {
+    if (!lastMessage) {
+      return emitBlock(parsed, state, 'stop', `Code or config changed (${state.task_type || 'other'}), but no assistant summary message was found for this stop event.`, lastMessage);
+    }
+    if (messageReportsNoChanges(lastMessage)) {
+      return emitBlock(parsed, state, 'stop', `Final response after code or config changes must describe the actual changes instead of saying no changes were made.${hint}`, lastMessage);
+    }
+  }
+
+  if (state.code_changed === true && taskTypeRequiresImplementationSummary(state.task_type || 'other')) {
+    if (!messageMentionsVerificationStatus(lastMessage)) {
+      return emitBlock(parsed, state, 'stop', `Final response must include a Verification status: line after code or config changes.${hint}`, lastMessage);
+    }
+    if (!messageMentionsReviewOutcome(lastMessage)) {
+      return emitBlock(parsed, state, 'stop', `Final response must include a Review outcome: line after code or config changes.${hint}`, lastMessage);
+    }
+    if (!messageMentionsChangedFiles(lastMessage)) {
+      return emitBlock(parsed, state, 'stop', `Final response must include a Changed files: or No files changed: line after code or config changes.${hint}`, lastMessage);
+    }
+    if (!messageMentionsRemainingRisks(lastMessage)) {
+      return emitBlock(parsed, state, 'stop', `Final response must include a Remaining risks: line after code or config changes.${hint}`, lastMessage);
+    }
+    if (docsRequired && !messageMentionsDocsStatus(lastMessage)) {
+      return emitBlock(parsed, state, 'stop', `Final response must include a Docs status: line when behavior changes require documentation updates.${hint}`, lastMessage);
+    }
+  }
+
+  persistPatch(parsed, clearLoopBlockPatch('stop'));
+  return passthrough();
+}
+
+// SubagentStop: enforce the subagent handoff contract. Mirrors
+// subagent-stop-guard.sh.
+function handleSubagentStop(parsed) {
+  const state = loadStateFor(parsed);
+  if (!state) return passthrough();
+  const transcriptPath = parsed.transcriptPath ?? state.transcript_path ?? '';
+  const lastMessage = resolvedLastAssistantMessage(parsed.data ?? {}, transcriptPath);
+  if (!lastMessage) {
+    return emitBlock(parsed, state, 'subagent_stop', 'No assistant summary message was found for this subagent stop event.', lastMessage);
+  }
+  if (!messageMentionsConcreteOutcome(lastMessage)) {
+    return emitBlock(parsed, state, 'subagent_stop', 'Subagent output must include a concrete outcome line (e.g. Outcome: <result>).', lastMessage);
+  }
+  if (!messageMentionsChangedFiles(lastMessage)) {
+    return emitBlock(parsed, state, 'subagent_stop', 'Subagent output must include a Changed files: or No files changed: line.', lastMessage);
+  }
+  if (!messageMentionsVerificationStatus(lastMessage)) {
+    return emitBlock(parsed, state, 'subagent_stop', 'Subagent output must include a Verification status: line.', lastMessage);
+  }
+  if (!messageMentionsRemainingRisks(lastMessage) && !messageMentionsNextStep(lastMessage)) {
+    return emitBlock(parsed, state, 'subagent_stop', 'Subagent output must include a Remaining risks: or Next step: line.', lastMessage);
+  }
+  persistPatch(parsed, clearLoopBlockPatch('subagent_stop'));
+  return passthrough();
+}
+
+// TaskCompleted: block task completion with a stderr message + exit 2 when a
+// verification or agent-enforcement gate is unsatisfied. Mirrors
+// task-completed.sh. Returns an exitBlock sentinel the runtime translates to
+// exit 2 (no stdout JSON).
+function handleTaskCompleted(parsed) {
+  const state = loadStateFor(parsed);
+  if (!state) return null;
+  const transcriptText = readTranscriptText(parsed.transcriptPath ?? state.transcript_path ?? '');
+  const startedRoles = effectiveStartedRoles(state, transcriptText, ALIASES);
+  let reason = sessionBlockReason(state);
+  if (reason) return exitBlock(`Task cannot be completed yet: ${reason}`);
+  reason = sessionAgentEnforcementReason(state, startedRoles);
+  if (reason) return exitBlock(`Task cannot be completed yet: ${reason}`);
+  return null;
+}
+
+// TeammateIdle: block going idle with a stderr message + exit 2 when a
+// verification, manager-idle, or agent-enforcement gate is unsatisfied.
+// Mirrors teammate-idle.sh.
+function handleTeammateIdle(parsed) {
+  const state = loadStateFor(parsed);
+  if (!state) return null;
+  const transcriptText = readTranscriptText(parsed.transcriptPath ?? state.transcript_path ?? '');
+  const startedRoles = effectiveStartedRoles(state, transcriptText, ALIASES);
+  let reason = sessionBlockReason(state);
+  if (reason) return exitBlock(`Do not go idle yet: ${reason}`);
+  reason = sessionManagerIdleReason(state, startedRoles);
+  if (reason) return exitBlock(`Do not go idle yet: ${reason}`);
+  reason = sessionAgentEnforcementReason(state, startedRoles);
+  if (reason) return exitBlock(`Do not go idle yet: ${reason}`);
+  return null;
+}
+
 // Event handlers. Each takes the parsed input and returns a JSON-serializable
 // output object (or null/undefined for passthrough). Handlers not yet ported
 // return a neutral passthrough so the installed plugin stays inert but safe.
@@ -126,10 +325,10 @@ const handlers = {
   PostToolUse: handlePostToolUse,
   PostToolUseFailure: handlePostToolUseFailure,
   SubagentStart: handleSubagentStart,
-  SubagentStop: () => passthrough(),
-  Stop: () => passthrough(),
-  TeammateIdle: () => passthrough(),
-  TaskCompleted: () => passthrough(),
+  SubagentStop: handleSubagentStop,
+  Stop: handleStop,
+  TeammateIdle: handleTeammateIdle,
+  TaskCompleted: handleTaskCompleted,
   Notification: () => passthrough(),
   ConfigChange: () => passthrough(),
   PreCompact: () => passthrough(),
@@ -183,6 +382,12 @@ async function main() {
   }
 
   const out = dispatch(event, parsed, argMatcher);
+  // TaskCompleted / TeammateIdle block with a stderr message + exit 2 (no
+  // stdout JSON), matching the bash task-completed.sh / teammate-idle.sh.
+  if (out && out.__exit) {
+    process.stderr.write(`${out.stderr ?? ''}\n`);
+    process.exit(out.__exit);
+  }
   process.stdout.write(serialize(out));
 }
 

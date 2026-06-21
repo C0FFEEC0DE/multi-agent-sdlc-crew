@@ -77,11 +77,40 @@ test('PostToolUseFailure make lint: records lint_failed', () => {
   assert.equal(state.lint_ok, false);
 });
 
-test('PostToolUse non-Bash tool: neutral passthrough', () => {
-  const stdin = JSON.stringify({ session_id: 'case-edit', tool_name: 'Edit', tool_input: { file_path: '/x' } });
+test('PostToolUse non-Bash/non-Edit tool: neutral passthrough', () => {
+  const stdin = JSON.stringify({ session_id: 'case-read', tool_name: 'Read', tool_input: { file_path: '/x' } });
   const res = spawnSync(process.execPath, [dispatcher, '--event', 'PostToolUse'], {
     input: stdin, encoding: 'utf8', env: { ...process.env, CLAUDE_PLUGIN_DATA: dataRoot },
   });
   assert.equal(res.status, 0);
   assert.deepEqual(JSON.parse(res.stdout), {});
+});
+
+test('PostToolUse Edit (no matcher) falls back to EditWrite via tool_name and records code change', () => {
+  const stdin = JSON.stringify({ session_id: 'case-edit', tool_name: 'Edit', tool_input: { file_path: '/repo/src/app.js' } });
+  const res = spawnSync(process.execPath, [dispatcher, '--event', 'PostToolUse'], {
+    input: stdin, encoding: 'utf8', env: { ...process.env, CLAUDE_PLUGIN_DATA: dataRoot },
+  });
+  assert.equal(res.status, 0);
+  const out = JSON.parse(res.stdout);
+  assert.match(out.hookSpecificOutput.additionalContext, /Recorded a code\/config change/);
+  const state = loadState(statePaths(dataRoot, 'case-edit'));
+  assert.equal(state.edited, true);
+  assert.equal(state.code_changed, true);
+  assert.equal(state.docs_changed, false);
+  assert.deepEqual(state.files, ['/repo/src/app.js']);
+});
+
+test('PostToolUse EditWrite docs path sets docs_changed (not code_changed)', () => {
+  const stdin = JSON.stringify({ session_id: 'case-docs', tool_input: { file_path: '/repo/docs/guide.md' } });
+  const res = spawnSync(process.execPath, [dispatcher, '--event', 'PostToolUse', '--matcher', 'EditWrite'], {
+    input: stdin, encoding: 'utf8', env: { ...process.env, CLAUDE_PLUGIN_DATA: dataRoot },
+  });
+  assert.equal(res.status, 0);
+  assert.deepEqual(JSON.parse(res.stdout), {});
+  const state = loadState(statePaths(dataRoot, 'case-docs'));
+  assert.equal(state.edited, true);
+  assert.equal(state.code_changed, false);
+  assert.equal(state.docs_changed, true);
+  assert.deepEqual(state.files, ['/repo/docs/guide.md']);
 });
