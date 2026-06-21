@@ -148,6 +148,26 @@ state_file() {
     printf "%s/%s.json" "$STATE_ROOT" "$(safe_session_id)"
 }
 
+# Durable progress ledger location. The controller appends one line per
+# completed task during Subagent-Driven Development so work survives context
+# compaction. Override with CLAUDE_CREW_PROGRESS_FILE; otherwise resolve to
+# the git toplevel (or cwd when not in a repo) under .claude-crew/progress.md.
+# That path is gitignored (see .gitignore) so scratch never gets committed.
+progress_ledger_path() {
+    if [ -n "${CLAUDE_CREW_PROGRESS_FILE:-}" ]; then
+        printf '%s' "$CLAUDE_CREW_PROGRESS_FILE"
+        return 0
+    fi
+
+    local toplevel
+    toplevel="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+    if [ -n "$toplevel" ]; then
+        printf '%s/.claude-crew/progress.md' "$toplevel"
+    else
+        printf '%s/.claude-crew/progress.md' "${PWD}"
+    fi
+}
+
 ensure_dirs() {
     mkdir -p "$STATE_ROOT" "$LOG_ROOT"
 }
@@ -1176,7 +1196,8 @@ message_mentions_concrete_outcome() {
         || message_has_line_prefix "$message" "Completed:" \
         || message_has_line_prefix "$message" "Done:" \
         || message_has_line_prefix "$message" "No files changed:" \
-        || message_has_line_prefix "$message" "No changes:"
+        || message_has_line_prefix "$message" "No changes:" \
+        || message_has_line_prefix "$message" "Status:"
     then
         return 0
     fi
