@@ -454,15 +454,25 @@ emit_loop_aware_block() {
 
     checklist_output="$(build_block_checklist "$prefix" "$final_reason" "$message")"
 
-    jq -n --arg checklist "$checklist_output" --arg reason "$final_reason" --argjson hard_stop "$hard_stop" '{
-        decision: "block",
-        reason: $reason,
-        errorDetails: $checklist,
-        hardStop: $hard_stop
-    } + if $hard_stop then {
-        continue: false,
-        stopReason: $reason
-    } else {} end'
+    # A terminal stop must not also return decision: "block".  The latter asks
+    # Claude Code to continue the conversation, while continue: false ends it.
+    # Although current runtimes give continue: false precedence, emitting both
+    # fields caused older runtimes to keep entering the Stop hook.
+    if [ "$hard_stop" = "true" ]; then
+        jq -n --arg checklist "$checklist_output" --arg reason "$final_reason" '{
+            continue: false,
+            stopReason: $reason,
+            errorDetails: $checklist,
+            hardStop: true
+        }'
+    else
+        jq -n --arg checklist "$checklist_output" --arg reason "$final_reason" '{
+            decision: "block",
+            reason: $reason,
+            errorDetails: $checklist,
+            hardStop: false
+        }'
+    fi
 }
 
 task_type_requires_implementation_summary() {

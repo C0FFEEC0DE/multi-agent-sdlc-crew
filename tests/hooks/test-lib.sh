@@ -539,7 +539,9 @@ assert_eq "loop_block.clear_resets"   "0" "$r"
 out r jq -r '.stalled_by_policy' "$(state_file)"
 assert_eq "loop_block.clear_stall_flag" "false" "$r"
 
-# emit_loop_aware_block: first two emits are soft (hardStop false), third is hard.
+# emit_loop_aware_block: first two emits are soft (hardStop false), third is a
+# terminal response.  Terminal output intentionally omits decision:block so
+# Claude Code cannot treat it as another continuation request.
 set_session "loop-emit"
 seed_state "loop-emit" "$(jq -n '{stop_block_count:0,stop_block_reason:"",stop_block_message:"",stalled_by_policy:false,policy_stall_reason:""}')"
 r1="$(emit_loop_aware_block stop "need-summary" "fix it")"
@@ -547,7 +549,7 @@ jq_stdin "emit_block.soft1.decision"   '.decision=="block" and .hardStop==false'
 r2="$(emit_loop_aware_block stop "need-summary" "fix it")"
 jq_stdin "emit_block.soft2.decision"   '.decision=="block" and .hardStop==false' <<<"$r2"
 r3="$(emit_loop_aware_block stop "need-summary" "fix it")"
-jq_stdin "emit_block.hard3.decision"   '.decision=="block" and .hardStop==true and .continue==false' <<<"$r3"
+jq_stdin "emit_block.hard3.terminal"   '(has("decision") | not) and .hardStop==true and .continue==false and (.stopReason | contains("Repeated stop-block loop detected"))' <<<"$r3"
 jq_ok "emit_block.hard3.stall_flag" '.stalled_by_policy==true' "$(state_file)"
 
 # subagent_stop prefix path emits without touching stalled_by_policy.
