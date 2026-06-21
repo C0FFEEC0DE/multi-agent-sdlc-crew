@@ -13,7 +13,7 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { parseHookInput, readStdin } from './hook-input.mjs';
-import { additionalContext, passthrough, serialize, terminalCancel } from './hook-output.mjs';
+import { additionalContext, passthrough, serialize, terminalCancel, pretoolPermission, permissionRequestDeny, permissionDeniedResult } from './hook-output.mjs';
 import { resolveDataRoot, resolveSessionId, resolveLogRoot, resolveProjectDir } from './util.mjs';
 import { statePaths, appendEvent, loadState } from './state.mjs';
 import {
@@ -43,6 +43,10 @@ import {
   progressLedgerPath, readLedgerForInjection, buildPostCompactContext,
   resolveLedgerMaxBytes,
 } from './ledger.mjs';
+import {
+  classifyCommand, resolveMode as resolvePolicyMode, permissionDeniedOutcome,
+  pretoolErrorDetails, permRequestErrorDetails, permRequestMessage,
+} from './command-policy.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || join(here, '..');
@@ -69,6 +73,41 @@ function handleUserPromptSubmit(parsed) {
   persistPatch(parsed, fields);
   if (cls.contextMessage) return additionalContext(cls.contextMessage, 'UserPromptSubmit');
   return passthrough();
+}
+
+// PreToolUse: classify the Bash command against the portable command policy
+// and emit an allow/deny permission decision. Mirrors pre-tool-use.sh, extended
+// to PowerShell/CMD and the advisory/enforce mode split. Non-Bash tools pass
+// through (the policy only inspects shell commands).
+function handlePreToolUse(parsed) {
+  const matcher = parsed.matcher;
+  const isBash = matcher === 'Bash' || (!matcher && parsed.toolName === 'Bash');
+  if (!isBash) return passthrough();
+  const command = parsed.toolInput?.command ?? '';
+  const cls = classifyCommand(command, resolvePolicyMode());
+  if (cls.decision === 'deny') {
+    return pretoolPermission('deny', cls.reason, pretoolErrorDetails('deny', cls.reason));
+  }
+  return pretoolPermission('allow', cls.reason, pretoolErrorDetails('allow', cls.reason));
+}
+
+// PermissionRequest: deny known-dangerous commands with a decision object; allow
+// everything else via passthrough so the normal permission flow proceeds.
+// Mirrors permission-request.sh.
+function handlePermissionRequest(parsed) {
+  const command = parsed.toolInput?.command ?? '';
+  const cls = classifyCommand(command, resolvePolicyMode());
+  if (cls.decision !== 'deny') return passthrough();
+  const message = permRequestMessage(cls);
+  return permissionRequestDeny(message, permRequestErrorDetails(message));
+}
+
+// PermissionDenied: decide whether the agent may retry. Hard-denied commands
+// and benchmark CI context never retry; otherwise retry. Mirrors
+// permission-denied.sh.
+function handlePermissionDenied(parsed) {
+  const command = parsed.toolInput?.command ?? '';
+  return permissionDeniedResult(permissionDeniedOutcome(command).retry);
 }
 
 // PostToolUse: the active matcher is passed via --matcher (the runtime fires
@@ -413,9 +452,9 @@ const handlers = {
   SessionStart: handleSessionStart,
   InstructionsLoaded: handleInstructionsLoaded,
   UserPromptSubmit: handleUserPromptSubmit,
-  PreToolUse: () => passthrough(),
-  PermissionRequest: () => passthrough(),
-  PermissionDenied: () => passthrough(),
+  PreToolUse: handlePreToolUse,
+  PermissionRequest: handlePermissionRequest,
+  PermissionDenied: handlePermissionDenied,
   PostToolUse: handlePostToolUse,
   PostToolUseFailure: handlePostToolUseFailure,
   SubagentStart: handleSubagentStart,

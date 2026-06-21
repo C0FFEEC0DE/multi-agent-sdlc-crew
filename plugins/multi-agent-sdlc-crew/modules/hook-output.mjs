@@ -35,6 +35,42 @@ export function permissionDecision(decision, reason, hookEventName = 'PreToolUse
   };
 }
 
+/**
+ * PreToolUse permission decision with an errorDetails markdown block. Mirrors
+ * the legacy emit_pretool_decision shape: permissionDecision +
+ * permissionDecisionReason + errorDetails under hookSpecificOutput.
+ */
+export function pretoolPermission(decision, reason, errorDetails) {
+  return {
+    hookSpecificOutput: {
+      hookEventName: 'PreToolUse',
+      permissionDecision: decision,
+      permissionDecisionReason: reason,
+      errorDetails,
+    },
+  };
+}
+
+/**
+ * PermissionRequest deny: decision.behavior "deny" with a message and
+ * errorDetails markdown block. Mirrors the legacy emit_permission_request_deny
+ * shape. An allow is a passthrough (no decision object) so the normal
+ * permission flow proceeds.
+ */
+export function permissionRequestDeny(message, errorDetails) {
+  return {
+    hookSpecificOutput: {
+      hookEventName: 'PermissionRequest',
+      decision: { behavior: 'deny', message, errorDetails },
+    },
+  };
+}
+
+/** PermissionDenied retry verdict: { retry: true | false }. */
+export function permissionDeniedResult(retry) {
+  return { retry: Boolean(retry) };
+}
+
 /** Inject additional context into Claude's context as a system reminder. */
 export function additionalContext(text, hookEventName) {
   const out = { hookSpecificOutput: { additionalContext: String(text ?? '') } };
