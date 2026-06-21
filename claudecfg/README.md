@@ -67,3 +67,5 @@ The runtime contract is line-oriented and shared across prompts, hooks, and gold
 - main stop-safe summaries after code/config changes must include `Verification status:`, `Review outcome:`, `Changed files:` or `No files changed:`, and `Remaining risks:`
 - subagent handoffs must include `Outcome:`, `Changed files:` or `No files changed:`, `Verification status:`, and one closure line: `Remaining risks:` or `Next step:`
 - agents should silently repair footer formatting instead of exposing hook or prefix-matching mechanics to the user
+
+The footer-contract enforcement functions in `claudecfg/hooks/lib.sh` are now covered by direct unit tests (`tests/hooks/test-lib.sh`, ~273 assertions over the ~49 enforcement functions) plus `tests/bench/test_message_mentions.py`, so the contract cannot silently drift.
