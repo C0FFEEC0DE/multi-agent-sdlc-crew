@@ -87,7 +87,7 @@ grow without bound.
 ## Invariants the contract protects
 
 - **Footer prefixes are fixed.** Prompt templates, hook guards, and golden
-  benchmark tasks all assert the same line prefixes. `scripts/validate.sh`
+  benchmark tasks all assert the same line prefixes. `scripts/validate.mjs`
   and `tests/bench/test_task_fixture_alignment.py` keep them from drifting.
 - **Role aliases are hidden but functional.** Legacy persona aliases still
   canonicalize to roles via `aliases.json` so historical transcripts keep

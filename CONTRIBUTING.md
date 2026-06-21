@@ -7,7 +7,7 @@ Thank you for your interest in contributing!
 1. Fork the repository
 2. Create a new branch: `git checkout -b feature/my-feature`
 3. Make your changes
-4. Run validation: `./scripts/validate.sh` (if available)
+4. Run validation: `node scripts/validate.mjs` (if available)
 5. Commit your changes: `git commit -am 'Add new feature'`
 6. Push to the branch: `git push origin feature/my-feature`
 7. Submit a pull request
@@ -84,7 +84,7 @@ Before submitting:
 - [ ] `make lint` passes (shell syntax, shellcheck, python compile, ruff)
 - [ ] `make test` (or `python3 -m pytest tests/ -v`) passes
 - [ ] `make hooks` (or `node scripts/test-hooks.mjs`) passes
-- [ ] `bash scripts/validate.sh` passes
+- [ ] `node scripts/validate.mjs` passes
 - [ ] JSON files are valid
 - [ ] Agent markdown has proper frontmatter
 - [ ] Skill markdown has proper frontmatter

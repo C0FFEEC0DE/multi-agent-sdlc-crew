@@ -62,7 +62,7 @@ Repository validation now requires:
 
 This is enforced by:
 
-- [`scripts/validate.sh`](../scripts/validate.sh)
+- [`scripts/validate.mjs`](../scripts/validate.mjs)
 
 ## Matrix
 
@@ -89,5 +89,5 @@ When adding a new agent or tightening an existing one:
 6. Update this matrix
 7. Run:
    - `pytest -q tests/bench/test_bench_runner.py`
-   - `bash scripts/validate.sh`
+   - `node scripts/validate.mjs`
    - `node scripts/test-hooks.mjs`

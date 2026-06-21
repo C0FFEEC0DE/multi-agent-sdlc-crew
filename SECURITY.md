@@ -42,7 +42,7 @@ and [`docs/token-cost.md`](docs/token-cost.md) for how they fit together:
 - release/deploy automation is intentionally disabled
 - hook JSONL logs rotate past 1 MB to bound growth
 - an optional local pre-push secret-scan hook can be installed per-repo with
-  `bash scripts/install-git-hooks.sh` (the authoritative scan is TruffleHog in CI)
+  `node scripts/install-git-hooks.mjs` (the authoritative scan is TruffleHog in CI)
 
 ## Portable command-policy limitations (Node hook runtime)
 

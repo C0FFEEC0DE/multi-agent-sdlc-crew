@@ -102,7 +102,7 @@ These are the documented entry points; the hooks enforce the actual handoff and 
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md). Run `make lint`, `make test`, `bash scripts/validate.sh` before a PR. Report security issues via [`SECURITY.md`](SECURITY.md).
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). Run `make lint`, `make test`, `node scripts/validate.mjs` before a PR. Report security issues via [`SECURITY.md`](SECURITY.md).
 
 ## License
 

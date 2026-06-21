@@ -85,7 +85,7 @@ review. The implementer reports one of four statuses — handle each:
 - `NEEDS_CONTEXT` — provide the missing context and re-dispatch
 - `BLOCKED` — add context / raise the model / break the task up / escalate to the human; never force the same model to retry unchanged
 
-Hand artifacts as files (`scripts/task-brief.sh`, `scripts/review-package.sh`),
+Hand artifacts as files (`scripts/task-brief.mjs`, `scripts/review-package.mjs`),
 not pasted text, and record progress in the durable ledger so completed work
 is never re-dispatched after a compaction.
 

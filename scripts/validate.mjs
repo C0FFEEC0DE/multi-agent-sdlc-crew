@@ -1,0 +1,672 @@
+#!/usr/bin/env node
+// validate.mjs — Node ESM port of scripts/validate.sh.
+// Checks: JSON validity, shell syntax, workflow syntax, shellcheck, Python
+// syntax, agent/skill frontmatter, slash-command inventory, settings/workflow
+// policy invariants, GitHub Actions Node.js 24 readiness, notification docs,
+// hook test manifests, installer smoke/idempotency, benchmark task structure,
+// internal markdown links, and the no-legacy-runtime gate.
+//
+// External linters (shellcheck, ruff, python3, actionlint, bash) are invoked
+// via spawnSync with an explicit argv — no shell, no exec, no eval.
+import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { join, relative, dirname, basename, extname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { checkNoLegacyRuntime } from './check-no-legacy-runtime.mjs';
+
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
+process.chdir(REPO_ROOT);
+
+let ERRORS = 0;
+function reportError(msg) {
+  console.error(`ERROR: ${msg}`);
+  ERRORS++;
+}
+
+/** Recursively walk dir, collecting files (skip node_modules/.git). */
+function walk(dir, out = []) {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const ent of entries) {
+    if (ent.name === 'node_modules' || ent.name === '.git') continue;
+    const p = join(dir, ent.name);
+    if (ent.isDirectory()) walk(p, out);
+    else if (ent.isFile()) out.push(p);
+  }
+  return out;
+}
+
+function walkGlob(dir, ext, out = []) {
+  for (const f of walk(dir)) if (extname(f) === ext) out.push(f);
+  return out;
+}
+
+/** Glob a single directory (non-recursive), following symlinks to files.
+ *  Mirrors the bash `DIR/*.md` glob used for agents/skills/commands. */
+function globDir(dir, ext) {
+  let entries;
+  try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return []; }
+  const out = [];
+  for (const ent of entries) {
+    if (ent.name === 'node_modules' || ent.name === '.git') continue;
+    const p = join(dir, ent.name);
+    // statSync follows symlinks; isFile true for symlink-to-file (matches bash glob).
+    try { if (statSync(p).isFile() && extname(ent.name) === ext) out.push(p); } catch {}
+  }
+  return out;
+}
+
+// Availability check: spawn `command -v` via bash (explicit argv, no shell:true,
+// command name passed as $1 so it is never interpolated into the script string).
+function hasCmd(cmd) {
+  const r = spawnSync('bash', ['-c', 'command -v "$1"', 'bash', cmd], { stdio: 'pipe' });
+  return r.status === 0 && (r.stdout?.toString().trim().length > 0);
+}
+
+// ---------- frontmatter helpers ----------
+function readLines(p) {
+  return readFileSync(p, 'utf-8').split('\n');
+}
+
+function extractFrontmatterLines(lines, filename) {
+  if (!lines.length || lines[0].trim() !== '---') {
+    reportError(`Missing frontmatter start in ${filename}`);
+    return null;
+  }
+  let end = -1;
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() === '---') { end = i; break; }
+  }
+  if (end === -1) {
+    reportError(`Missing frontmatter end in ${filename}`);
+    return null;
+  }
+  if (end + 1 < lines.length && lines[end + 1].trim() === '---') {
+    reportError(`Duplicate frontmatter block in ${filename}`);
+    return null;
+  }
+  return lines.slice(1, end);
+}
+
+function extractScalar(fm, field) {
+  const prefix = `${field}:`;
+  for (const line of fm) {
+    if (line.startsWith(prefix)) return line.slice(prefix.length).trim();
+  }
+  return '';
+}
+
+function extractListItems(fm, field) {
+  const items = [];
+  let capture = false;
+  for (const line of fm) {
+    const stripped = line.trim();
+    if (stripped.startsWith(`${field}:`)) {
+      const inline = stripped.slice(field.length + 1).trim();
+      if (inline) items.push(inline);
+      capture = true;
+      continue;
+    }
+    if (capture && stripped.startsWith('- ')) {
+      items.push(stripped.slice(2).trim());
+      continue;
+    }
+    if (capture && stripped && !stripped.startsWith('#')) break;
+  }
+  return items;
+}
+
+// ---------- JSON validity ----------
+function checkJson() {
+  console.log('--- Checking JSON files ---');
+  const files = walkGlob(REPO_ROOT, '.json').sort();
+  for (const f of files) {
+    try {
+      JSON.parse(readFileSync(f, 'utf-8'));
+      console.log(`OK: ${f}`);
+    } catch {
+      reportError(`Invalid JSON: ${f}`);
+    }
+  }
+  console.log('');
+}
+
+// ---------- shell syntax ----------
+function checkShellSyntax() {
+  console.log('--- Checking shell syntax ---');
+  const targets = [
+    join(REPO_ROOT, 'install.sh'),
+    join(REPO_ROOT, 'claudecfg', 'install.sh'),
+  ];
+  for (const d of ['claudecfg', 'scripts', 'tests/install', 'tests/hooks']) {
+    for (const f of walkGlob(join(REPO_ROOT, d), '.sh')) targets.push(f);
+  }
+  const bashBin = existsSync('/bin/bash') ? '/bin/bash' : 'bash';
+  for (const f of targets.sort()) {
+    const r = spawnSync(bashBin, ['-n', f], { stdio: 'pipe' });
+    if (r.status !== 0) reportError(`Shell syntax error: ${f}`);
+    else console.log(`OK: ${f}`);
+  }
+  console.log('');
+}
+
+// ---------- workflow syntax ----------
+function checkWorkflowSyntax() {
+  console.log('--- Checking workflow syntax ---');
+  if (hasCmd('actionlint')) {
+    const wfs = walkGlob(join(REPO_ROOT, '.github', 'workflows'), '.yml').sort();
+    const r = spawnSync('actionlint', wfs, { stdio: 'pipe' });
+    if (r.status !== 0) reportError('actionlint reported workflow syntax issues');
+    else console.log('OK: actionlint');
+  } else {
+    console.log('SKIP: actionlint not installed');
+  }
+  console.log('');
+}
+
+// ---------- shellcheck ----------
+function checkShellcheck() {
+  console.log('--- Checking shellcheck lint ---');
+  if (hasCmd('shellcheck')) {
+    const targets = [
+      join(REPO_ROOT, 'install.sh'),
+      join(REPO_ROOT, 'claudecfg', 'install.sh'),
+    ];
+    for (const f of walkGlob(join(REPO_ROOT, 'claudecfg', 'hooks'), '.sh')) targets.push(f);
+    for (const f of walkGlob(join(REPO_ROOT, 'scripts'), '.sh')) targets.push(f);
+    for (const f of walkGlob(join(REPO_ROOT, 'tests', 'install'), '.sh')) targets.push(f);
+    const r = spawnSync('shellcheck', targets, { stdio: 'pipe' });
+    if (r.status !== 0) reportError('shellcheck reported shell lint issues');
+    else console.log('OK: shellcheck');
+  } else {
+    console.log('SKIP: shellcheck not installed');
+  }
+  console.log('');
+}
+
+// ---------- Python syntax ----------
+function checkPythonSyntax() {
+  console.log('--- Checking Python syntax ---');
+  const dirs = ['scripts', 'bench/fixtures', 'tests'];
+  const files = [];
+  for (const d of dirs) for (const f of walkGlob(join(REPO_ROOT, d), '.py')) files.push(f);
+  for (const f of files.sort()) {
+    const r = spawnSync('python3', ['-m', 'py_compile', f], { stdio: 'pipe' });
+    if (r.status !== 0) reportError(`Python syntax error: ${f}`);
+    else console.log(`OK: ${f}`);
+  }
+  console.log('');
+}
+
+// ---------- agent frontmatter ----------
+function checkAgentFrontmatter() {
+  console.log('--- Checking agent frontmatter ---');
+  const agentDir = join(REPO_ROOT, 'claudecfg', 'agents');
+  if (!existsSync(agentDir)) { reportError(`Agent directory not found: ${agentDir}`); console.log(''); return; }
+  const files = globDir(agentDir, '.md').sort();
+  for (const af of files) {
+    const filename = basename(af);
+    const lines = readLines(af);
+    if (!lines.length || lines[0].trim() !== '---') {
+      reportError(`Missing frontmatter start in ${filename}`);
+      continue;
+    }
+    const fm = extractFrontmatterLines(lines, filename);
+    if (fm === null) continue;
+    let failed = false;
+    for (const field of ['name', 'alias', 'description', 'type']) {
+      if (!fm.some((l) => l.startsWith(`${field}:`))) {
+        reportError(`Missing '${field}' in ${filename} frontmatter`);
+        failed = true;
+      }
+    }
+    if (!failed) console.log(`OK: ${filename}`);
+  }
+  console.log('');
+}
+
+// ---------- skill frontmatter ----------
+function checkSkillFrontmatter() {
+  console.log('--- Checking skill frontmatter ---');
+  const skillDir = join(REPO_ROOT, 'claudecfg', 'skills');
+  const agentDir = join(REPO_ROOT, 'claudecfg', 'agents');
+  if (!existsSync(skillDir)) { reportError(`Skill directory not found: ${skillDir}`); console.log(''); return; }
+  const files = globDir(skillDir, '.md').sort();
+  for (const sf of files) {
+    const filename = basename(sf);
+    const lines = readLines(sf);
+    const fm = extractFrontmatterLines(lines, filename);
+    if (fm === null) continue;
+    let failed = false;
+    const fmText = fm.join('\n');
+    for (const field of ['name', 'description', 'agent', 'context', 'disable-model-invocation', 'allowed-tools', 'paths']) {
+      if (!fm.some((l) => l.startsWith(`${field}:`))) {
+        reportError(`Missing '${field}' in ${filename} frontmatter`);
+        failed = true;
+      }
+    }
+    if (!/^disable-model-invocation:\s*true$/m.test(fmText)) {
+      reportError(`Skill frontmatter must pin disable-model-invocation: true in ${filename}`);
+      failed = true;
+    }
+    if (!/^context:\s*fork$/m.test(fmText)) {
+      reportError(`Skill frontmatter must pin context: fork in ${filename}`);
+      failed = true;
+    }
+    const tools = extractListItems(fm, 'allowed-tools');
+    if (tools.length === 0) {
+      reportError(`Skill frontmatter must declare non-empty allowed-tools in ${filename}`);
+      failed = true;
+    }
+    const paths = extractListItems(fm, 'paths');
+    if (paths.length === 0) {
+      reportError(`Skill frontmatter must declare non-empty paths in ${filename}`);
+      failed = true;
+    }
+    const skillAgent = extractScalar(fm, 'agent');
+    if (skillAgent) {
+      const agentFiles = globDir(agentDir, '.md');
+      const known = new Set();
+      for (const af of agentFiles) {
+        const afm = extractFrontmatterLines(readLines(af), basename(af));
+        if (afm) {
+          known.add(extractScalar(afm, 'name'));
+          known.add(extractScalar(afm, 'alias'));
+        }
+      }
+      if (!known.has(skillAgent)) {
+        reportError(`Skill frontmatter agent does not match a known agent name or alias in ${filename}`);
+        failed = true;
+      }
+    }
+    if (!failed) console.log(`OK: ${filename}`);
+  }
+  console.log('');
+}
+
+// ---------- slash command inventory ----------
+function checkSlashCommandInventory() {
+  console.log('--- Checking slash command inventory ---');
+  const COMMAND_NAMES = ['manager', 'explore', 'bug', 'debug', 'design', 'test', 'refactor', 'review', 'docs'];
+  const COMMAND_ALIASES = ['m', 'e', 'bug', 'dbg', 'a', 't', 'a', 'cr', 'doc'];
+  const EXPECTED_COMMANDS = COMMAND_NAMES.slice();
+  const EXPECTED_SKILLS = ['design', 'docs', 'refactor', 'review', 'test'];
+  const aliasFor = (name) => {
+    const i = COMMAND_NAMES.indexOf(name);
+    return i >= 0 ? COMMAND_ALIASES[i] : '';
+  };
+  const cmp = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+
+  // File inventory: claudecfg/commands/*.md
+  {
+    const cmdDir = join(REPO_ROOT, 'claudecfg', 'commands');
+    const actual = globDir(cmdDir, '.md').map((f) => basename(f, '.md')).sort(cmp);
+    const expected = EXPECTED_COMMANDS.slice().sort(cmp);
+    if (JSON.stringify(actual) !== JSON.stringify(expected))
+      reportError('claudecfg/commands file inventory does not match the bundled slash-command inventory');
+    else console.log('OK: claudecfg/commands file inventory');
+  }
+  // File inventory: claudecfg/skills/*.md
+  {
+    const skillDir = join(REPO_ROOT, 'claudecfg', 'skills');
+    const actual = globDir(skillDir, '.md').map((f) => basename(f, '.md')).sort(cmp);
+    const expected = EXPECTED_SKILLS.slice().sort(cmp);
+    if (JSON.stringify(actual) !== JSON.stringify(expected))
+      reportError('claudecfg/skills file inventory does not match the bundled skill inventory');
+    else console.log('OK: claudecfg/skills file inventory');
+  }
+
+  for (const command of EXPECTED_COMMANDS) {
+    const commandFile = join(REPO_ROOT, 'claudecfg', 'commands', `${command}.md`);
+    const expectedAlias = aliasFor(command);
+    const agentFile = join(REPO_ROOT, 'claudecfg', 'agents', `${expectedAlias}.md`);
+    if (!existsSync(commandFile)) { reportError(`Missing slash command doc: ${commandFile}`); continue; }
+    const hdr = readLines(commandFile)[0];
+    if (!hdr || hdr.trim() !== `# /${command}`)
+      reportError(`Slash command doc header mismatch: ${commandFile}`);
+    if (!existsSync(agentFile)) { reportError(`Missing agent file for slash command /${command}: ${agentFile}`); continue; }
+    const afm = extractFrontmatterLines(readLines(agentFile), basename(agentFile));
+    const agentAlias = afm ? extractScalar(afm, 'alias') : '';
+    if (agentAlias !== expectedAlias)
+      reportError(`Agent alias mismatch for /${command}: expected ${expectedAlias}, found ${agentAlias} in ${agentFile}`);
+  }
+
+  function compareCommandLists(file, label, start, end) {
+    if (!existsSync(file)) { reportError(`${label} not found: ${file}`); return; }
+    const lines = readLines(file);
+    let inSection = false;
+    const actual = new Set();
+    for (const line of lines) {
+      if (line.trim() === start) { inSection = true; continue; }
+      if (inSection && line.trim() === end) break;
+      if (inSection) {
+        const m = line.match(/^- `\/([^`]+)`/);
+        if (m) actual.add(m[1]);
+      }
+    }
+    const expected = new Set(EXPECTED_COMMANDS);
+    if (actual.size !== expected.size || [...actual].some((x) => !expected.has(x)))
+      reportError(`${label} does not match the bundled slash-command inventory: ${file}`);
+    else console.log(`OK: ${label}`);
+  }
+  compareCommandLists(join(REPO_ROOT, 'README.md'), 'README slash-command list', '### Slash commands', '### Required handoffs');
+  compareCommandLists(join(REPO_ROOT, 'claudecfg', 'GUIDE.md'), 'GUIDE slash-command list', '## Slash Commands', '## Auto-Execution');
+  compareCommandLists(join(REPO_ROOT, 'claudecfg', 'README.md'), 'claudecfg README slash-command list', '## Bundled slash commands', '## Installation');
+  console.log('');
+}
+
+// ---------- settings policy invariants ----------
+function checkSettingsPolicy() {
+  console.log('--- Checking settings policy invariants ---');
+  const settings = JSON.parse(readFileSync(join(REPO_ROOT, 'claudecfg', 'settings.json'), 'utf-8'));
+  if (settings.outputStyle === 'Default') console.log('OK: outputStyle stays Default');
+  else reportError('claudecfg/settings.json must keep outputStyle set to Default');
+  const notif = settings.hooks?.Notification?.[0]?.hooks?.[0]?.command;
+  if (notif === '"$HOME"/.claude/hooks/notification.sh') console.log('OK: Notification hook command');
+  else reportError('Notification hook must point to "$HOME"/.claude/hooks/notification.sh');
+  console.log('');
+}
+
+// ---------- workflow policy invariants ----------
+function readWorkflow(name) {
+  return readFileSync(join(REPO_ROOT, '.github', 'workflows', name), 'utf-8');
+}
+
+function checkWorkflowPolicy() {
+  console.log('--- Checking workflow policy invariants ---');
+  const checks = [
+    ['hooks-test.yml', 'uses: actions/setup-python@v6', 'Hook Contracts uses setup-python@v6', 'Hook Contracts must use actions/setup-python@v6'],
+    ['validate.yml', 'uses: actions/setup-python@v6', 'Repository Checks uses setup-python@v6', 'Repository Checks must use actions/setup-python@v6'],
+    ['validate.yml', 'uses: actions/setup-go@v6', 'Repository Checks uses setup-go@v6', 'Repository Checks must use setup-go@v6'],
+    ['python-tests.yml', 'uses: actions/setup-python@v6', 'Python Tests uses setup-python@v6', 'Python Tests must use actions/setup-python@v6'],
+  ];
+  for (const [file, needle, ok, err] of checks) {
+    const txt = readWorkflow(file);
+    if (txt.includes(needle)) console.log(`OK: ${ok}`);
+    else reportError(err);
+  }
+
+  // Benchmark task JSON sample validity.
+  const benchTasks = walkGlob(join(REPO_ROOT, 'bench', 'tasks'), '.json');
+  if (benchTasks.length === 0) reportError('No benchmark task JSON files found under bench/tasks');
+  let sampleBad = false;
+  for (const f of benchTasks.slice(0, 5)) {
+    try { JSON.parse(readFileSync(f, 'utf-8')); } catch { sampleBad = true; break; }
+  }
+  if (!sampleBad) console.log('OK: Benchmark task JSON files are valid (sample check)');
+  else reportError('Benchmark task JSON files under bench/tasks failed jq validation');
+
+  // Behavior benchmark subagents smoke PR selector.
+  const bb = readWorkflow('behavior-benchmark-subagents-smoke.yml');
+  const bbOk =
+    bb.includes('--suite subagents_smoke') &&
+    bb.includes('pull_request:') &&
+    bb.includes('scripts/download-benchmark-summary.mjs') &&
+    bb.includes('render-benchmark-summary.mjs bench-output/summary.json') &&
+    bb.includes('bench-output/benchmark-report.md') &&
+    bb.includes("'install.sh'") &&
+    bb.includes("'claudecfg/install.sh'") &&
+    bb.includes('--ref-name "${REF_NAME:-}"') &&
+    !bb.includes("if: github.event_name != 'workflow_dispatch'");
+  if (bbOk) console.log('OK: Behavior Benchmark Subagents Smoke PR selector');
+  else reportError('Behavior Benchmark Subagents Smoke workflow must keep installer-trigger coverage, support manual changed-file collection, and publish markdown benchmark tables');
+  console.log('');
+}
+
+// ---------- Node.js 24 readiness ----------
+function checkNode24Readiness() {
+  console.log('--- Checking GitHub Actions Node.js 24 readiness ---');
+  const wfs = walkGlob(join(REPO_ROOT, '.github', 'workflows'), '.yml');
+  const all = wfs.map((f) => readFileSync(f, 'utf-8')).join('\n');
+  if (all.includes('actions/cache@v4')) reportError('actions/cache@v4 targets deprecated Node.js 20 — use v5');
+  else console.log('OK: No actions/cache@v4 (uses v5)');
+  if (all.includes('FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true')) console.log('OK: FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 set');
+  else reportError('Benchmark workflows must set env: FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true');
+  console.log('');
+}
+
+// ---------- notification docs ----------
+function checkNotificationDocs() {
+  console.log('--- Checking docs consistency for notification hook ---');
+  const readme = readFileSync(join(REPO_ROOT, 'README.md'), 'utf-8');
+  const guide = readFileSync(join(REPO_ROOT, 'claudecfg', 'GUIDE.md'), 'utf-8');
+  if (readme.includes('`Notification`') && guide.includes('`Notification`')) console.log('OK: Notification hook documented');
+  else reportError('Notification hook must be documented in README.md and claudecfg/GUIDE.md');
+  console.log('');
+}
+
+// ---------- hook test manifests ----------
+function checkHookManifests() {
+  console.log('--- Checking hook test manifests ---');
+  const casesFile = join(REPO_ROOT, 'tests', 'hooks', 'cases.json');
+  const scenariosFile = join(REPO_ROOT, 'tests', 'hooks', 'scenarios.json');
+  if (existsSync(casesFile)) {
+    let cases;
+    try { cases = JSON.parse(readFileSync(casesFile, 'utf-8')); } catch { reportError('Hook cases manifest is invalid JSON'); cases = null; }
+    if (cases !== null) {
+      if (!Array.isArray(cases)) reportError('Hook cases manifest must be a JSON array');
+      else {
+        for (const c of cases) {
+          const name = c.name;
+          const script = c.script;
+          const stdin = c.stdin;
+          if (!script || !existsSync(join(REPO_ROOT, script))) reportError(`Hook case '${name}' has missing or non-existent script: ${script || '<empty>'}`);
+          if (!stdin || !existsSync(join(REPO_ROOT, stdin))) reportError(`Hook case '${name}' has missing or non-existent fixture: ${stdin || '<empty>'}`);
+        }
+        console.log(`OK: ${relative(REPO_ROOT, casesFile)}`);
+      }
+    }
+  } else console.log('No hook case manifest found');
+  if (existsSync(scenariosFile)) {
+    let scens;
+    try { scens = JSON.parse(readFileSync(scenariosFile, 'utf-8')); } catch { reportError('Hook scenarios manifest is invalid JSON'); scens = null; }
+    if (scens !== null) {
+      if (!Array.isArray(scens)) reportError('Hook scenarios manifest must be a JSON array');
+      else {
+        for (const s of scens) {
+          const sname = s.name;
+          if (s.seed_state && !existsSync(join(REPO_ROOT, s.seed_state)))
+            reportError(`Hook scenario '${sname}' references missing seed_state: ${s.seed_state}`);
+          for (const step of (s.steps || [])) {
+            const stepName = step.name;
+            if (!step.script || !existsSync(join(REPO_ROOT, step.script)))
+              reportError(`Hook scenario '${sname}::${stepName}' has missing or non-existent script: ${step.script || '<empty>'}`);
+            if (!step.stdin || !existsSync(join(REPO_ROOT, step.stdin)))
+              reportError(`Hook scenario '${sname}::${stepName}' has missing or non-existent fixture: ${step.stdin || '<empty>'}`);
+            if (step.cwd) {
+              const cwdPath = join(REPO_ROOT, step.cwd);
+              if (!existsSync(cwdPath) || !statSync(cwdPath).isDirectory())
+                reportError(`Hook scenario '${sname}::${stepName}' references missing or non-directory cwd: ${step.cwd}`);
+            }
+            if (step.seed_state && !existsSync(join(REPO_ROOT, step.seed_state)))
+              reportError(`Hook scenario '${sname}::${stepName}' references missing seed_state: ${step.seed_state}`);
+          }
+        }
+        console.log(`OK: ${relative(REPO_ROOT, scenariosFile)}`);
+      }
+    }
+  } else console.log('No hook scenario manifest found');
+  console.log('');
+}
+
+// ---------- installer smoke ----------
+function checkInstallerSmoke() {
+  console.log('--- Checking installer smoke test ---');
+  const smoke = join(REPO_ROOT, 'tests', 'install', 'install-smoke.sh');
+  const r = spawnSync('bash', [smoke], { stdio: 'pipe', cwd: REPO_ROOT });
+  if (r.status !== 0) reportError('Installer smoke/idempotency test failed');
+  else console.log('OK: installer smoke/idempotency');
+  console.log('');
+}
+
+// ---------- benchmark tasks ----------
+function isArrayOfArrays(v) {
+  return Array.isArray(v) && v.every((x) => Array.isArray(x));
+}
+
+function checkBenchmarkTasks() {
+  console.log('--- Checking benchmark tasks ---');
+  const EXPECTED_SUBAGENT_ALIASES = ['m', 'e', 'a', 'bug', 'dbg', 't', 'cr', 'doc'];
+  const SUBAGENT_REQUIRED_FOOTER_REGEXES = ['Outcome:', 'Changed files:|No files changed:', 'Verification status:', 'Remaining risks:|Next step:'];
+  const taskFiles = walkGlob(join(REPO_ROOT, 'bench', 'tasks'), '.json').sort();
+  const taskIds = [];
+  const smokeAliasesSeen = [];
+  for (const tf of taskFiles) {
+    // bash used the absolute task path for subagent path matching; mirror that
+    // so the leading path separator is preserved on POSIX.
+    const pathStr = tf;
+    let task;
+    try { task = JSON.parse(readFileSync(tf, 'utf-8')); } catch { reportError(`Benchmark task is invalid JSON: ${tf}`); continue; }
+    const taskId = task.id || '';
+    const fixture = task.fixture || '';
+    const agentAlias = task.agent_alias || '';
+
+    const requiredFieldsOk =
+      task.id && task.suite && task.category && task.fixture && task.prompt &&
+      Array.isArray(task.related_agents) && task.related_agents.length > 0 &&
+      Object.prototype.hasOwnProperty.call(task, 'review_required') &&
+      Object.prototype.hasOwnProperty.call(task, 'docs_required') &&
+      Object.prototype.hasOwnProperty.call(task, 'verification_required') &&
+      Array.isArray(task.success_criteria) &&
+      Array.isArray(task.must_not) &&
+      Array.isArray(task.forbidden_doc_patterns || []) &&
+      Array.isArray(task.forbidden_transcript_patterns || []) &&
+      Array.isArray(task.required_transcript_patterns || []) &&
+      Array.isArray(task.required_used_agents || []) &&
+      Array.isArray(task.required_used_agent_groups || []) &&
+      isArrayOfArrays(task.required_used_agent_groups || []);
+    if (!requiredFieldsOk) { reportError(`Benchmark task has missing required fields: ${tf}`); continue; }
+
+    if (fixture) {
+      const fixturePath = join(REPO_ROOT, 'bench', 'fixtures', fixture);
+      if (!existsSync(fixturePath) || !statSync(fixturePath).isDirectory())
+        reportError(`Benchmark task '${taskId}' references missing or non-directory fixture: ${fixture}`);
+    }
+
+    for (const a of (task.required_used_agents || [])) {
+      if (!EXPECTED_SUBAGENT_ALIASES.includes(a))
+        reportError(`Benchmark task references unknown required_used_agents alias '${a}': ${tf}`);
+    }
+    for (const a of (task.required_used_agent_groups || []).flat()) {
+      if (!EXPECTED_SUBAGENT_ALIASES.includes(a))
+        reportError(`Benchmark task references unknown required_used_agent_groups alias '${a}': ${tf}`);
+    }
+
+    if (pathStr.includes('/bench/tasks/subagents/')) {
+      const ftp = task.forbidden_transcript_patterns || [];
+      const rtp = task.required_transcript_patterns || [];
+      const rua = task.required_used_agents || [];
+      const rug = task.required_used_agent_groups || [];
+      const subagentOk =
+        agentAlias &&
+        Array.isArray(ftp) && ftp.length > 0 &&
+        ((Array.isArray(rtp) && rtp.length > 0) ||
+         (Array.isArray(rua) && rua.length > 0) ||
+         (Array.isArray(rug) && rug.some((g) => Array.isArray(g) && g.length > 0)));
+      if (!subagentOk) {
+        reportError(`Subagent benchmark task must declare agent_alias, non-empty forbidden transcript patterns, and at least one required transcript or used-agent assertion: ${tf}`);
+      } else if (pathStr.includes('/bench/tasks/subagents/smoke/')) {
+        smokeAliasesSeen.push(agentAlias);
+      }
+      if (Array.isArray(rtp) && rtp.length > 0) {
+        for (const pat of SUBAGENT_REQUIRED_FOOTER_REGEXES) {
+          if (!rtp.some((p) => { try { return new RegExp(p).test(pat); } catch { return p === pat; } }))
+            reportError(`Subagent benchmark task is missing required footer transcript pattern '${pat}': ${tf}`);
+        }
+      }
+      if (agentAlias === 'cr') {
+        if (!(rtp || []).some((p) => p === 'Review outcome:'))
+          reportError(`Code reviewer benchmark task must require 'Review outcome:' in transcript patterns: ${tf}`);
+      }
+    }
+
+    if (taskId) {
+      if (taskIds.includes(taskId)) reportError(`Duplicate benchmark task id: ${taskId}`);
+      else taskIds.push(taskId);
+    }
+    console.log(`OK: ${tf}`);
+  }
+  for (const alias of EXPECTED_SUBAGENT_ALIASES) {
+    if (!smokeAliasesSeen.includes(alias))
+      reportError(`Missing subagent smoke benchmark coverage for agent alias: ${alias}`);
+  }
+  console.log('');
+}
+
+// ---------- internal links ----------
+function checkInternalLinks() {
+  console.log('--- Checking internal links ---');
+  const mdFiles = walkGlob(REPO_ROOT, '.md').sort();
+  for (const md of mdFiles) {
+    const mdDir = dirname(md);
+    const lines = readLines(md);
+    for (const line of lines) {
+      // Extract all ](...) links on this line.
+      const re = /\]\(([^)]*)\)/g;
+      let m;
+      while ((m = re.exec(line)) !== null) {
+        let link = m[1];
+        if (!link) continue;
+        if (/^https?:\/\//.test(link) || /^#/.test(link) || /^mailto:/.test(link)) continue;
+        let target;
+        if (link.startsWith('/')) target = join(REPO_ROOT, link);
+        else target = join(mdDir, link);
+        target = target.split('#')[0];
+        target = target.replace(/\/$/, '');
+        if (!existsSync(target) && !existsSync(`${target}.md`))
+          reportError(`Broken link in ${md}: ${link} (resolved to: ${target})`);
+      }
+    }
+  }
+  console.log('');
+}
+
+// ---------- legacy runtime gate ----------
+function checkLegacyRuntime() {
+  console.log('--- Checking no legacy runtime scripts ---');
+  const { ok, offenses, allowlisted } = checkNoLegacyRuntime(REPO_ROOT);
+  if (!ok) {
+    for (const o of offenses) reportError(o);
+  } else {
+    console.log('OK: no legacy .py/.sh in plugin runtime');
+    if (allowlisted.length) {
+      for (const name of allowlisted) console.log(`OK: allowlisted ${name} (CI-only agent runner; not part of the shipped plugin runtime)`);
+    }
+  }
+  console.log('');
+}
+
+// ---------- main ----------
+function main() {
+  console.log('=== Validation Script ===');
+  console.log(`Repository: ${REPO_ROOT}`);
+  console.log('');
+  checkJson();
+  checkShellSyntax();
+  checkWorkflowSyntax();
+  checkShellcheck();
+  checkPythonSyntax();
+  checkAgentFrontmatter();
+  checkSkillFrontmatter();
+  checkSlashCommandInventory();
+  checkSettingsPolicy();
+  checkWorkflowPolicy();
+  checkNode24Readiness();
+  checkNotificationDocs();
+  checkHookManifests();
+  checkInstallerSmoke();
+  checkBenchmarkTasks();
+  checkInternalLinks();
+  checkLegacyRuntime();
+
+  console.log('=== Summary ===');
+  if (ERRORS === 0) { console.log('All checks passed!'); process.exit(0); }
+  console.log(`Found ${ERRORS} error(s)`);
+  process.exit(1);
+}
+
+main();

@@ -44,7 +44,7 @@ For each task, do **not** paste the whole plan or prior-task summaries into the
 dispatch. Hand artifacts over as files:
 
 ```bash
-bash scripts/task-brief.sh docs/plans/<date>-<slug>.md <N>
+node scripts/task-brief.mjs docs/plans/<date>-<slug>.md <N>
 # prints: .claude-crew/briefs/task-<N>-brief.md  (your single source of requirements)
 ```
 
@@ -86,7 +86,7 @@ the brief file, the report file, and the review package path, plus the global
 constraints that bind the task:
 
 ```bash
-bash scripts/review-package.sh <BASE> HEAD
+node scripts/review-package.mjs <BASE> HEAD
 # prints: .claude-crew/reviews/<base7>..<head7>-review.md
 ```
 
@@ -125,7 +125,7 @@ After all tasks, dispatch one final `@cr` on the most capable available model
 with the whole-branch review package:
 
 ```bash
-bash scripts/review-package.sh MERGE_BASE HEAD
+node scripts/review-package.mjs MERGE_BASE HEAD
 # prints: .claude-crew/reviews/<mergebase7>..<head7>-review.md
 ```
 
@@ -160,6 +160,6 @@ Never:
 ## Companion references
 
 - Plan/spec convention: [specs](../../docs/specs/README.md) · [plans](../../docs/plans/README.md)
-- File-handoff scripts: `scripts/task-brief.sh`, `scripts/review-package.sh`
+- File-handoff scripts: `scripts/task-brief.mjs`, `scripts/review-package.mjs`
 - Recovery: [progress ledger](../../docs/progress-ledger.md)
 - Contracts: [agent contracts](../../docs/agent-contracts.md)

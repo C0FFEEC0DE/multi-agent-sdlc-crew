@@ -22,16 +22,25 @@ ifneq ($(strip $(BENCH_TASK_LABEL)),)
 BENCH_LABEL_ARGS = --task-label '$(BENCH_TASK_LABEL)'
 endif
 
-.PHONY: all lint hooks test cov bench-mock bench-smoke bench-command bench-assert bench-report bench-rerun-failed
+.PHONY: all lint hooks test node-test cov validate bench-mock bench-smoke bench-command bench-assert bench-report bench-rerun-failed
 
 # Default: lint + test + hook contract tests.
 all: lint test hooks
 
-# Lint: shell syntax + shellcheck (if available) + python compile + ruff (if available).
+# Node test suites (test/bench, test/unit, test/security, ...). The glob form
+# is required: `node --test test/unit/` (directory form) fails on Node 22 with
+# "Cannot find module"; the quoted glob lets Node expand it recursively.
+node-test:
+	node --test 'test/**/*.test.mjs'
+
+# Lint: Node ESM syntax check + shell syntax + shellcheck (if available) +
+# python compile + ruff (if available). Dev/CI tooling under scripts/ is now
+# Node ESM (.mjs); only the dev-profile hooks and installers remain shell.
 lint:
-	@bash -n claudecfg/hooks/*.sh scripts/*.sh scripts/git-hooks/pre-push claudecfg/statusline.sh
+	node scripts/lint.mjs
+	@bash -n install.sh claudecfg/install.sh claudecfg/hooks/*.sh claudecfg/statusline.sh tests/install/*.sh tests/hooks/*.sh
 	@if command -v shellcheck >/dev/null 2>&1; then \
-		shellcheck claudecfg/hooks/*.sh scripts/*.sh scripts/git-hooks/pre-push claudecfg/statusline.sh; \
+		shellcheck install.sh claudecfg/install.sh claudecfg/hooks/*.sh claudecfg/statusline.sh tests/install/*.sh; \
 	else echo "shellcheck not installed, skipping"; fi
 	python -m compileall -q .
 	@if command -v ruff >/dev/null 2>&1; then ruff check .; \
@@ -40,7 +49,11 @@ lint:
 hooks:
 	node scripts/test-hooks.mjs
 
-test:
+# Full repository self-check (Node ESM port of the former scripts/validate.sh).
+validate:
+	node scripts/validate.mjs
+
+test: node-test
 	pytest -q
 
 # Coverage with a ratcheting gate (branch coverage on scripts/*.py).

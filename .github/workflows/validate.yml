@@ -27,6 +27,11 @@ jobs:
         with:
           go-version: '1.23'
 
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
       - name: Install workflow lint tools
         shell: bash
         run: |
@@ -36,10 +41,13 @@ jobs:
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
 
       - name: Run repository validator
-        run: bash scripts/validate.sh
+        run: node scripts/validate.mjs
+
+      - name: Run test suites (Node + pytest)
+        run: make test
 
       - name: Check shell syntax
-        run: bash -n install.sh claudecfg/install.sh claudecfg/hooks/*.sh scripts/*.sh
+        run: bash -n install.sh claudecfg/install.sh claudecfg/hooks/*.sh claudecfg/statusline.sh tests/install/*.sh
 
       - name: Check key JSON files
         run: |

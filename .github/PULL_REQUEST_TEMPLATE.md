@@ -17,7 +17,7 @@
 - [ ] `make lint` passes
 - [ ] `make test` (or `python3 -m pytest tests/ -v`) passes
 - [ ] `make hooks` (or `node scripts/test-hooks.mjs`) passes
-- [ ] `bash scripts/validate.sh` passes
+- [ ] `node scripts/validate.mjs` passes
 - [ ] Frontmatter valid for any new/changed agent or skill
 - [ ] No secrets, credentials, or `.env` content committed
 

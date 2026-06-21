@@ -87,7 +87,7 @@ make cov
 make hooks
 
 # Full repository self-check (validation + hooks + lint + tests)
-bash scripts/validate.sh
+node scripts/validate.mjs
 
 # Benchmark tests only
 python3 -m pytest tests/bench/ -v
