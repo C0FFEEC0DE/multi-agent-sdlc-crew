@@ -55,13 +55,13 @@ cov:
 	else echo "pytest-cov not installed, skipping coverage gate"; fi
 
 bench-mock:
-	bash scripts/run-benchmark.sh \
+	node scripts/run-benchmark.mjs \
 		--output-dir '$(BENCH_OUTPUT_DIR)' \
 		--mode mock \
 		--ref '$(BENCH_SOURCE_REF)' \
 		$(BENCH_TASK_ARGS) \
 		$(BENCH_LABEL_ARGS)
-	bash scripts/assert-benchmark-summary.sh '$(BENCH_OUTPUT_DIR)/summary.json'
+	node scripts/assert-benchmark-summary.mjs '$(BENCH_OUTPUT_DIR)/summary.json'
 
 bench-smoke: bench-command
 
@@ -72,16 +72,16 @@ bench-command:
 	OLLAMA_MODEL='$(OLLAMA_MODEL)' \
 	CLAUDE_CODE_MAX_OUTPUT_TOKENS='$(CLAUDE_CODE_MAX_OUTPUT_TOKENS)' \
 	BENCH_RUNNER_CMD='$(BENCH_RUNNER_CMD)' \
-	bash scripts/run-benchmark.sh \
+	node scripts/run-benchmark.mjs \
 		--output-dir '$(BENCH_OUTPUT_DIR)' \
 		--mode command \
 		--ref '$(BENCH_SOURCE_REF)' \
 		$(BENCH_TASK_ARGS) \
 		$(BENCH_LABEL_ARGS)
-	bash scripts/assert-benchmark-summary.sh '$(BENCH_OUTPUT_DIR)/summary.json'
+	node scripts/assert-benchmark-summary.mjs '$(BENCH_OUTPUT_DIR)/summary.json'
 
 bench-assert:
-	bash scripts/assert-benchmark-summary.sh '$(BENCH_OUTPUT_DIR)/summary.json'
+	node scripts/assert-benchmark-summary.mjs '$(BENCH_OUTPUT_DIR)/summary.json'
 
 bench-report:
 	@cat '$(BENCH_OUTPUT_DIR)/benchmark-report.md'
@@ -90,4 +90,4 @@ bench-report:
 # auto_resume), instead of the whole suite — saves Ollama credits. Optional
 # RUN_ID=12345 resumes a specific prior run instead of the last failed one.
 bench-rerun-failed:
-	bash scripts/rerun-failed-benchmark.sh $(if $(RUN_ID),--run-id $(RUN_ID))
+	node scripts/rerun-failed-benchmark.mjs $(if $(RUN_ID),--run-id $(RUN_ID))

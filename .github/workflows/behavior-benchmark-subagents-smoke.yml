@@ -15,16 +15,17 @@ on:
       - '.github/workflows/behavior-benchmark-subagents-smoke.yml'
       - 'bench/**'
       - 'claudecfg/**'
-      - 'scripts/assert-benchmark-summary.sh'
+      - 'scripts/assert-benchmark-summary.mjs'
+      - 'scripts/bench/lib.mjs'
       - 'scripts/bench_runner_claude_code.py'
-      - 'scripts/build-benchmark-matrix.py'
-      - 'scripts/collect-benchmark-changes.sh'
-      - 'scripts/download-benchmark-summary.py'
-      - 'scripts/merge-benchmark-summaries.py'
-      - 'scripts/render-benchmark-summary.sh'
-      - 'scripts/run-benchmark.sh'
-      - 'scripts/select-benchmark-tasks.py'
-      - 'scripts/wait-for-benchmark-slot.py'
+      - 'scripts/build-benchmark-matrix.mjs'
+      - 'scripts/collect-benchmark-changes.mjs'
+      - 'scripts/download-benchmark-summary.mjs'
+      - 'scripts/merge-benchmark-summaries.mjs'
+      - 'scripts/render-benchmark-summary.mjs'
+      - 'scripts/run-benchmark.mjs'
+      - 'scripts/select-benchmark-tasks.mjs'
+      - 'scripts/wait-for-benchmark-slot.mjs'
       - 'CLAUDE.md'
       - 'install.sh'
       - 'claudecfg/install.sh'
@@ -89,7 +90,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           REF_NAME: ${{ github.ref_name }}
         run: |
-          bash scripts/collect-benchmark-changes.sh \
+          node scripts/collect-benchmark-changes.mjs \
             --event "${{ github.event_name }}" \
             --output .bench-changed-files.txt \
             --base-ref "${BASE_REF:-main}" \
@@ -112,7 +113,7 @@ jobs:
                 echo "resume_run_id input is required when selection_mode=resume" >&2
                 exit 1
               fi
-              python3 scripts/download-benchmark-summary.py \
+              node scripts/download-benchmark-summary.mjs \
                 --repo "${GITHUB_REPOSITORY}" \
                 --run-id "${INPUT_RESUME_RUN_ID}" \
                 --artifact-name "behavior-benchmark-subagents-smoke-${INPUT_RESUME_RUN_ID}" \
@@ -121,7 +122,7 @@ jobs:
               echo "resume_run_id=${INPUT_RESUME_RUN_ID}" >> "$GITHUB_OUTPUT"
             elif [ "$selection_mode" = "auto_resume" ]; then
               # Find the last failed run automatically
-              python3 scripts/find-failed-benchmark-run.py \
+              node scripts/find-failed-benchmark-run.mjs \
                 --workflow "Behavior Benchmark Subagents Smoke" \
                 --max-age-hours 72 \
                 --status failed
@@ -130,7 +131,7 @@ jobs:
                 run_id=$(grep "^run_id=" "$GITHUB_OUTPUT" 2>/dev/null | cut -d= -f2)
                 if [ -n "$run_id" ]; then
                   echo "Found failed run: ${run_id}"
-                  python3 scripts/download-benchmark-summary.py \
+                  node scripts/download-benchmark-summary.mjs \
                     --repo "${GITHUB_REPOSITORY}" \
                     --run-id "${run_id}" \
                     --artifact-name "behavior-benchmark-subagents-smoke-${run_id}" \
@@ -148,7 +149,7 @@ jobs:
               fi
             fi
           fi
-          python3 scripts/select-benchmark-tasks.py \
+          node scripts/select-benchmark-tasks.mjs \
             --suite subagents_smoke \
             --selection-mode "$selection_mode" \
             --changed-files-file .bench-changed-files.txt \
@@ -185,7 +186,7 @@ jobs:
           cat > .bench-selected-tasks.txt <<'EOF'
           ${{ steps.select.outputs.task_files }}
           EOF
-          matrix_json="$(python3 scripts/build-benchmark-matrix.py --task-list-file .bench-selected-tasks.txt --max-shards 3)"
+          matrix_json="$(node scripts/build-benchmark-matrix.mjs --task-list-file .bench-selected-tasks.txt --max-shards 3)"
           echo "matrix_json=$matrix_json" >> "$GITHUB_OUTPUT"
 
   benchmark-subagents-smoke-shards:
@@ -291,7 +292,7 @@ jobs:
             echo "OLLAMA_API_KEY secret is required" >&2
             exit 1
           fi
-          bash scripts/run-benchmark.sh \
+          node scripts/run-benchmark.mjs \
             --output-dir bench-output \
             --mode command \
             --task-list-file .bench-selected-tasks.txt \
@@ -316,7 +317,7 @@ jobs:
               echo "- Timeout seconds: \`${{ steps.cfg.outputs.timeout_seconds }}\`"
               echo "- Max output tokens: \`${{ steps.cfg.outputs.max_output_tokens }}\`"
               echo ""
-              bash scripts/render-benchmark-summary.sh bench-output/summary.json
+              node scripts/render-benchmark-summary.mjs bench-output/summary.json
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -366,7 +367,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           BENCH_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          python3 scripts/wait-for-benchmark-slot.py \
+          node scripts/wait-for-benchmark-slot.mjs \
             --current-run-id "${{ github.run_id }}" \
             --head-sha "${BENCH_HEAD_SHA}" \
             --max-active 2 \
@@ -400,7 +401,7 @@ jobs:
             exit 1
           fi
           for shard_index in "${shard_indexes[@]}"; do
-            python3 scripts/download-benchmark-summary.py \
+            node scripts/download-benchmark-summary.mjs \
               --repo "${GITHUB_REPOSITORY}" \
               --run-id "${GITHUB_RUN_ID}" \
               --artifact-name "behavior-benchmark-subagents-smoke-shard-${shard_index}-${GITHUB_RUN_ID}" \
@@ -416,10 +417,10 @@ jobs:
             echo "No shard summary.json files were downloaded" >&2
             exit 1
           fi
-          python3 scripts/merge-benchmark-summaries.py \
+          node scripts/merge-benchmark-summaries.mjs \
             --output bench-output/summary.json \
             "${summary_files[@]}"
-          bash scripts/render-benchmark-summary.sh bench-output/summary.json > bench-output/benchmark-report.md
+          node scripts/render-benchmark-summary.mjs bench-output/summary.json > bench-output/benchmark-report.md
 
       - name: Render subagent smoke summary
         shell: bash
@@ -438,7 +439,7 @@ jobs:
       - name: Enforce subagent smoke gate
         shell: bash
         run: |
-          bash scripts/assert-benchmark-summary.sh bench-output/summary.json
+          node scripts/assert-benchmark-summary.mjs bench-output/summary.json
 
       - name: Upload subagent smoke artifacts
         if: always()

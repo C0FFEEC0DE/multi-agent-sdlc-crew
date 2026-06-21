@@ -843,7 +843,7 @@ def test_try_budget_retry_returns_effective_retry_debug_log_path(tmp_path, monke
 
 def test_render_benchmark_summary_outputs_task_status_table(tmp_path):
     repo_root = Path(__file__).resolve().parents[2]
-    script_path = repo_root / "scripts" / "render-benchmark-summary.sh"
+    script_path = repo_root / "scripts" / "render-benchmark-summary.mjs"
     summary_path = tmp_path / "summary.json"
     summary_path.write_text(
         json.dumps(
@@ -905,7 +905,7 @@ def test_render_benchmark_summary_outputs_task_status_table(tmp_path):
     )
 
     completed = subprocess.run(
-        ["bash", str(script_path), str(summary_path)],
+        ["node", str(script_path), str(summary_path)],
         check=True,
         capture_output=True,
         text=True,

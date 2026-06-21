@@ -422,8 +422,8 @@ fi
 
 if grep -q -- '--suite subagents_smoke' "$REPO_ROOT/.github/workflows/behavior-benchmark-subagents-smoke.yml" \
     && grep -q 'pull_request:' "$REPO_ROOT/.github/workflows/behavior-benchmark-subagents-smoke.yml" \
-    && grep -q 'scripts/download-benchmark-summary.py' "$REPO_ROOT/.github/workflows/behavior-benchmark-subagents-smoke.yml" \
-    && grep -q 'render-benchmark-summary.sh bench-output/summary.json' "$REPO_ROOT/.github/workflows/behavior-benchmark-subagents-smoke.yml" \
+    && grep -q 'scripts/download-benchmark-summary.mjs' "$REPO_ROOT/.github/workflows/behavior-benchmark-subagents-smoke.yml" \
+    && grep -q 'render-benchmark-summary.mjs bench-output/summary.json' "$REPO_ROOT/.github/workflows/behavior-benchmark-subagents-smoke.yml" \
     && grep -q 'bench-output/benchmark-report.md' "$REPO_ROOT/.github/workflows/behavior-benchmark-subagents-smoke.yml" \
     && grep -q "'install.sh'" "$REPO_ROOT/.github/workflows/behavior-benchmark-subagents-smoke.yml" \
     && grep -q "'claudecfg/install.sh'" "$REPO_ROOT/.github/workflows/behavior-benchmark-subagents-smoke.yml" \

@@ -62,7 +62,7 @@ Repository CI includes:
 - `Validate`, `Hook Tests`, and `Security Scan` on every push and PR
 - `Behavior Benchmark Subagents Smoke` on benchmark-related PRs (per-role task selection, matrix shards, two-slot gate)
 
-Concurrent benchmark runs are limited by a **two-slot gate** (`scripts/wait-for-benchmark-slot.py`) that prevents CI overload when multiple workflow dispatches fire simultaneously. The gate polls a GitHub API endpoint, waits with fixed-interval retry, and handles HTTP 403 rate-limit errors by reading the `Retry-After` header before retrying.
+Concurrent benchmark runs are limited by a **two-slot gate** (`scripts/wait-for-benchmark-slot.mjs`) that prevents CI overload when multiple workflow dispatches fire simultaneously. The gate polls a GitHub API endpoint, waits with fixed-interval retry, and handles HTTP 403 rate-limit errors by reading the `Retry-After` header before retrying.
 
 All benchmark workflows opt into **Node.js 24** via `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` to prepare for the September 2026 Node.js 20 runner deprecation.
 
