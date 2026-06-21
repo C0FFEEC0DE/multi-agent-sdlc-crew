@@ -14,3 +14,12 @@ Dated design documents produced during the **brainstorm/design** phase, before a
 Design → Plan (docs/plans/) → Subagent-Driven Development → Review.
 
 See `claudecfg/workflows/subagent-driven-development.md` and `docs/agent-contracts.md`.
+
+## Exceptions to the dated-design convention
+
+`claude-code-plugin-node-migration.md` is a **Phase 0 contract-freeze
+traceability matrix**, not a brainstorm design. It pairs with
+`docs/plans/2026-06-21-claude-code-plugin-node-production.md` and uses the
+non-dated path dictated by that plan. It is the coverage gate for the Node
+port: no `plugins/.../dist/*.mjs` implementation starts until its coverage
+checklist is reviewer-signed.

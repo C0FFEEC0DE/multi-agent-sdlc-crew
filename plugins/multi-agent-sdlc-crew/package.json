@@ -1,0 +1,12 @@
+{
+  "name": "multi-agent-sdlc-crew-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Node.js hook runtime for the multi-agent-sdlc-crew Claude Code plugin.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "dist/hook-dispatcher.mjs"
+}
