@@ -27,6 +27,7 @@ import {
   extractResultTextFromTranscript,
   extractResultPayload,
   extractResultText,
+  extractUsedAgentAliases,
   isRetryableProviderError,
   isOllama429,
   parseAffordableMaxTokens,
@@ -85,6 +86,25 @@ test('buildPrompt emits required specialist handoff block for required agents', 
   assert.ok(prompt.includes('Required specialist handoff:'));
   assert.ok(prompt.includes('@m -> @cr'));
   assert.ok(prompt.includes('launch @m first'));
+  assert.ok(prompt.includes('Handoff evidence: @m, @cr <what the specialist did>'));
+});
+
+test('extractUsedAgentAliases accepts explicit and established handoff evidence', () => {
+  const labelMap = {
+    a: 'a', architect: 'a', dbg: 'dbg', debugger: 'dbg',
+    doc: 'doc', docwriter: 'doc', m: 'm', manager: 'm',
+  };
+  const resultText = [
+    'Handoff evidence: @architect separated the normalization design.',
+    '@dbg reproduced the failing divide call.',
+    '@doc added the Quickstart section.',
+    '@m coordinated the documentation update.',
+    'Review outcome: done - design note added per @a handoff.',
+  ].join('\n');
+  assert.deepEqual(
+    extractUsedAgentAliases('', null, { resultText }, labelMap).sort(),
+    ['a', 'dbg', 'doc', 'm'],
+  );
 });
 
 test('buildAgentLabelMap reads plugin agents into an alias map', () => {

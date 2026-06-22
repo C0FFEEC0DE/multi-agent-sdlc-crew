@@ -480,7 +480,8 @@ export function buildPrompt(task, verificationLabel) {
       `\n\nRequired specialist handoff:\n` +
       '- This run is scored on a real specialist launch, not a prose mention.\n' +
       `- Start with an actual handoff to: ${requiredUsedAgents}\n` +
-      `- Make that handoff before doing the substantive work yourself.${sequenceNote}${ownershipNote}${completionDisciplineNote}`;
+      `- Make that handoff before doing the substantive work yourself.${sequenceNote}${ownershipNote}${completionDisciplineNote}\n` +
+      `- Before the required footer, report the completed real handoff as: Handoff evidence: ${requiredUsedAgents} <what the specialist did>.`;
     requiredUsedAgentNote +=
       '\n- Prefer direct alias handoffs like @doc, @a, or @cr instead of slash skills such as /docs, /design, or /review unless the task explicitly asks for the slash command.\n' +
       '- Do not burn turns probing avoidable skill path/tool restrictions before the required alias handoff lands.';
@@ -838,9 +839,11 @@ function inferUsedAgentAliasesFromResultText(resultText, labelMap) {
   const aliases = [];
   const seen = new Set();
   const patterns = [
+    /^\s*Handoff evidence:\s*@([A-Za-z0-9_-]+)\b/im,
     /^\s*[-*]\s*(?:\*\*)?@([A-Za-z0-9_-]+)(?:\*\*)?\b/im,
     /\b(?:handoff|handoffs|launch|launched|delegate|delegated|delegation)\b[^@\n]*@([A-Za-z0-9_-]+)\b/im,
-    /\B@([A-Za-z0-9_-]+)\b\s+(?:reviewed|verified|implemented|fixed|documented|analyzed|mapped|confirmed|approved|identified)\b/im,
+    /\B@([A-Za-z0-9_-]+)\b\s+(?:reviewed|verified|implemented|fixed|documented|analyzed|mapped|confirmed|approved|identified|added|scoped|executed|reproduced|coordinated)\b/im,
+    /\b(?:via|per)\s+@([A-Za-z0-9_-]+)\s+handoff\b/im,
   ];
   for (const pattern of patterns) {
     let m;
