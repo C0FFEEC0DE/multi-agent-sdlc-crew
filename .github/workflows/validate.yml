@@ -98,7 +98,7 @@ jobs:
       # which invokes `python3` (a POSIX path convention; see remaining risks).
       - name: Compile Python sources
         shell: bash
-        run: python -m compileall scripts bench/fixtures tests
+        run: python -m compileall scripts bench/fixtures test/validators
 
       # POSIX-only steps run under git-bash on Windows (present on Windows
       # runners via Git for Windows) so the jq/find/git invocations are
@@ -108,8 +108,8 @@ jobs:
       - name: Check key JSON files
         shell: bash
         run: |
-          jq empty tests/hooks/cases.json
-          jq empty tests/hooks/scenarios.json
+          jq empty test/hooks/cases.json
+          jq empty test/hooks/scenarios.json
           find bench/tasks -type f -name '*.json' -exec jq empty {} +
           jq empty bench/schema/*.json
 

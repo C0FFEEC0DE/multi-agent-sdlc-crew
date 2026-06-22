@@ -11,7 +11,7 @@ import {
 } from '../../plugins/multi-agent-sdlc-crew/modules/workflow.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const fixtures = join(here, '..', '..', 'tests', 'hooks', 'fixtures');
+const fixtures = join(here, '..', '..', 'test', 'hooks', 'fixtures');
 function loadPrompt(name) {
   return JSON.parse(readFileSync(join(fixtures, `${name}.json`), 'utf8')).prompt;
 }

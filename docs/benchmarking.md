@@ -64,8 +64,8 @@ The subagent smoke suite under `bench/tasks/subagents/smoke/*.json` keeps one ca
 ## Hook Test Layers
 
 Hook behavior is covered by a single Node runner, `node scripts/test-hooks.mjs`
-(exposed as `make hooks`), which loads `tests/hooks/cases.json` and
-`tests/hooks/scenarios.json` verbatim and feeds each fixture through the Node
+(exposed as `make hooks`), which loads `test/hooks/cases.json` and
+`test/hooks/scenarios.json` verbatim and feeds each fixture through the Node
 hook dispatcher:
 
 - **Cases** check isolated hook contracts one event at a time — edge payloads,
@@ -76,7 +76,7 @@ hook dispatcher:
 
 A small set of intentional bash→Node deltas (the legacy `CLAUDE_ENV_FILE` export
 step, which the Node runtime drops because state is the source of truth) are
-documented in `tests/hooks/DELTA.md` and skipped via `tests/hooks/deltas.json`.
+documented in `test/hooks/DELTA.md` and skipped via `test/hooks/deltas.json`.
 
 ## GitHub Workflow
 

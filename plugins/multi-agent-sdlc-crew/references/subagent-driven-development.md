@@ -12,7 +12,7 @@ editing files directly when the plan has mostly-independent tasks.
 Delegating each task to a fresh implementer with curated, isolated context
 keeps it focused and preserves your own context for coordination. The
 implementer never inherits your session history — you construct exactly what
-it needs. The ledger (see [progress ledger](../../../docs/progress-ledger.md))
+it needs. The ledger (see [progress ledger](progress-ledger.md))
 keeps your place across compaction so completed work is never re-dispatched.
 
 ## Steps
@@ -115,7 +115,7 @@ ledger in the same message as your other bookkeeping:
 Task N: complete (commits <base7>..<head7>, review clean)
 ```
 
-The ledger is your recovery map; see [progress ledger](../../../docs/progress-ledger.md).
+The ledger is your recovery map; see [progress ledger](progress-ledger.md).
 Do not re-dispatch a task the ledger already marks complete — check the ledger
 and `git log` after any compaction or resume.
 
@@ -139,7 +139,7 @@ tasks combined).
 Successful verification is required before completion (the hooks enforce it).
 Run the final review gate (`@cr`) — the whole-branch review in step 7 — and
 then document any user-facing behavior change (`@doc`) per the profile's
-[agent contracts](../../../docs/agent-contracts.md). Use the normal
+[agent contracts](agent-contracts.md). Use the normal
 discover → design → implement → verify → review → docs flow for the branch as a
 whole; this workflow governs the **implement** and **review** internals.
 
@@ -159,7 +159,7 @@ Never:
 
 ## Companion references
 
-- Plan/spec convention: [specs](../../../docs/specs/README.md) · [plans](../../../docs/plans/README.md)
+- Plan/spec convention: keep repository design and planning records with the project that owns them.
 - File-handoff scripts: `scripts/task-brief.mjs`, `scripts/review-package.mjs`
-- Recovery: [progress ledger](../../../docs/progress-ledger.md)
-- Contracts: [agent contracts](../../../docs/agent-contracts.md)
+- Recovery: [progress ledger](progress-ledger.md)
+- Contracts: [agent contracts](agent-contracts.md)

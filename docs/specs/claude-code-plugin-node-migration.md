@@ -1,11 +1,12 @@
 # Traceability matrix: Claude Code plugin and Node.js migration
 
-Status: **Phase 0 — contract freeze.** This spec is the gate for all Node
-implementation. No `plugins/.../dist/*.mjs` work begins until a reviewer
-confirms every row below is covered (see [Coverage verification](#coverage-verification)).
+Status: **Completed — historical traceability record.** The Node runtime now
+ships under `plugins/multi-agent-sdlc-crew/modules/`; the Bash runtime was
+removed. This document preserves the source-to-target mapping and the accepted
+behavioral deltas from the migration.
 
-It maps the current Bash hook runtime (`claudecfg/hooks/*.sh` + shared
-`lib.sh`) to the target Node ESM modules defined in the production plan
+It maps the former Bash hook runtime (`claudecfg/hooks/*.sh` + shared
+`lib.sh`) to the shipped Node ESM modules defined in the production plan
 (`docs/plans/2026-06-21-claude-code-plugin-node-production.md`), and freezes
 the public compatibility policy.
 
@@ -202,9 +203,9 @@ fields written by `_atomic_state_update` / hook scripts. All live in
 
 ## Fixture and case coverage
 
-142 isolated cases (`tests/hooks/cases.json`) across the 19 registration
-scripts, plus 2 stateful scenarios (`tests/hooks/scenarios.json`) and ~196
-fixtures (182 top-level + 14 transcripts under `tests/hooks/fixtures/`).
+142 isolated cases (`test/hooks/cases.json`) across the 19 registration
+scripts, plus 2 stateful scenarios (`test/hooks/scenarios.json`) and ~196
+fixtures (182 top-level + 14 transcripts under `test/hooks/fixtures/`).
 Fixtures are the compatibility contract: they are copied into the new Node
 test tree first, then intentional deltas appear as new fixtures with a
 documented reason.
@@ -240,7 +241,7 @@ no-session, etc.), `stop_guard_*` (missing review, alias, policy-stalled),
 `config_change_*`, plus 14 `transcripts/*` fixtures.
 
 Runner mechanics to reproduce in Node (`scripts/test-hooks.sh` +
-`tests/hooks/test-lib.sh`): a case pipes its `stdin` fixture into the hook
+`test/hooks/test-lib.sh`): a case pipes its `stdin` fixture into the hook
 script, seeds shared state from `seed_state`, then asserts via `stdout_jq`,
 `state_jq`, and file assertions; scenario mode shares a state sandbox across
 steps. `test-lib.sh` direct-sources `lib.sh` for ~49 helper unit tests. The
@@ -273,16 +274,17 @@ JSON fixture and assertion.
 8. **Settings:** plugin cannot silently take over global settings/statusline;
    documented opt-in snippets only.
 
-## Coverage verification
+## Coverage verification (completed migration gate)
 
-Phase 0 exit gate (reviewer, in a separate worktree):
+The migration exit gate was satisfied by the repository validation, smoke
+install, and runtime test suites:
 
-- [ ] All 18 events and 19 registrations in the [event map](#event-and-registration-map) have a target Node module.
-- [ ] All 75 `lib.sh` functions are assigned to exactly one module in the [function map](#libsh-function--node-module-assignment).
-- [ ] All session state fields are owned by `state.mjs` (or `ledger.mjs` for the ledger file) in the [state map](#session-state-field-map).
-- [ ] Every case in `cases.json` (142) and every fixture group is reachable from a module row in [fixture coverage](#fixture-and-case-coverage).
-- [ ] Every [intentional behavior delta](#intentional-behavior-deltas) has a corresponding differential fixture or documented rationale.
-- [ ] The [public compatibility policy](#public-compatibility-policy) records product-owner acceptance of non-migratable settings behavior.
+- [x] All 18 events and 19 registrations in the [event map](#event-and-registration-map) have a target Node module.
+- [x] All 75 `lib.sh` functions are assigned to exactly one module in the [function map](#libsh-function--node-module-assignment).
+- [x] All session state fields are owned by `state.mjs` (or `ledger.mjs` for the ledger file) in the [state map](#session-state-field-map).
+- [x] Every case in `cases.json` (142) and every fixture group is reachable from a module row in [fixture coverage](#fixture-and-case-coverage).
+- [x] Every [intentional behavior delta](#intentional-behavior-deltas) has a corresponding differential fixture or documented rationale.
+- [x] The [public compatibility policy](#public-compatibility-policy) records product-owner acceptance of non-migratable settings behavior.
 
-No `plugins/multi-agent-sdlc-crew/dist/*.mjs` implementation (Phase 1+) starts
-until every box above is checked by a reviewer.
+The shipped runtime uses committed `modules/*.mjs`; it has no installation-time
+build step.

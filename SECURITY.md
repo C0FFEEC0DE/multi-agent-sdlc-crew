@@ -33,8 +33,8 @@ third-party provider routed through the profile.
 
 ## Hardening defaults
 
-The profile ships defense-in-depth controls; see [`docs/architecture.md`](docs/architecture.md)
-and [`docs/token-cost.md`](docs/token-cost.md) for how they fit together:
+The profile ships defense-in-depth controls; see [`plugin architecture`](plugins/multi-agent-sdlc-crew/references/architecture.md)
+and [`token-cost notes`](plugins/multi-agent-sdlc-crew/references/token-cost.md) for how they fit together:
 
 - `permissions.deny` blocks `sudo`, `mkfs`, `dd`, `rm -rf /`, `rm -rf ~`,
   `git push --force`, and reads of `.env*`, `secrets/**`, `credentials/**`
@@ -48,7 +48,7 @@ and [`docs/token-cost.md`](docs/token-cost.md) for how they fit together:
 
 The plugin's `PreToolUse` / `PermissionRequest` / `PermissionDenied` hooks
 classify a Bash command string with a portable, Node-stdlib-only policy
-([`docs/specs/command-policy.md`](docs/specs/command-policy.md)). It is a
+([`command policy`](plugins/multi-agent-sdlc-crew/references/command-policy.md)). It is a
 static string inspector, **not** a shell parser, so the following are accepted
 limitations (documented, not silently "fixed"):
 

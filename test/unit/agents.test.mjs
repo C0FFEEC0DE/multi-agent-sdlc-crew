@@ -11,7 +11,7 @@ import {
 const here = dirname(fileURLToPath(import.meta.url));
 const pluginRoot = join(here, '..', '..', 'plugins', 'multi-agent-sdlc-crew');
 const aliases = loadAliases(pluginRoot);
-const transcripts = join(here, '..', '..', 'tests', 'hooks', 'fixtures', 'transcripts');
+const transcripts = join(here, '..', '..', 'test', 'hooks', 'fixtures', 'transcripts');
 import { readFileSync } from 'node:fs';
 function readTranscript(name) { return readFileSync(join(transcripts, name), 'utf8'); }
 
@@ -62,7 +62,7 @@ const LABEL_FIXTURES = [
 ];
 for (const [name, expected] of LABEL_FIXTURES) {
   test(`extractSubagentLabel: ${name} -> @${expected}`, () => {
-    const fx = JSON.parse(readFileSync(join(here, '..', '..', 'tests', 'hooks', 'fixtures', `${name}.json`), 'utf8'));
+    const fx = JSON.parse(readFileSync(join(here, '..', '..', 'test', 'hooks', 'fixtures', `${name}.json`), 'utf8'));
     assert.equal(extractSubagentLabel(fx, aliases), expected);
   });
 }

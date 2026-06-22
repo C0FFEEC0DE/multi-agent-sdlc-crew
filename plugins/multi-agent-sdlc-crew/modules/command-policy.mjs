@@ -1,6 +1,6 @@
 // command-policy.mjs — portable command-string security policy.
 //
-// Normative for docs/specs/command-policy.md. Node standard library only: pure
+// Normative for references/command-policy.md. Node standard library only: pure
 // string transforms + regexes, no child_process, no shell, no eval. The policy
 // inspects the `tool_input.command` of a Bash tool call BEFORE it runs and
 // decides whether the hook-gated SDLC profile allows it.

@@ -1,5 +1,5 @@
 // command-policy.spec.test.mjs — structural verification of the command-policy
-// corpus against docs/specs/command-policy.md §7. This is the Task 12 gate: the
+// corpus against plugin references/command-policy.md §7. This is the Task 12 gate: the
 // corpus must cover every required category and shell, and every case must be
 // well-formed, before the implementation in Task 13 can be held to it.
 import { test } from 'node:test';

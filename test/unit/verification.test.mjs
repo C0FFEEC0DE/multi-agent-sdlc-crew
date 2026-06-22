@@ -10,7 +10,7 @@ import {
 } from '../../plugins/multi-agent-sdlc-crew/modules/verification.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const projects = join(here, '..', '..', 'tests', 'hooks', 'projects');
+const projects = join(here, '..', '..', 'test', 'hooks', 'projects');
 const nodeApp = join(projects, 'node-app');
 const makeProject = join(projects, 'make-any-language');
 

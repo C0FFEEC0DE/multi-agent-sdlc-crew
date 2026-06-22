@@ -9,6 +9,9 @@ branch = true
 source = ["scripts"]
 relative_files = true
 
+[tool.pytest.ini_options]
+testpaths = ["test/validators"]
+
 [tool.coverage.report]
 show_missing = true
 skip_covered = false

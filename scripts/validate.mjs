@@ -169,7 +169,7 @@ function checkPythonSyntax() {
   console.log('--- Checking Python syntax ---');
   const py = probePython();
   if (!py) { console.log('SKIP: no python/python3 interpreter on PATH\n'); return; }
-  const dirs = ['scripts', 'bench/fixtures', 'tests'];
+  const dirs = ['scripts', 'bench/fixtures', 'test/validators'];
   const files = [];
   for (const d of dirs) for (const f of walkGlob(join(REPO_ROOT, d), '.py')) files.push(f);
   for (const f of files.sort()) {
@@ -450,8 +450,8 @@ function checkNotificationDocs() {
 // ---------- hook test manifests ----------
 function checkHookManifests() {
   console.log('--- Checking hook test manifests ---');
-  const casesFile = join(REPO_ROOT, 'tests', 'hooks', 'cases.json');
-  const scenariosFile = join(REPO_ROOT, 'tests', 'hooks', 'scenarios.json');
+  const casesFile = join(REPO_ROOT, 'test', 'hooks', 'cases.json');
+  const scenariosFile = join(REPO_ROOT, 'test', 'hooks', 'scenarios.json');
   if (existsSync(casesFile)) {
     let cases;
     try { cases = JSON.parse(readFileSync(casesFile, 'utf-8')); } catch { reportError('Hook cases manifest is invalid JSON'); cases = null; }

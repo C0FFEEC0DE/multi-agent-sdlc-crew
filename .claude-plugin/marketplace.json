@@ -10,7 +10,6 @@
       "name": "multi-agent-sdlc-crew",
       "source": "./plugins/multi-agent-sdlc-crew",
       "description": "Hook-gated multi-agent SDLC profile: discover -> design -> implement -> verify -> review -> docs, with footer/role/verification contracts enforced by a Node.js hook runtime.",
-      "version": "0.1.0",
       "author": {
         "name": "C0FFEEC0DE",
         "url": "https://github.com/C0FFEEC0DE"

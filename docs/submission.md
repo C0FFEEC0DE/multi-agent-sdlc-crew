@@ -10,13 +10,13 @@ publish step.
 
 ## Version
 
-`0.1.0-beta.1` — declared identically in all three version fields so there is
-no drift:
+`0.1.0-beta.1` — declared in plugin.json as the single source of truth
+(marketplace.json omits version to avoid drift):
 
-- `plugins/multi-agent-sdlc-crew/.claude-plugin/plugin.json` (the manifest the
-  marketplace reads)
-- `plugins/multi-agent-sdlc-crew/package.json` (the Node runtime manifest)
-- `package.json` (the repository/dev workspace manifest)
+- `plugins/multi-agent-sdlc-crew/.claude-plugin/plugin.json` — authoritative
+- `plugins/multi-agent-sdlc-crew/package.json` — matches for consistency
+- `package.json` (root) — matches for monorepo consistency
+- `.claude-plugin/marketplace.json` — no version field (plugin.json wins)
 
 Cut the beta tag with `git tag -a v0.1.0-beta.1 -m "Beta v0.1.0-beta.1"`; see
 [`docs/release.md`](release.md#cutting-a-beta-prerelease) for the tag-only
@@ -30,7 +30,7 @@ release flow.
 | Changelog | `plugins/multi-agent-sdlc-crew/CHANGELOG.md` | Keep a Changelog format; `0.1.0-beta.1` migration entry |
 | License | `plugins/multi-agent-sdlc-crew/LICENSE` | MIT, identical to repo-root `LICENSE` |
 | Security policy | `plugins/multi-agent-sdlc-crew/SECURITY.md` | Private disclosure, 72h initial response, plugin-specific scope |
-| Threat model | `docs/threat-model.md` | Trust boundary, command policy (defense-in-depth, not a sandbox), exec-form integrity, path resolution, telemetry privacy, supply chain |
+| Threat model | `plugins/multi-agent-sdlc-crew/references/threat-model.md` | Trust boundary, command policy (defense-in-depth, not a sandbox), exec-form integrity, path resolution, telemetry privacy, supply chain |
 | Privacy / network statement | `plugins/multi-agent-sdlc-crew/README.md` § Privacy & telemetry | "No network calls; nothing leaves the local machine" — grounded by a module scan (no `http`/`https`/`fetch`/`net` imports in `modules/`) |
 | Release runbook | `docs/release.md` | Tag-only, clean-checkout, one-artifact, test-the-exact-artifact, SBOM attachment |
 

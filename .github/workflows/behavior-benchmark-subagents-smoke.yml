@@ -185,7 +185,7 @@ jobs:
       - name: Validate task/fixture alignment
         shell: bash
         run: |
-          python3 -m pytest tests/bench/test_task_fixture_alignment.py -v
+          python3 -m pytest test/validators/test_task_fixture_alignment.py -v
 
       - name: Build subagent smoke shard matrix
         id: matrix
@@ -456,23 +456,30 @@ jobs:
 
       - name: Enforce subagent smoke gate
         shell: bash
-        # Best-effort: the gate asserts that every selected benchmark task's
-        # live-model run passed, including required_subagent dispatch. The
-        # plumbing (runner invocation, --plugin-dir loading, hook firing,
-        # transcript/result parsing) is already gated by the shard jobs above
-        # — a shard failure still red-flags this workflow. This step only
-        # asserts the per-task model pass-rate, which is a behavioral signal
-        # from a third-party model (glm-5.2:cloud), not a test of our code.
-        # Under the plugin runtime, the manager-docs task is a known model
-        # flake: the model does the trivial docs edit inline instead of
-        # dispatching @m (used_agent_aliases empty, 2 consecutive runs), so
-        # this gate fails even though the migration plumbing is correct. Keep
-        # the gate non-blocking so a single model-dispatch flake does not
-        # block the plugin-migration PR; the failure is still visible in the
-        # run logs and the uploaded summary. Re-tighten (drop
-        # continue-on-error) once the model dispatches reliably or a
-        # dispatch-tolerant task variant lands.
-        continue-on-error: true
+        # Blocking + honest: this step asserts that every selected benchmark
+        # task's live-model run passed, including required_subagent dispatch
+        # (assert-benchmark-summary.mjs requires passed === tasks, no
+        # tool_failures / policy_violations / unresolved_tasks). The plumbing
+        # (runner invocation, --plugin-dir loading, hook firing, transcript /
+        # result parsing) is separately gated by the shard jobs above — a shard
+        # failure red-flags the workflow regardless of this step. This step is
+        # the ONLY gate on model behavior, so it MUST report its real exit
+        # status: a masked-green behavior gate is worthless as a regression
+        # detector. It was previously `continue-on-error: true`, which made
+        # GitHub report a failed assert as `conclusion: success` — so CI stayed
+        # green while the model was actually failing 9/11 smoke tasks.
+        #
+        # Current state (glm-5.2:cloud under the plugin runtime): the model does
+        # the work inline and writes @a / @e / @t / @dbg / @m in prose WITHOUT
+        # calling the Agent tool, so used_agent_aliases is empty and the tasks
+        # fail required_used_agents_missing. The detection pipeline is correct
+        # — the code-reviewer task passes with a real @cr dispatch, proving
+        # plumbing works; the model simply under-delegates for most task types.
+        # This is model behavior, not a plugin bug, but the gate is intentionally
+        # blocking so the behavior signal stays honest: CI is red until the
+        # model dispatches reliably or dispatch-forcing / dispatch-tolerant task
+        # variants land. Artifacts still upload via the `if: always()` step
+        # below, so failed-run debug logs remain available for triage.
         run: |
           node scripts/assert-benchmark-summary.mjs bench-output/summary.json
 

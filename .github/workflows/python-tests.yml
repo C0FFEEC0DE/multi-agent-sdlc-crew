@@ -53,10 +53,10 @@ jobs:
       - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
-          # pyyaml is required by tests/bench/test_workflow_config.py, which
+          # pyyaml is required by test/validators/test_workflow_config.py, which
           # parses the benchmark workflow YAML. The old CI subset skipped it;
           # the full suite includes it.
           pip install pytest pyyaml
 
       - name: Run full pytest suite
-        run: python -m pytest tests/ -v
+        run: python -m pytest test/validators/ -v

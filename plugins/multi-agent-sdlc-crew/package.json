@@ -8,5 +8,5 @@
   "engines": {
     "node": ">=22"
   },
-  "main": "dist/hook-dispatcher.mjs"
+  "main": "modules/hook-dispatcher.mjs"
 }

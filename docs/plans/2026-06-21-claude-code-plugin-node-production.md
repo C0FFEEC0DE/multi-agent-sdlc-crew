@@ -353,7 +353,7 @@ or branch and owns only the paths named below.
 
 17. **Port hook fixture runner and direct tests.**
     - Owner: tooling agent.
-    - Replace `scripts/test-hooks.sh`, `tests/hooks/test-lib.sh`, and
+    - Replace `scripts/test-hooks.sh`, `test/hooks/test-lib.sh`, and
       hook-related Python tests with Node test suites while preserving JSON
       fixtures.
     - Verify: all 142 isolated cases and both shared-state scenarios pass in

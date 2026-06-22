@@ -1,6 +1,6 @@
 // Node tests for scripts/bench_runner_openrouter.mjs (pure functions only —
 // no network, no real API, no real subprocess). Mirrors the coverage of the
-// removed tests/bench/test_bench_runner_openrouter.py.
+// removed test/validators/test_bench_runner_openrouter.py.
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';

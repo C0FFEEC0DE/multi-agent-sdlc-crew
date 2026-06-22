@@ -55,12 +55,12 @@ test: node-test
 # The ratcheting branch-coverage gate (COV_MIN=100 on scripts/*.py) was retired
 # when the bench runners were ported from Python to Node ESM: scripts/ is now
 # Node-only, so there is no Python source tree left to cover. The remaining
-# pytest tests (bench fixture/config validators under tests/bench/) cover data
+# pytest tests (bench fixture/config validators under test/validators/) cover data
 # files, not a source module, so a coverage gate does not apply. `make cov` now
 # just runs the Python suite plainly (alias for the pytest half of `make test`).
 cov:
 	@if command -v pytest >/dev/null 2>&1; then \
-		pytest -q tests/; \
+		pytest -q test/validators/; \
 	else echo "pytest not installed, skipping Python suite"; fi
 
 # Remove regenerable test/benchmark artifacts so repeated runs do not exhaust

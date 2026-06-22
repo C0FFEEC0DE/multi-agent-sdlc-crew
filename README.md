@@ -39,7 +39,7 @@ flowchart LR
     G -->|all pass| H[Done]
 ```
 
-Full diagram and the pieces: [`docs/architecture.md`](docs/architecture.md).
+Full diagram and the pieces: [`plugins/multi-agent-sdlc-crew/references/architecture.md`](plugins/multi-agent-sdlc-crew/references/architecture.md).
 
 ## Agents
 
@@ -95,15 +95,15 @@ These are the documented entry points; the hooks enforce the actual handoff and 
 - **`effortLevel`:** defaults to `medium` (lower spend); raise to `high` for hard design/verify/judge stages.
 - **Safety:** `permissions.deny` blocks `sudo`, `mkfs`, `dd`, `rm -rf /`, `rm -rf ~`, force-push, and secret reads. Auto-execution only inside project folders.
 - **Observability:** `Notification` and other runtime events log to `~/.claude/logs/*.jsonl` (rotated at 1 MB).
-- See [`docs/token-cost.md`](docs/token-cost.md) for the full spend story.
+- See [`plugins/multi-agent-sdlc-crew/references/token-cost.md`](plugins/multi-agent-sdlc-crew/references/token-cost.md) for the full spend story.
 
 ## Docs
 
 - [`plugins/multi-agent-sdlc-crew/README.md`](plugins/multi-agent-sdlc-crew/README.md) — plugin cheatsheet
-- [`docs/architecture.md`](docs/architecture.md) — how the hooks fit together
-- [`docs/token-cost.md`](docs/token-cost.md) — minimal token spend
+- [`plugins/multi-agent-sdlc-crew/references/architecture.md`](plugins/multi-agent-sdlc-crew/references/architecture.md) — how the hooks fit together
+- [`plugins/multi-agent-sdlc-crew/references/token-cost.md`](plugins/multi-agent-sdlc-crew/references/token-cost.md) — minimal token spend
 - [`docs/benchmarking.md`](docs/benchmarking.md) — benchmark setup
-- [`docs/agent-contracts.md`](docs/agent-contracts.md) — agent contracts
+- [`plugins/multi-agent-sdlc-crew/references/agent-contracts.md`](plugins/multi-agent-sdlc-crew/references/agent-contracts.md) — agent contracts
 
 ## Contributing
 

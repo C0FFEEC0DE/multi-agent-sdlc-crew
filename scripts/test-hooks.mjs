@@ -2,8 +2,8 @@
 // test-hooks.mjs — Node ESM hook fixture runner.
 //
 // Replaces the legacy Bash/jq/Python harness (scripts/test-hooks.sh +
-// tests/hooks/test-lib.sh). Loads tests/hooks/cases.json (142 cases) and
-// tests/hooks/scenarios.json (2 scenarios) verbatim, feeds each fixture
+// test/hooks/test-lib.sh). Loads test/hooks/cases.json (142 cases) and
+// test/hooks/scenarios.json (2 scenarios) verbatim, feeds each fixture
 // through the Node hook dispatcher (spawned with an explicit argv — no shell),
 // and asserts the same expectations (exit code, stdout_jq, state_jq,
 // stderr_regex, file_assertions) using a built-in jq-subset evaluator.
@@ -28,7 +28,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..');
 const pluginRoot = join(repoRoot, 'plugins', 'multi-agent-sdlc-crew');
 const dispatcher = join(pluginRoot, 'modules', 'hook-dispatcher.mjs');
-const hooksDir = join(repoRoot, 'tests', 'hooks');
+const hooksDir = join(repoRoot, 'test', 'hooks');
 const casesPath = join(hooksDir, 'cases.json');
 const scenariosPath = join(hooksDir, 'scenarios.json');
 const deltasPath = join(hooksDir, 'deltas.json');

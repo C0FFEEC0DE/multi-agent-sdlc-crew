@@ -55,7 +55,7 @@ Transcript fallback also recognizes slash-skill loads, agent launch lines like `
 - `plugins/multi-agent-sdlc-crew/README.md` — plugin quick reference: requirements, installation, configuration, status line, privacy
 - `plugins/multi-agent-sdlc-crew/references/subagent-driven-development.md` — the SDD workflow and reference docs
 - `docs/benchmarking.md` — benchmark architecture, slot-gate mechanism, local usage, and required GitHub setup
-- `docs/agent-contracts.md` — contract matrix for benchmark/hook layers per agent role
+- `plugins/multi-agent-sdlc-crew/references/agent-contracts.md` — contract matrix for benchmark/hook layers per agent role
 
 Plugin skills under `plugins/multi-agent-sdlc-crew/skills/` use YAML frontmatter for routing/tool constraints. Agent-backed skills (`design`, `docs`, `refactor`, `review`, `test`) carry the full dispatch contract; command skills (`bug`, `debug`, `explore`, `manager`) are minimal name+description entry points.
 
@@ -83,7 +83,7 @@ make lint
 # All tests
 make test
 
-# Python suite (bench fixture/config validators under tests/bench/). The
+# Python suite (bench fixture/config validators under test/validators/). The
 # ratcheting branch-coverage gate on scripts/*.py was retired when the bench
 # runners were ported to Node ESM — scripts/ is now Node-only, so there is no
 # Python source tree left to cover.
@@ -101,5 +101,5 @@ node scripts/validate.mjs
 make clean
 
 # Benchmark tests only
-python3 -m pytest tests/bench/ -v
+python3 -m pytest test/validators/ -v
 ```

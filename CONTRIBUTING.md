@@ -83,7 +83,7 @@ paths:
 
 Before submitting:
 - [ ] `make lint` passes (shell syntax, shellcheck, python compile, ruff)
-- [ ] `make test` (or `python3 -m pytest tests/ -v`) passes
+- [ ] `make test` (or `python3 -m pytest test/validators/ -v`) passes
 - [ ] `make hooks` (or `node scripts/test-hooks.mjs`) passes
 - [ ] `node scripts/validate.mjs` passes
 - [ ] JSON files are valid

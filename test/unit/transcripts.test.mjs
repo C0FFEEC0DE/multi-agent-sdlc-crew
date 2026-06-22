@@ -11,7 +11,7 @@ import {
 } from '../../plugins/multi-agent-sdlc-crew/modules/transcripts.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const transcripts = join(here, '..', '..', 'tests', 'hooks', 'fixtures', 'transcripts');
+const transcripts = join(here, '..', '..', 'test', 'hooks', 'fixtures', 'transcripts');
 
 // --- tailJsonlLines -------------------------------------------------------
 

@@ -45,7 +45,7 @@ third-party provider routed through the profile.
 
 The plugin ships defense-in-depth controls. See the plugin README ("Configuration"
 and "Privacy & telemetry") and the repository
-[`docs/threat-model.md`](https://github.com/C0FFEEC0DE/multi-agent-sdlc-crew/blob/main/docs/threat-model.md)
+[`references/threat-model.md`](references/threat-model.md)
 for how they fit together:
 
 - The command policy (`modules/command-policy.mjs`) blocks destructive, privileged,
@@ -68,7 +68,7 @@ The plugin's `PreToolUse` / `PermissionRequest` / `PermissionDenied` hooks class
 a Bash command string with a portable, Node-stdlib-only policy. It is a static
 string inspector, **not** a shell parser, so the following are accepted limitations
 (documented, not silently "fixed"). See
-[`docs/specs/command-policy.md`](https://github.com/C0FFEEC0DE/multi-agent-sdlc-crew/blob/main/docs/specs/command-policy.md)
+[`references/command-policy.md`](references/command-policy.md)
 for the full contract.
 
 - **No shell-grammar parsing.** Quoting/escaping/tokenization are approximated by

@@ -62,7 +62,7 @@ installation is non-destructive and nothing leaks into your global config.
 
 The command policy has two modes. Set it through the plugin's
 `enforcement_mode` user config (default `advisory`) or override with the
-`CLAUDE_CREW_POLICY` env var. See `docs/specs/command-policy.md` for the full
+`CLAUDE_CREW_POLICY` env var. See [`references/command-policy.md`](references/command-policy.md) for the full
 contract.
 
 | Knob | Default | Effect |

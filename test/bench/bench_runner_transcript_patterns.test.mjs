@@ -1,6 +1,6 @@
 // Tests for transcript pattern validation logic in
 // scripts/bench_runner_claude_code.mjs. Ported from the removed
-// tests/bench/test_transcript_pattern_validation.py. Exercises
+// test/validators/test_transcript_pattern_validation.py. Exercises
 // canonicalizeSubagentLabel and inferUsedAgentAliasesFromTranscript against the
 // runner's fallback alias map (used when no plugins/.../assets/aliases.json is
 // found), passed explicitly so the tests are hermetic — no env/cache coupling.

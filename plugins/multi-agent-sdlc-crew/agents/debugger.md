@@ -36,13 +36,13 @@ Treat debugging as four phases, not a hunt. Do not skip ahead:
    with the cheapest evidence (a print, a focused test, a log line). Reject
    hypotheses that the evidence contradicts; never rationalize a favorite
    hypothesis past the data. See
-   [root-cause tracing](../../../docs/debugging-root-cause-tracing.md).
+   [root-cause tracing](../references/debugging-root-cause-tracing.md).
 4. **Confirm the fix** — state the root cause, apply the smallest defensible
    fix, and re-run the covering test to prove the behavior changed. Add a
    regression test that fails without the fix. See
-   [defense in depth](../../../docs/debugging-defense-in-depth.md) for guarding
+   [defense in depth](../references/debugging-defense-in-depth.md) for guarding
    the fixed path against recurrence and
-   [condition-based waiting](../../../docs/debugging-condition-based-waiting.md)
+   [condition-based waiting](../references/debugging-condition-based-waiting.md)
    for flaky/timing failures.
 
 Prefer minimal probes over broad random changes. Make one causal claim at a

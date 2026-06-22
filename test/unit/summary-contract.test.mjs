@@ -2,7 +2,7 @@
 // session-decision functions in plugins/multi-agent-sdlc-crew/modules/summary-contract.mjs.
 //
 // These tests port the behavioral coverage that previously lived in the legacy
-// bash-sourcing pytest files (tests/bench/test_message_mentions.py,
+// bash-sourcing pytest files (test/validators/test_message_mentions.py,
 // test_concrete_outcome_recognition.py, test_hook_effective_roles.py,
 // test_high_bugs.py). The legacy files sourced claudecfg/hooks/lib.sh and ran
 // bash subprocesses, which made them POSIX-only (CRLF/cp1252 broke them on

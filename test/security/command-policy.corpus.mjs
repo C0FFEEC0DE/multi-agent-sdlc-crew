@@ -1,5 +1,5 @@
 // command-policy.corpus.mjs — the verification corpus for the portable command
-// policy. Normative for docs/specs/command-policy.md. Node standard library
+// policy. Normative for plugin references/command-policy.md. Node standard library
 // only; this file is pure data + a structural self-check, no I/O.
 //
 // Each case is a single command classification. `mode` selects which policy
