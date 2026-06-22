@@ -35,7 +35,10 @@ const deltasPath = join(hooksDir, 'deltas.json');
 
 // Plugin state module (Node-stdlib-only) — used to read session state back so
 // state_jq is evaluated against the exact same reducer the dispatcher uses.
-const { statePaths, loadState } = await import(join(pluginRoot, 'modules', 'state.mjs'));
+// Use pathToFileURL so the dynamic import works on Windows, where a bare
+// drive-letter path (D:\...) is not a valid ESM URL and would throw
+// ERR_UNSUPPORTED_ESM_URL_SCHEME.
+const { statePaths, loadState } = await import(pathToFileURL(join(pluginRoot, 'modules', 'state.mjs')).href);
 
 // --- legacy-script -> dispatcher event (+ matcher) mapping ------------------
 // Each legacy claudecfg/hooks/<name>.sh maps to one dispatcher event. Matchers
