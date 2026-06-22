@@ -26,7 +26,7 @@ class TestBug1_StopSafeNoChangeFooterHint:
 
     def test_function_is_called_in_stop_guard_sh(self):
         """Verify stop_safe_no_change_footer_hint is actually CALLED by stop-guard.sh."""
-        content = STOP_GUARD_SH.read_text()
+        content = STOP_GUARD_SH.read_text(encoding='utf-8')
         # The function is used via: $(stop_safe_no_change_footer_hint)
         # We grep for the function name being invoked
         assert "stop_safe_no_change_footer_hint" in content, (
@@ -36,7 +36,7 @@ class TestBug1_StopSafeNoChangeFooterHint:
 
     def test_function_is_not_duplicated_inline(self):
         """Verify the hint text is NOT duplicated inline - function should be used."""
-        content = STOP_GUARD_SH.read_text()
+        content = STOP_GUARD_SH.read_text(encoding='utf-8')
         # Check for the hint text appearing inline (not via function call)
         inline_count = content.count("If this reply did not introduce additional changes")
         assert inline_count == 0, (
@@ -55,7 +55,7 @@ class TestBug2_SessionManagerIdleReason:
         """Check all .sh files in claudecfg/hooks/ for calls to session_manager_idle_reason."""
         calls_found = []
         for script in ALL_HOOK_SCRIPTS:
-            content = script.read_text()
+            content = script.read_text(encoding='utf-8')
             if "session_manager_idle_reason" in content:
                 calls_found.append(str(script.name))
 
@@ -113,7 +113,7 @@ class TestBug3_TaskTypeRequiresSpecialistHandoffs:
         The functions have different names, so we extract just the body (lines after the {)
         to compare whether the actual logic is identical.
         """
-        content = LIB_SH.read_text()
+        content = LIB_SH.read_text(encoding='utf-8')
 
         # Extract function bodies only (lines after function signature, up to closing })
         # This avoids the function name difference from masking identical bodies

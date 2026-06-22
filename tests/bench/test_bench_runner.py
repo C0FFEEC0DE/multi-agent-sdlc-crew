@@ -909,6 +909,7 @@ def test_render_benchmark_summary_outputs_task_status_table(tmp_path):
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
 
     output = completed.stdout

@@ -109,7 +109,7 @@ class TestBug5_SubagentStopGuardLoadLastMessage:
 
     def test_subagent_stop_guard_defines_load_last_message(self):
         """Verify subagent-stop-guard.sh defines load_last_message function."""
-        content = SUBAGENT_STOP_GUARD_SH.read_text()
+        content = SUBAGENT_STOP_GUARD_SH.read_text(encoding='utf-8')
 
         # Check that load_last_message is defined as a function
         has_function = "load_last_message()" in content or "load_last_message ()" in content
@@ -121,7 +121,7 @@ class TestBug5_SubagentStopGuardLoadLastMessage:
 
     def test_load_last_message_is_defined_before_use(self):
         """Verify load_last_message is defined before any call site."""
-        content = SUBAGENT_STOP_GUARD_SH.read_text()
+        content = SUBAGENT_STOP_GUARD_SH.read_text(encoding='utf-8')
         lines = content.split("\n")
 
         func_def_line = None
@@ -201,7 +201,7 @@ class TestBug6_StopGuardBlockReasonMissingTaskType:
         When code_changed=true and last_message is empty, stop-guard.sh should
         include task_type in the block reason to help users understand context.
         """
-        content = STOP_GUARD_SH.read_text()
+        content = STOP_GUARD_SH.read_text(encoding='utf-8')
 
         # Find the emit_loop_aware_block call within the code_changed block
         # that fires when last_message is empty
@@ -224,7 +224,7 @@ class TestBug6_StopGuardBlockReasonMissingTaskType:
 
     def test_no_message_block_reason_does_not_hardcode_generic_message(self):
         """Verify the block reason is not the hardcoded generic message."""
-        content = STOP_GUARD_SH.read_text()
+        content = STOP_GUARD_SH.read_text(encoding='utf-8')
 
         # Find the line where it blocks for no message with code_changed
         # The problematic message is:

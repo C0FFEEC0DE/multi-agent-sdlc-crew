@@ -13,7 +13,7 @@ def test_subagent_smoke_max_turns_is_at_least_eight():
     """Smoke suite must allow enough turns for multi-step subagent conversations."""
     path = WORKFLOWS_DIR / "behavior-benchmark-subagents-smoke.yml"
     assert path.exists()
-    content = path.read_text()
+    content = path.read_text(encoding='utf-8')
     # Find the default value in the shell script: max_turns="${INPUT_MAX_TURNS:-N}"
     match = re.search(r'max_turns="\$\{INPUT_MAX_TURNS:-(\d+)\}"', content)
     assert match is not None, "max_turns default not found"
@@ -25,7 +25,7 @@ def test_security_scan_checkout_fetches_full_history():
     """TruffleHog needs full history to diff BASE and HEAD commits."""
     path = WORKFLOWS_DIR / "security-scan.yml"
     assert path.exists()
-    with open(path) as f:
+    with open(path, encoding='utf-8') as f:
         workflow = yaml.safe_load(f)
 
     checkout = workflow["jobs"]["security-scan"]["steps"][0]
@@ -37,6 +37,6 @@ def test_security_scan_trufflehog_base_is_not_literal_main():
     """TruffleHog base should point to PR base sha, not literal 'main' ref."""
     path = WORKFLOWS_DIR / "security-scan.yml"
     assert path.exists()
-    content = path.read_text()
+    content = path.read_text(encoding='utf-8')
     assert "base: main" not in content, "literal 'base: main' breaks on PRs where HEAD == BASE"
     assert "github.event.pull_request.base.sha" in content, "should use PR base sha for TruffleHog base"
