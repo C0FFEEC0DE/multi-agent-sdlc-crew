@@ -16,7 +16,8 @@ on:
       - 'bench/**'
       - 'scripts/assert-benchmark-summary.mjs'
       - 'scripts/bench/lib.mjs'
-      - 'scripts/bench_runner_claude_code.py'
+      - 'scripts/bench_runner_claude_code.mjs'
+      - 'scripts/bench_runner_openrouter.mjs'
       - 'scripts/build-benchmark-matrix.mjs'
       - 'scripts/collect-benchmark-changes.mjs'
       - 'scripts/download-benchmark-summary.mjs'
@@ -279,7 +280,7 @@ jobs:
         shell: bash
         run: |
           # Behavioral runs load the plugin via --plugin-dir (see
-          # scripts/bench_runner_claude_code.py), not the legacy install.sh
+          # scripts/bench_runner_claude_code.mjs), not the legacy install.sh
           # profile. Fail fast if the plugin directory is missing so the run
           # does not silently proceed with no SDLC hooks/agents loaded.
           test -d plugins/multi-agent-sdlc-crew
@@ -288,7 +289,7 @@ jobs:
       - name: Run subagent smoke benchmark
         shell: bash
         env:
-          BENCH_RUNNER_CMD: python3 ${{ github.workspace }}/scripts/bench_runner_claude_code.py
+          BENCH_RUNNER_CMD: node ${{ github.workspace }}/scripts/bench_runner_claude_code.mjs
           BENCH_SOURCE_REF: ${{ github.ref }}
           MAX_TURNS: ${{ steps.cfg.outputs.max_turns }}
           BENCH_FAIL_FAST: ${{ steps.cfg.outputs.fail_fast }}

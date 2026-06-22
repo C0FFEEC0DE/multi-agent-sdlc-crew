@@ -41,8 +41,8 @@ The behavioral runner checks more than pass/fail:
 
 Relevant files:
 
-- [`scripts/bench_runner_claude_code.py`](../scripts/bench_runner_claude_code.py)
-- [`tests/bench/test_bench_runner.py`](../tests/bench/test_bench_runner.py)
+- [`scripts/bench_runner_claude_code.mjs`](../scripts/bench_runner_claude_code.mjs)
+- [`test/bench/bench_runner_claude_code.test.mjs`](../test/bench/bench_runner_claude_code.test.mjs)
 - [`bench/patterns/forbidden-meta-chatter.json`](../bench/patterns/forbidden-meta-chatter.json)
 
 ## Role Benchmark Suite
@@ -78,7 +78,7 @@ This is enforced by:
 
 When adding a new agent or tightening an existing one:
 
-1. Add or update the agent prompt in `claudecfg/agents/`
+1. Add or update the agent prompt in `plugins/multi-agent-sdlc-crew/agents/`
 2. Add a focused smoke task in `bench/tasks/subagents/smoke/`
 3. Set `agent_alias`
 4. Add at least one required-behavior assertion:
@@ -86,6 +86,6 @@ When adding a new agent or tightening an existing one:
 5. Add non-empty `forbidden_transcript_patterns`
 6. Update this matrix
 7. Run:
-   - `pytest -q tests/bench/test_bench_runner.py`
+   - `node --test test/bench/bench_runner_claude_code.test.mjs`
    - `node scripts/validate.mjs`
    - `node scripts/test-hooks.mjs`

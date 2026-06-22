@@ -15,11 +15,11 @@ import { pathToFileURL } from 'node:url';
 // Scripts allowed to remain as Python because they are CI-only agent runners,
 // invoked by the benchmark workflow — not part of the shipped plugin runtime.
 // `file` is the path relative to the repo root so a same-named file nested in a
-// subdirectory (e.g. scripts/sub/bench_runner_claude_code.py) is NOT allowlisted.
-export const SCRIPTS_ALLOWLIST = [
-  { file: 'scripts/bench_runner_claude_code.py', reason: 'CI-only agent runner; not part of the shipped plugin runtime' },
-  { file: 'scripts/bench_runner_openrouter.py', reason: 'CI-only agent runner; not part of the shipped plugin runtime' },
-];
+// subdirectory (e.g. scripts/sub/foo.py) is NOT allowlisted. The bench runners
+// were ported to Node ESM, so the allowlist is now empty: scripts/** must be
+// Node-only. Keep the escape hatch here so a future CI-only runner that cannot
+// be ported can be re-added with rationale rather than weakening the gate.
+export const SCRIPTS_ALLOWLIST = [];
 
 /** Recursively collect files under dir matching exts (.py and/or .sh). */
 function walkLegacy(dir, out = []) {

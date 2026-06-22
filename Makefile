@@ -5,7 +5,7 @@ BENCH_TASK_GLOB ?= bench/tasks/subagents/smoke/*.json
 BENCH_TASK_LIST ?=
 BENCH_TASK_LABEL ?=
 BENCH_SOURCE_REF ?= working-tree
-BENCH_RUNNER_CMD ?= python3 scripts/bench_runner_claude_code.py
+BENCH_RUNNER_CMD ?= node scripts/bench_runner_claude_code.mjs
 BENCH_ANTHROPIC_BASE_URL ?= http://127.0.0.1:11434
 BENCH_ANTHROPIC_AUTH_TOKEN ?=
 BENCH_ANTHROPIC_API_KEY ?=
@@ -52,16 +52,16 @@ validate:
 test: node-test
 	pytest -q
 
-# Coverage with a ratcheting gate (branch coverage on scripts/*.py).
-# COV_MIN defaults to the current baseline (100); raise it as coverage improves.
-# The gate is intentionally NOT applied to `test` so CI on the existing suite
-# is unaffected. Requires pytest-cov.
-COV_MIN ?= 100
+# The ratcheting branch-coverage gate (COV_MIN=100 on scripts/*.py) was retired
+# when the bench runners were ported from Python to Node ESM: scripts/ is now
+# Node-only, so there is no Python source tree left to cover. The remaining
+# pytest tests (bench fixture/config validators under tests/bench/) cover data
+# files, not a source module, so a coverage gate does not apply. `make cov` now
+# just runs the Python suite plainly (alias for the pytest half of `make test`).
 cov:
-	@if command -v pytest >/dev/null 2>&1 && python3 -c "import pytest_cov" >/dev/null 2>&1; then \
-		pytest -q tests/ --cov=scripts --cov-branch \
-			--cov-report=term-missing --cov-fail-under=$(COV_MIN); \
-	else echo "pytest-cov not installed, skipping coverage gate"; fi
+	@if command -v pytest >/dev/null 2>&1; then \
+		pytest -q tests/; \
+	else echo "pytest not installed, skipping Python suite"; fi
 
 # Remove regenerable test/benchmark artifacts so repeated runs do not exhaust
 # disk quota. Safe: every file/dir removed here is recreated by the target that

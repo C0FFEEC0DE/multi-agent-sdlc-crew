@@ -83,8 +83,10 @@ make lint
 # All tests
 make test
 
-# Coverage with a ratcheting branch-coverage gate on scripts/*.py
-# (COV_MIN=100). The gate applies ONLY to `make cov`, not `make test`.
+# Python suite (bench fixture/config validators under tests/bench/). The
+# ratcheting branch-coverage gate on scripts/*.py was retired when the bench
+# runners were ported to Node ESM — scripts/ is now Node-only, so there is no
+# Python source tree left to cover.
 make cov
 
 # Hook contract harness + integration scenarios (Node dispatcher driven)

@@ -2,8 +2,8 @@
 
 This repository has two benchmark paths:
 
-- `scripts/bench_runner_openrouter.py` — legacy one-shot worker for cheap baseline experiments
-- `scripts/bench_runner_claude_code.py` — the primary real Claude Code benchmark runner that executes `claude -p` inside isolated fixture repositories
+- `scripts/bench_runner_openrouter.mjs` — one-shot worker for cheap baseline experiments
+- `scripts/bench_runner_claude_code.mjs` — the primary real Claude Code benchmark runner that executes `claude -p` inside isolated fixture repositories
 
 If you want to know whether the installed profile actually works as a coding agent, use the real Claude Code path. GitHub Actions exposes that live path through separate smoke and subagent benchmark workflows.
 
@@ -88,16 +88,16 @@ This workflow:
 
 1. installs the Claude Code CLI
 2. verifies the `plugins/multi-agent-sdlc-crew` plugin directory is present (the behavioral suite runs against the shipped plugin, not the legacy `install.sh` profile)
-3. loads the plugin via `--plugin-dir plugins/multi-agent-sdlc-crew` on every `claude` invocation (see `scripts/bench_runner_claude_code.py`), so CI exercises the actual Node hook runtime + agents/skills that ship with the plugin; `BENCH_CLAUDE_PROFILE_DIR` points at a nonexistent path so no `~/.claude` profile is copied into the fixture workdir (plugin-only behavior, no legacy shell hooks leaking in)
+3. loads the plugin via `--plugin-dir plugins/multi-agent-sdlc-crew` on every `claude` invocation (see `scripts/bench_runner_claude_code.mjs`), so CI exercises the actual Node hook runtime + agents/skills that ship with the plugin; `BENCH_CLAUDE_PROFILE_DIR` points at a nonexistent path so no `~/.claude` profile is copied into the fixture workdir (plugin-only behavior, no legacy shell hooks leaking in)
 4. collects the PR diff and maps it to affected agents, fixtures, task files, and shared workflow logic
 5. selects the impacted tasks from `bench/tasks/subagents/smoke/*.json`, which contains focused canary tasks for each canonical specialist role plus a few workflow-shape tasks
 6. runs `node scripts/run-benchmark.mjs` in `command` mode with the selected task list
-7. uses `scripts/bench_runner_claude_code.py` as the per-task runner
+7. uses `scripts/bench_runner_claude_code.mjs` as the per-task runner
 8. uploads per-task Claude artifacts plus `summary.json`
 9. fails the workflow unless every selected benchmark task passes
 
 It only runs on PRs when benchmark-relevant files changed, which keeps the benchmark from re-running on unrelated pushes.
-Agent and slash-skill changes are mapped through the frontmatter declared in `claudecfg/agents/*.md` and `claudecfg/skills/*.md`, so full-name files like `manager.md` and skill files like `review.md` stay aligned with the canonical role aliases used by the task metadata.
+Agent and slash-skill changes are mapped through the frontmatter declared in `plugins/multi-agent-sdlc-crew/agents/*.md` and `plugins/multi-agent-sdlc-crew/skills/*/SKILL.md`, so full-name files like `manager.md` and skill directories like `review/` stay aligned with the canonical role aliases used by the task metadata.
 
 ## Slot-Gate Mechanism
 
@@ -118,7 +118,7 @@ Concurrent benchmark runs are limited by a two-slot gate enforced through `scrip
 
 Hooks write session events to `~/.claude/logs/*.jsonl` (notifications, compact
 markers, config changes, session index). To prevent unbounded log growth on
-long-running CI runners, `append_jsonl` in `claudecfg/hooks/lib.sh` rotates
+long-running CI runners, `appendJsonl` in `plugins/multi-agent-sdlc-crew/modules/notifications.mjs` rotates
 every stream past `CLAUDE_CREW_LOG_MAX_BYTES` (default 1 MB): the file is moved
 to a `.old` sidecar and a fresh log is started.
 
@@ -172,7 +172,7 @@ export ANTHROPIC_AUTH_TOKEN="$OLLAMA_API_KEY"
 export ANTHROPIC_API_KEY=
 export OLLAMA_MODEL="${OLLAMA_MODEL:-your-model-id}"
 export CLAUDE_CODE_MAX_OUTPUT_TOKENS="${CLAUDE_CODE_MAX_OUTPUT_TOKENS:-768}"
-export BENCH_RUNNER_CMD="python3 scripts/bench_runner_claude_code.py"
+export BENCH_RUNNER_CMD="node scripts/bench_runner_claude_code.mjs"
 node scripts/run-benchmark.mjs --output-dir /tmp/claude-bench --mode command
 node scripts/assert-benchmark-summary.mjs /tmp/claude-bench/summary.json
 ```
