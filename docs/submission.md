@@ -62,9 +62,9 @@ release flow.
       `${CLAUDE_PLUGIN_DATA}` / project-provided paths.
 - [x] `claude plugin validate ... --strict` and plugin-level strict validation
       pass.
-- [ ] Node fixture, concurrency, policy and UTF-8 tests pass on all three OSes
-      — *gated on a green CI run of `validate.yml` after push; locally verified
-      on Linux only.*
+- [x] Node fixture, concurrency, policy and UTF-8 tests pass on all three OSes
+      — *confirmed green on `validate.yml` across ubuntu/macos/windows × Node
+      22/24 on PR #4 commit `ed2386f` (Repository Checks all 6 legs pass).*
 - [x] Local `--plugin-dir` and installed-marketplace smoke tests pass
       (`plugin-install-smoke.mjs`; the claude-CLI lifecycle step in
       `plugin-install-smoke.yml` is opportunistic and untested against a real
