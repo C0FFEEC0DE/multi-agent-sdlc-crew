@@ -3,7 +3,9 @@
 A **hook-gated SDLC profile for Claude Code**, packaged as a distributable
 plugin. The Node.js hook runtime enforces a `discover → design → implement →
 verify → review → docs` workflow, specialist-role contracts, and a stop/handoff
-footer contract so multi-agent sessions stay deterministic. A static command
+footer contract so multi-agent sessions stay deterministic. Where benchmarks
+need a visible role-usage marker, they also recognize explicit
+`Handoff evidence: @alias ...` transcript lines. A static command
 policy adds defense-in-depth blocking of destructive, privileged, and
 remote-bootstrap commands. Everything runs in the plugin's Node 22+ runtime —
 no Bash, Python, jq, or GNU/coreutils dependencies, so it works the same on

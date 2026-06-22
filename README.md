@@ -10,8 +10,10 @@ runtime enforces a discover → design → implement → verify → review → d
 eight specialist agents do the work, and a benchmark suite catches agent
 regressions on every PR.
 
-It gives you: deterministic handoff/stop contracts, token-spend discipline, and
-defense-in-depth command blocking — all as a distributable Claude Code plugin.
+It gives you: deterministic handoff/stop contracts, token-spend discipline,
+explicit `Handoff evidence: @alias ...` markers for benchmark-visible role use,
+and defense-in-depth command blocking — all as a distributable Claude Code
+plugin.
 
 ## Install
 
@@ -77,7 +79,7 @@ Full names work too: `@code-reviewer`, `@tester`, etc.
 - `/review` — code review
 - `/docs` — documentation
 
-These are the documented entry points; the hooks enforce the actual handoff and stop gates.
+These are the documented entry points; the hooks enforce the actual handoff and stop gates. When a benchmark needs a visible role-usage marker, it may also require an explicit `Handoff evidence: @alias ...` line in the transcript.
 
 ### Required handoffs
 
