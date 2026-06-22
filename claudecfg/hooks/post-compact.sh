@@ -6,6 +6,28 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/lib.sh"
 
+# emit_context variant for potentially large messages (e.g. the progress
+# ledger): writes the message to a temp file and passes it to jq via --rawfile
+# instead of --arg. A >32KiB --arg value can exceed the OS command-line length
+# limit (Windows CreateProcess ~32KiB), so the ledger is injected through a
+# file. jq --rawfile reads the file content as a raw string and JSON-encodes it,
+# so the JSON output is byte-identical to emit_context for the same message.
+emit_context_rawfile() {
+    local event_name="$1" message="$2" msgfile
+    msgfile="$(mktemp 2>/dev/null || mktemp -t cc-emit 2>/dev/null || echo "/tmp/cc-emit-$$.tmp")"
+    printf '%s' "$message" > "$msgfile"
+    jq -n \
+        --arg event_name "$event_name" \
+        --rawfile message "$msgfile" \
+        '{
+            hookSpecificOutput: {
+                hookEventName: $event_name,
+                additionalContext: $message
+            }
+        }'
+    rm -f "$msgfile"
+}
+
 payload="$(jq -n \
     --arg ts "$(timestamp_utc)" \
     --arg session_id "$(json_get '.session_id')" \
@@ -58,9 +80,9 @@ if [ -n "$ledger_file" ] && [ -f "$ledger_file" ]; then
     if [ -n "$(printf '%s' "$ledger_content" | tr -d '[:space:]')" ]; then
         ledger_prefix='You are resuming after a context compaction. Your durable progress ledger follows — trust it and git log over your own recollection; tasks it marks complete are DONE, do not re-dispatch them.\n\n'
         if [ -n "$truncation_note" ]; then
-            emit_context "PostCompact" "$(printf '%s%s\n\n%s' "$ledger_prefix" "$ledger_content" "$truncation_note")"
+            emit_context_rawfile "PostCompact" "$(printf '%s%s\n\n%s' "$ledger_prefix" "$ledger_content" "$truncation_note")"
         else
-            emit_context "PostCompact" "$(printf '%s%s' "$ledger_prefix" "$ledger_content")"
+            emit_context_rawfile "PostCompact" "$(printf '%s%s' "$ledger_prefix" "$ledger_content")"
         fi
     fi
 fi

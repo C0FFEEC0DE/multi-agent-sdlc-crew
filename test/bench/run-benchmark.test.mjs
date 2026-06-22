@@ -67,7 +67,13 @@ test('run-benchmark records unexecuted tasks after fail-fast', (t) => {
     '--task-list-file', taskList, '--task-label', 'task-list:test',
   ], {
     cwd: REPO, encoding: 'utf-8',
-    env: { ...process.env, BENCH_RUNNER_CMD: runner, BENCH_FAIL_FAST: '1', BENCH_CLAUDE_PROFILE_DIR: profileDir },
+    // Invoke the Node fake runner via `node <script>` rather than relying on the
+    // `#!/usr/bin/env node` shebang: run-benchmark.mjs spawns the runner with
+    // shell:false, and Windows CreateProcess cannot exec a shebang script (only
+    // .com/.exe). Explicit `node` mirrors the production `python3 script.py`
+    // form and works on all three OSes. On GHA Windows process.execPath is
+    // space-free (hostedtoolcache), so the runner-cmd whitespace split is safe.
+    env: { ...process.env, BENCH_RUNNER_CMD: `${process.execPath} ${runner}`, BENCH_FAIL_FAST: '1', BENCH_CLAUDE_PROFILE_DIR: profileDir },
   });
   assert.equal(r.status, 0, r.stderr);
 

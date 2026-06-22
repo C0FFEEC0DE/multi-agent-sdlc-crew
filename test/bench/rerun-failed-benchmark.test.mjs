@@ -56,6 +56,18 @@ function runCli(d, args, envExtra = {}) {
   return { result: spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf-8', env }), calls };
 }
 
+// The runCli tests below drive the CLI through PATH-stubbed bash gh/git stubs.
+// Node's shell-less spawnSync cannot exec a `#!/bin/bash` shebang script on
+// Windows (CreateProcess handles only .com/.exe; .cmd needs a shell, which the
+// SUT deliberately avoids for security). The SUT hardcodes `gh`/`git` (no
+// configurable binary, unlike run-benchmark.mjs's BENCH_RUNNER_CMD), so the stub
+// mechanism is fundamentally POSIX-only. In production the SUT invokes real
+// gh.exe/git.exe. Skip the stub-driven tests on Windows; the arg-validation
+// tests above (help/missing-value) still run cross-platform.
+const stubSubprocessOnly = process.platform === 'win32'
+  ? { skip: 'POSIX-only: PATH-stubbed bash gh/git cannot exec via shell-less spawn on Windows' }
+  : {};
+
 function callsList(d) {
   const calls = join(d, 'calls.log');
   if (!existsSync(calls)) return [];
@@ -112,14 +124,14 @@ test('auth failure exits two', () => {
   assert.match(result.stderr, /gh is not authenticated/);
 });
 
-test('workflow missing on ref exits two', () => {
+test('workflow missing on ref exits two', stubSubprocessOnly, () => {
   const d = mkdtempSync(join(tmpdir(), 'rr-'));
   const { result } = runCli(d, ['--ref', 'main'], { GH_VIEW_FAIL: '1' });
   assert.equal(result.status, 2);
   assert.match(result.stderr, /not found on ref/);
 });
 
-test('auto_resume dispatch', () => {
+test('auto_resume dispatch', stubSubprocessOnly, () => {
   const d = mkdtempSync(join(tmpdir(), 'rr-'));
   const { result } = runCli(d, ['--ref', 'main']);
   assert.equal(result.status, 0, result.stderr);
@@ -129,7 +141,7 @@ test('auto_resume dispatch', () => {
   assert.ok(calls.some((c) => c.includes('run list') && c.includes('--branch=main')));
 });
 
-test('resume dispatch with run id', () => {
+test('resume dispatch with run id', stubSubprocessOnly, () => {
   const d = mkdtempSync(join(tmpdir(), 'rr-'));
   const { result } = runCli(d, ['--run-id', '27872932481', '--ref', 'main']);
   assert.equal(result.status, 0, result.stderr);
@@ -139,7 +151,7 @@ test('resume dispatch with run id', () => {
   assert.ok(calls.some((c) => c.includes('workflow run') && c.includes('selection_mode=resume') && c.includes('resume_run_id=27872932481')));
 });
 
-test('ref defaults to current branch', () => {
+test('ref defaults to current branch', stubSubprocessOnly, () => {
   const d = mkdtempSync(join(tmpdir(), 'rr-'));
   const { result } = runCli(d, [], { FAKE_GIT_REF: 'develop' });
   assert.equal(result.status, 0, result.stderr);

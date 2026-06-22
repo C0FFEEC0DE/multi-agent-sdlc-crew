@@ -131,7 +131,19 @@ exit 0
   return bin;
 }
 
-test('main prints found json to stdout', () => {
+// These subprocess tests drive main() through PATH-stubbed bash gh/git stubs.
+// Node's shell-less spawnSync cannot exec a `#!/bin/bash` shebang script on
+// Windows: CreateProcess handles only .com/.exe, and .cmd needs a shell (which
+// the SUTs deliberately avoid for security — no spawn shell:true/exec). The
+// findFailedRun logic itself is covered cross-platform by the in-process
+// deps.runGh tests above; in production the SUT invokes real gh.exe/git.exe
+// (found via the .exe PATHEXT lookup). So the stub-driven CLI wiring is
+// POSIX-only — skip it on Windows rather than rely on stubs that cannot run.
+const stubSubprocessOnly = process.platform === 'win32'
+  ? { skip: 'POSIX-only: PATH-stubbed bash gh/git cannot exec via shell-less spawn on Windows' }
+  : {};
+
+test('main prints found json to stdout', stubSubprocessOnly, () => {
   const d = mkdtempSync(join(tmpdir(), 'ff-'));
   const bin = writeStubs(d);
   const calls = join(d, 'calls.log');
@@ -145,7 +157,7 @@ test('main prints found json to stdout', () => {
   assert.equal(out.run_id, '42');
 });
 
-test('main writes github output file', () => {
+test('main writes github output file', stubSubprocessOnly, () => {
   const d = mkdtempSync(join(tmpdir(), 'ff-'));
   const bin = writeStubs(d);
   const calls = join(d, 'calls.log');
