@@ -42,6 +42,10 @@ const CLASS_CASES = [
   ['make clean', 'other'],
   ['make', 'build'],
   ['make install', 'build'],
+  // A bare "make:" (colon, no space) is not "make" and not "make <target>":
+  // it must fall through to "other" rather than match a build pattern.
+  ['make:', 'other'],
+  ['make something', 'build'],
   ['echo hello', 'other'],
   ['git status', 'other'],
   ['', 'other'],
