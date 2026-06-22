@@ -1,6 +1,6 @@
 {
   "name": "multi-agent-sdlc-crew-plugin",
-  "version": "0.1.0",
+  "version": "0.1.0-beta.1",
   "private": true,
   "type": "module",
   "description": "Node.js hook runtime for the multi-agent-sdlc-crew Claude Code plugin.",

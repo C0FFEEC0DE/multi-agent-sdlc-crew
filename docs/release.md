@@ -69,15 +69,18 @@ Before any release is created, the workflow **unpacks the zip it just built**
    unpacked artifact.
 3. **Committed-runtime validation** — `node scripts/build.mjs --package` runs
    earlier in the job as a hard gate.
-4. **Optional install smoke** — if `scripts/plugin-install-smoke.mjs` exists in
-   the tagged commit, it is invoked against the unpacked plugin dir with
-   `continue-on-error: true`, so a not-yet-merged or evolving smoke script
-   cannot block a release. The structural + syntax gate above is the hard
-   guarantee.
+4. **Enforced install smoke** — `scripts/plugin-install-smoke.mjs` is invoked
+   against the unpacked plugin dir (its positional arg). It is an enforced
+   gate (not `continue-on-error`): it covers the structural properties the
+   checks above do not — hook exec form (command `node` + args array, no
+   `shell:true`), no `.py`/`.sh` in the runtime, every `${CLAUDE_PLUGIN_ROOT}`
+   target resolves, `userConfig` well-formedness, and statusline parse. The
+   `hashFiles('scripts/plugin-install-smoke.mjs')` guard is always true now
+   that the script is committed, so this step always runs and must pass.
 
 This is **test-then-release**: every hard-gate step must pass before
-`gh release create` runs. A failure in steps 1–3 (or in the committed-runtime
-validation) fails the job and no release is created.
+the GitHub Release is created. A failure in steps 1–4 (or in the
+committed-runtime validation) fails the job and no release is created.
 
 ## SBOM attachment
 
@@ -110,11 +113,13 @@ The workflow locks down permissions explicitly:
 ```yaml
 permissions:
   contents: write   # create the release + upload assets
-  id-token: write   # reserved for future artifact signing (e.g. cosign)
 ```
 
 Top-level `permissions: contents: read` scopes the default; the job widens
-only what the release step needs. No `packages:`, no `deployments:`.
+only what the release step needs. No `packages:`, no `deployments:`, and no
+`id-token: write` — nothing is published to npm and the SBOM is not signed, so
+OIDC is not required. Re-add `id-token: write` only if/when a cosign/sigstore
+signing step lands.
 
 ## Provenance & signing
 
@@ -124,9 +129,9 @@ only what the release step needs. No `packages:`, no `deployments:`.
 - **GitHub Release artifact provenance:** the release is tag-only from a clean
   checkout, the workflow runs with the minimal permissions above, the artifact
   is built via `git archive` of the tagged tree (deterministic, tracked-files
-  only), and an SBOM is attached. `id-token: write` is reserved for future
-  cosign/Sigstore artifact signing if/when that is adopted; it is not used for
-  npm.
+  only), and an SBOM is attached. No `id-token: write` is granted because no
+  signing step runs; the provenance baseline is the clean-checkout +
+  deterministic archive + SBOM attachment.
 
 ## How to cut a release
 
@@ -165,10 +170,12 @@ after creation if you want it flagged as a prerelease.
 ## Out of scope for this workflow
 
 - **npm publish:** intentionally absent (source distribution; see above).
-- **`permissions:` hardening on existing workflows** (`validate.yml`,
-  `hooks-test.yml`, `python-tests.yml`, `behavior-benchmark-subagents-smoke.yml`,
-  `security-scan.yml`, `plugin-install-smoke.yml`): out of scope for the
-  release/supply-chain task that added this file; tracked as a separate
-  follow-up.
 - **Automated changelog generation:** the repo maintains `CHANGELOG.md` by
   hand; the release notes above are generated inline by the workflow.
+
+`permissions:` hardening on the existing workflows (`validate.yml`,
+`hooks-test.yml`, `python-tests.yml`, `behavior-benchmark-subagents-smoke.yml`,
+`security-scan.yml`, `plugin-install-smoke.yml`) landed in Phase 5 alongside
+this runbook — every workflow now declares minimal token scopes
+(`contents: read`, plus `actions: read` only where the two-slot gate or shard
+download needs it, and `contents: write` only on the release job).

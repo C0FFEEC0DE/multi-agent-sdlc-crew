@@ -40,6 +40,18 @@ claude --plugin-dir /path/to/multi-agent-sdlc-crew/plugins/multi-agent-sdlc-crew
 Restart Claude Code after installing. The marketplace name (`C0FFEEC0DE`) is the
 publisher identifier declared in `.claude-plugin/plugin.json`.
 
+## Update
+
+```bash
+claude plugin update multi-agent-sdlc-crew@C0FFEEC0DE
+```
+
+If you installed from a local marketplace, re-run the install command you used
+in [Installation](#installation) after pulling the latest source. Claude Code
+reloads the plugin from the updated marketplace cache. There is no in-place
+patch — the marketplace copy is replaced wholesale, so the runtime you run is
+always the published tree.
+
 ## Configuration
 
 All configuration is **environment variables and the plugin-scoped
@@ -91,6 +103,24 @@ To opt in, set the plugin's `statusLine` setting in your plugin-scoped config
 library only — no subprocess spawning, no shell, no reads of arbitrary user
 files.
 
+## Settings limitations
+
+The plugin scopes itself and never touches your global config:
+
+- **It never reads or writes `~/.claude/settings.json`.** Installation is
+  non-destructive — nothing is added to or restored from your global settings.
+  This is the explicit difference from the legacy copied-`~/.claude` profile,
+  which mutated `~/.claude` in place (see [Legacy migration](#legacy-migration)).
+- **All configuration is environment variables and the plugin-scoped
+  `userConfig`.** The only `userConfig` key is `enforcement_mode`
+  (see [Command policy mode](#command-policy-mode-userconfigenforcement_mode--claude_crew_policy)).
+  The plugin's own `settings.json`, if present, supports only the `agent` and
+  `subagentStatusLine` keys — it cannot install the profile's global
+  permissions, sandbox, auto-execution, output style, or main status line.
+- **The statusline is opt-in via plugin-scoped config only.** The plugin does
+  not set your global status line; you must enable the bundled
+  `scripts/statusline.mjs` through the plugin's `statusLine` setting.
+
 ## Privacy & telemetry
 
 The runtime appends structured JSONL records under `${CLAUDE_PLUGIN_DATA}/logs`
@@ -108,7 +138,31 @@ Each payload is built from a **fixed field whitelist** and serialized with
 **What is never logged:** no credentials, no full environment variables, and no
 prompt or transcript contents. Only the explicitly-listed hook fields above are
 recorded. All writes stay inside `${CLAUDE_PLUGIN_DATA}` or project-provided
-paths (the progress ledger). Nothing is sent off the local machine.
+paths (the progress ledger).
+
+**No network calls.** The runtime makes no network calls and sends nothing off
+the local machine — all state is local under `${CLAUDE_PLUGIN_DATA}` or
+project-provided paths. The `modules/*.mjs` runtime imports only the Node
+standard library (no `fetch`, `http`/`https`, or `child_process`), verified by
+scanning the shipped modules.
+
+## Disable
+
+To stop the hooks from running without removing the plugin:
+
+```bash
+claude plugin disable multi-agent-sdlc-crew@C0FFEEC0DE
+```
+
+Disabled plugins stay installed but their hooks no longer fire, so the
+workflow gates and footer contracts go quiet until you re-enable:
+
+```bash
+claude plugin enable multi-agent-sdlc-crew@C0FFEEC0DE
+```
+
+Use this when you want a vanilla Claude Code session in a project that has the
+plugin loaded. For a full removal, see [Uninstallation](#uninstallation).
 
 ## Uninstallation
 
