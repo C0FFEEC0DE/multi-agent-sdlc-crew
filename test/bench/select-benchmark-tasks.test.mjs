@@ -348,7 +348,7 @@ test('main: --priority-profile unknown exits 2', () => {
 });
 
 test('main: valid --selection-mode all produces selection', () => {
-  const r = runSelect(['--suite', 'subagents_smoke', '--selection-mode', 'all']);
+  const r = runSelect(['--suite', 'subagents_smoke', '--selection-mode', 'all'], { GITHUB_OUTPUT: '' });
   assert.equal(r.status, 0);
   const out = JSON.parse(r.stdout);
   assert.equal(out.should_run, true);

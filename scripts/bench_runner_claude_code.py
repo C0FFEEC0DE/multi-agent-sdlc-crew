@@ -90,6 +90,10 @@ MODEL_NAME = env_or_default("OLLAMA_MODEL", "")
 if not MODEL_NAME:
     raise RuntimeError("OLLAMA_MODEL must be set")
 
+# Load the multi-agent-sdlc-crew plugin from the repo so behavioral runs exercise
+# the shipped Node hook runtime + agents/skills, not a legacy ~/.claude profile.
+PLUGIN_DIR = REPO_ROOT / "plugins" / "multi-agent-sdlc-crew"
+
 MAX_TURNS = env_or_default("MAX_TURNS", "16")
 CLAUDE_TIMEOUT_SECONDS = int(env_or_default("CLAUDE_TIMEOUT_SECONDS", "300"))
 CLAUDE_CODE_MAX_OUTPUT_TOKENS = env_or_default("CLAUDE_CODE_MAX_OUTPUT_TOKENS", "")
@@ -321,7 +325,7 @@ Transcript contract:
 
     return f"""You are running in a tiny benchmark repository fixture.
 
-Complete the task in the current working directory using the installed Claude Code profile from ~/.claude.
+Complete the task in the current working directory using the multi-agent-sdlc-crew Claude Code plugin (loaded via --plugin-dir).
 Use tools normally. Make only the changes needed for this task. Do not do release or deploy work.
 If behavior changes, update docs. {verification_hint}
 Leave the workspace changes in place for artifact collection.
@@ -391,6 +395,8 @@ def run_claude(
         max_turns,
         "--permission-mode",
         "acceptEdits",
+        "--plugin-dir",
+        str(PLUGIN_DIR),
         "--debug-file",
         str(debug_log_path),
         "--output-format",

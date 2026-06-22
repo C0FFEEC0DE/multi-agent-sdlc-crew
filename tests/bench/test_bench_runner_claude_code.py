@@ -337,6 +337,25 @@ def test_run_claude_sets_token_env(module, monkeypatch, tmp_path):
     assert captured["env"]["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] == "512"
 
 
+def test_run_claude_loads_plugin_dir(module, monkeypatch, tmp_path):
+    # Behavioral runs must exercise the shipped plugin (Node hook runtime),
+    # not a legacy ~/.claude profile: run_claude injects --plugin-dir pointing
+    # at plugins/multi-agent-sdlc-crew in the bench repo root.
+    m, *_ = module
+    captured = {}
+
+    def fake_run(cmd, **k):
+        captured["cmd"] = list(cmd)
+        return subprocess.CompletedProcess(cmd, 0, "{}", "")
+
+    monkeypatch.setattr(m.subprocess, "run", fake_run)
+    m.run_claude("p", tmp_path / "dbg.log", tmp_path / "err.log")
+    cmd = captured["cmd"]
+    assert "--plugin-dir" in cmd
+    plugin_path = cmd[cmd.index("--plugin-dir") + 1]
+    assert plugin_path.endswith(os.path.join("plugins", "multi-agent-sdlc-crew"))
+
+
 # ---- extract_result_payload / extract_result_text ----
 
 class TestExtractResult:

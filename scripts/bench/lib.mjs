@@ -222,10 +222,11 @@ export function pct(value) {
   return Number(v).toString() + '%';
 }
 
-/** Sanitize a cell value: newlines -> " / ", pipes -> "\|", null -> "". */
+/** Sanitize a cell value: backslashes -> "\\", newlines -> " / ", pipes -> "\|", null -> "".
+ *  Backslashes are escaped first so a trailing "\" cannot escape the injected "\|". */
 export function sanitize(value) {
   const s = (value == null ? '' : String(value));
-  return s.replace(/\r?\n/g, ' / ').replace(/\|/g, '\\|');
+  return s.replace(/\\/g, '\\\\').replace(/\r?\n/g, ' / ').replace(/\|/g, '\\|');
 }
 
 /** Truncate a sanitized cell to `limit`, appending "..." when truncated. */

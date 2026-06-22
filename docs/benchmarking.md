@@ -87,8 +87,8 @@ The behavioral benchmark workflow is:
 This workflow:
 
 1. installs the Claude Code CLI
-2. runs `./install.sh` so CI uses the same repo installer as local setup
-3. copies the repository `.claude/` directory into each isolated fixture workdir so project-local config is exercised during the benchmark
+2. verifies the `plugins/multi-agent-sdlc-crew` plugin directory is present (the behavioral suite runs against the shipped plugin, not the legacy `install.sh` profile)
+3. loads the plugin via `--plugin-dir plugins/multi-agent-sdlc-crew` on every `claude` invocation (see `scripts/bench_runner_claude_code.py`), so CI exercises the actual Node hook runtime + agents/skills that ship with the plugin; `BENCH_CLAUDE_PROFILE_DIR` points at a nonexistent path so no `~/.claude` profile is copied into the fixture workdir (plugin-only behavior, no legacy shell hooks leaking in)
 4. collects the PR diff and maps it to affected agents, fixtures, task files, and shared workflow logic
 5. selects the impacted tasks from `bench/tasks/subagents/smoke/*.json`, which contains focused canary tasks for each canonical specialist role plus a few workflow-shape tasks
 6. runs `node scripts/run-benchmark.mjs` in `command` mode with the selected task list

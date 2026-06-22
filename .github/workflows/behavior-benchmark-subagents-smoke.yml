@@ -29,6 +29,7 @@ on:
       - 'CLAUDE.md'
       - 'install.sh'
       - 'claudecfg/install.sh'
+      - 'plugins/multi-agent-sdlc-crew/**'
   workflow_dispatch:
     inputs:
       selection_mode:
@@ -277,18 +278,28 @@ jobs:
           PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install pytest --cache-dir ~/.cache/pip
           claude --version
 
-      - name: Install Claude configuration
+      - name: Verify plugin directory
         shell: bash
         run: |
-          bash ./install.sh
+          # Behavioral runs load the plugin via --plugin-dir (see
+          # scripts/bench_runner_claude_code.py), not the legacy install.sh
+          # profile. Fail fast if the plugin directory is missing so the run
+          # does not silently proceed with no SDLC hooks/agents loaded.
+          test -d plugins/multi-agent-sdlc-crew
+          node -e "require('node:fs').accessSync('plugins/multi-agent-sdlc-crew/.claude-plugin/plugin.json')"
 
       - name: Run subagent smoke benchmark
         shell: bash
         env:
-          BENCH_RUNNER_CMD: python3 "$GITHUB_WORKSPACE/scripts/bench_runner_claude_code.py"
+          BENCH_RUNNER_CMD: python3 ${{ github.workspace }}/scripts/bench_runner_claude_code.py
           BENCH_SOURCE_REF: ${{ github.ref }}
           MAX_TURNS: ${{ steps.cfg.outputs.max_turns }}
           BENCH_FAIL_FAST: ${{ steps.cfg.outputs.fail_fast }}
+          # Point at a nonexistent profile dir so run-benchmark.mjs does NOT copy
+          # any ~/.claude into the fixture workdir — the plugin is loaded via
+          # --plugin-dir, and we want plugin-only behavior (no legacy shell
+          # hooks leaking in alongside it).
+          BENCH_CLAUDE_PROFILE_DIR: /tmp/no-such-claude-profile
           CLAUDE_TIMEOUT_SECONDS: ${{ steps.cfg.outputs.timeout_seconds }}
           CLAUDE_CODE_MAX_OUTPUT_TOKENS: ${{ steps.cfg.outputs.max_output_tokens }}
           OLLAMA_MODEL: ${{ steps.cfg.outputs.model }}

@@ -9,6 +9,7 @@ import {
   mergeSummaries, median, rate, normalizeStringList, countPreferred,
   mergeStringLists, taskIds, taskPaths, mergeUnique,
 } from '../../scripts/merge-benchmark-summaries.mjs';
+import { sanitize } from '../../scripts/bench/lib.mjs';
 
 const REPO = join(import.meta.dirname, '..', '..');
 const SCRIPT = join(REPO, 'scripts', 'merge-benchmark-summaries.mjs');
@@ -38,6 +39,16 @@ test('median even', () => assert.equal(median([1, 4, 2, 3]), 2.5));
 test('median empty', () => assert.equal(median([]), 0));
 test('median single', () => assert.equal(median([42]), 42));
 test('rate divide-by-zero', () => { assert.equal(rate(1, 2), 0.5); assert.equal(rate(0, 0), 0); assert.equal(rate(3, 3), 1.0); });
+
+// sanitize escapes backslashes before pipes so a trailing "\" cannot escape the
+// injected "\|" (CodeQL js/incomplete-string-escaping regression guard).
+test('sanitize escapes backslash and pipe', () => {
+  assert.equal(sanitize('a|b'), 'a\\|b');
+  assert.equal(sanitize('a\\b'), 'a\\\\b');
+  assert.equal(sanitize('a\\|b'), 'a\\\\\\|b');
+  assert.equal(sanitize('line1\nline2'), 'line1 / line2');
+  assert.equal(sanitize(null), '');
+});
 
 test('count_preferred primary', () => assert.equal(countPreferred(['a', 'b'], ['c']), 2));
 test('count_preferred secondary fallback', () => assert.equal(countPreferred([], ['c', 'd']), 2));

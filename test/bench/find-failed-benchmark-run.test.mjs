@@ -137,7 +137,7 @@ test('main prints found json to stdout', () => {
   const calls = join(d, 'calls.log');
   const r = spawnSync(process.execPath, [SCRIPT, '--workflow', 'wf'], {
     encoding: 'utf-8', cwd: d,
-    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_CALLS_FILE: calls },
+    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_CALLS_FILE: calls, GITHUB_OUTPUT: '' },
   });
   assert.equal(r.status, 0, r.stderr);
   const out = JSON.parse(r.stdout);
