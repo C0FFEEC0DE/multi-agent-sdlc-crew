@@ -80,14 +80,12 @@ jobs:
         shell: bash
         run: node scripts/validate.mjs
 
-      # pytest is not preinstalled on macOS/Windows runner images (only the
-      # Ubuntu system Python ships it), and setup-python@v6 does not add it.
-      # `make test` runs `pytest -q` unconditionally, so install it (plus
-      # pyyaml, required by tests/bench/test_workflow_config.py) before the
-      # suite runs — mirrors .github/workflows/python-tests.yml.
+      # pytest and PyYAML are not preinstalled consistently across runners.
+      # Keep this set in requirements-dev.txt so local and CI test runs use the
+      # same dependencies.
       - name: Install Python test deps
         shell: bash
-        run: pip install pytest pyyaml
+        run: python -m pip install -r requirements-dev.txt
 
       - name: Run test suites (Node + pytest)
         shell: bash

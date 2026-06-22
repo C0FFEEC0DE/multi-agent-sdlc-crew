@@ -177,10 +177,10 @@ jobs:
             echo "- Will run subagent smoke suite: \`${{ steps.select.outputs.should_run }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Install pytest for validation
+      - name: Install validation dependencies
         shell: bash
         run: |
-          pip install pytest --quiet
+          python -m pip install -r requirements-dev.txt --quiet
 
       - name: Validate task/fixture alignment
         shell: bash

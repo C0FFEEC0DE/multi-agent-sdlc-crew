@@ -82,6 +82,7 @@ paths:
 ## Testing
 
 Before submitting:
+- [ ] `python3 -m pip install -r requirements-dev.txt` installs Python test dependencies
 - [ ] `make lint` passes (shell syntax, shellcheck, python compile, ruff)
 - [ ] `make test` (or `python3 -m pytest test/validators/ -v`) passes
 - [ ] `make hooks` (or `node scripts/test-hooks.mjs`) passes

@@ -10,8 +10,8 @@ import { statePaths, appendEvent, loadState } from '../../plugins/multi-agent-sd
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
 const dispatcher = join(root, 'plugins', 'multi-agent-sdlc-crew', 'modules', 'hook-dispatcher.mjs');
-const fixtures = join(root, 'tests', 'hooks', 'fixtures');
-const cases = JSON.parse(readFileSync(join(root, 'tests', 'hooks', 'cases.json'), 'utf8'));
+const fixtures = join(root, 'test', 'hooks', 'fixtures');
+const cases = JSON.parse(readFileSync(join(root, 'test', 'hooks', 'cases.json'), 'utf8'));
 
 // Map each bash handler script to the dispatcher event (+ matcher) that ports
 // it. The Node dispatcher must produce output equivalent to the bash script for

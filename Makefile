@@ -50,7 +50,7 @@ validate:
 	node scripts/validate.mjs
 
 test: node-test
-	pytest -q
+	python -m pytest -q
 
 # The ratcheting branch-coverage gate (COV_MIN=100 on scripts/*.py) was retired
 # when the bench runners were ported from Python to Node ESM: scripts/ is now
@@ -60,7 +60,7 @@ test: node-test
 # just runs the Python suite plainly (alias for the pytest half of `make test`).
 cov:
 	@if command -v pytest >/dev/null 2>&1; then \
-		pytest -q test/validators/; \
+		python -m pytest -q test/validators/; \
 	else echo "pytest not installed, skipping Python suite"; fi
 
 # Remove regenerable test/benchmark artifacts so repeated runs do not exhaust

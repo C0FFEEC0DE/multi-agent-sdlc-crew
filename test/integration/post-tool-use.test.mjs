@@ -10,7 +10,7 @@ import { statePaths, loadState } from '../../plugins/multi-agent-sdlc-crew/modul
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
 const dispatcher = join(root, 'plugins', 'multi-agent-sdlc-crew', 'modules', 'hook-dispatcher.mjs');
-const fixtures = join(root, 'tests', 'hooks', 'fixtures');
+const fixtures = join(root, 'test', 'hooks', 'fixtures');
 
 function runDispatcher(event, fixtureName, dataRoot, matcher = 'Bash') {
   const stdin = readFileSync(join(fixtures, `${fixtureName}.json`), 'utf8');
