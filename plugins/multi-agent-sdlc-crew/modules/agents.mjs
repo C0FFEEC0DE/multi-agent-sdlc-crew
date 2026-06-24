@@ -51,6 +51,8 @@ const SCOPE_PATHS = [
 export function canonicalizeSubagentLabel(raw, aliases = {}) {
   if (raw == null) return '';
   let n = String(raw).toLowerCase().replace(/^@/, '');
+  // Guard against ReDoS on unbounded input — labels are short identifiers.
+  if (n.length > 128) n = n.slice(0, 128);
   n = n.replace(/[\s_]+/g, '-');
   n = n.replace(/[^a-z0-9.-]+/g, '-');
   n = n.replace(/^-+/, '').replace(/-+$/, '');

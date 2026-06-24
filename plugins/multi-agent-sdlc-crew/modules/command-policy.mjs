@@ -119,10 +119,31 @@ const RE_FORMAT = new RegExp(`(^|${LB})format\\s+[a-z]:(?=${RB}|$)`);
 
 // POSIX rm + compact recursive/force flags (faithful to lib.sh).
 const RE_RM = new RegExp(`(^|${LB})rm\\s`);
-const RE_FLAG_RF = /(^|\s)-[a-z0-9-]*r[a-z0-9-]*f(?=\s|$)/;
-const RE_FLAG_FR = /(^|\s)-[a-z0-9-]*f[a-z0-9-]*r(?=\s|$)/;
-const RE_FLAG_R = /(^|\s)-[a-z0-9-]*r(?=\s|$)/;
-const RE_FLAG_F = /(^|\s)-[a-z0-9-]*f(?=\s|$)/;
+
+// Token-based flag detection — avoids polynomial regex backtracking
+// (CodeQL: js/polynomial-redos). Extracts dash-prefixed tokens from the
+// normalized command and checks character membership with .includes().
+/** Extract flag chars from a single dash-prefixed token (e.g. "-rf" → "rf"). */
+function flagChars(token) {
+  const m = token.match(/^-+([a-z0-9-]+)/);
+  return m ? m[1].replace(/-/g, '') : '';
+}
+/** Split a normalized command into whitespace-separated tokens. */
+function tokensOf(norm) {
+  return norm.split(/\s+/).filter(Boolean);
+}
+/** True when any flag token contains both 'r' and 'f' (e.g. -rf, -fr, -rvf). */
+function hasFlagRf(norm) {
+  return tokensOf(norm).some(
+    (t) => t.startsWith('-') && (() => { const c = flagChars(t); return c.includes('r') && c.includes('f'); })()
+  );
+}
+/** True when any flag token contains char 'ch' (e.g. -r, -v, -f). */
+function hasFlag(norm, ch) {
+  return tokensOf(norm).some(
+    (t) => t.startsWith('-') && flagChars(t).includes(ch)
+  );
+}
 
 // PowerShell delete verbs + long -Recurse/-Force flags.
 const RE_PS_DELETE_VERB = new RegExp(`(^|${LB})(remove-item|rm|del|erase|rd|rmdir|ri)\\s`);
@@ -174,7 +195,35 @@ const RE_VAR_REF = /\$[a-z_@0-9?#!*\-]/;
 // target is hidden behind the reference, e.g. `$(rm -rf $target)` or
 // ``rm -rf $target``. A substitution with no $-reference inside (e.g. `$(date)`)
 // is statically resolvable and is NOT flagged.
-const RE_SUBSTITUTION_VAR = /`[^`]*\$[a-z_@0-9?#!*\-]|\$\([^)]*\$[a-z_@0-9?#!*\-]/;
+// Implemented with indexOf + single-char regex test to avoid polynomial regex
+// backtracking (CodeQL: js/polynomial-redos on `[^`]*$` and `[^)]*$`).
+const RE_VAR_START = /[a-z_@0-9?#!*\-]/;
+/** True when a backtick or $(…) segment contains a $-reference to a variable. */
+function hasSubstitutionVar(norm) {
+  // Backtick-delimited segment containing $-reference.
+  for (let i = 0; i < norm.length - 1; i++) {
+    if (norm[i] !== '`') continue;
+    const close = norm.indexOf('`', i + 1);
+    const end = close < 0 ? norm.length : close;
+    const seg = norm.slice(i + 1, end);
+    const di = seg.indexOf('$');
+    if (di >= 0 && di + 1 < seg.length && RE_VAR_START.test(seg[di + 1])) return true;
+    if (close < 0) break;
+    i = close;
+  }
+  // $(…) command substitution containing $-reference.
+  let pi = 0;
+  while ((pi = norm.indexOf('$(', pi)) >= 0) {
+    const close = norm.indexOf(')', pi + 2);
+    const end = close < 0 ? norm.length : close;
+    const seg = norm.slice(pi + 2, end);
+    const di = seg.indexOf('$');
+    if (di >= 0 && di + 1 < seg.length && RE_VAR_START.test(seg[di + 1])) return true;
+    if (close < 0) break;
+    pi = close + 1;
+  }
+  return false;
+}
 // PowerShell call operator on a variable: `& $exe $args` (spec §5 case 4).
 const RE_PS_CALL_VAR = /&\s+\$[a-z_@0-9?#!*\-]/;
 const RE_BASE64_DECODE = /(^|\s)base64\s+(?:-d|--decode)(?=\s|$)/;
@@ -203,8 +252,7 @@ function isRemoteBootstrap(norm) {
 function detectDestructiveDelete(norm) {
   let verb = false;
   if (RE_RM.test(norm)) {
-    const rf = RE_FLAG_RF.test(norm) || RE_FLAG_FR.test(norm)
-      || (RE_FLAG_R.test(norm) && RE_FLAG_F.test(norm));
+    const rf = hasFlagRf(norm) || (hasFlag(norm, 'r') && hasFlag(norm, 'f'));
     if (rf) verb = true;
   }
   if (!verb && RE_PS_DELETE_VERB.test(norm) && RE_PS_RECURSE.test(norm) && RE_PS_FORCE.test(norm)) {
@@ -229,7 +277,7 @@ function isUnparseableIndirection(norm) {
   // command substitution (backtick or $(...)) wrapping a $-reference — the
   // destructive verb may be literal but its target is hidden, e.g.
   // `$(rm -rf $target)` or `` `rm -rf $target` ``.
-  if (RE_SUBSTITUTION_VAR.test(norm)) return true;
+  if (hasSubstitutionVar(norm)) return true;
   // PowerShell call operator on a variable: `& $exe $args`.
   if (RE_PS_CALL_VAR.test(norm)) return true;
   // base64-decoded payload piped into a shell.

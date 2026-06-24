@@ -279,18 +279,21 @@ export function parseRetryAfter(value) {
   return Math.max(0, Math.floor(delta));
 }
 
-/** Read a YAML-ish frontmatter field from a markdown file. null if absent. */
+/** Read a YAML-ish frontmatter field from a markdown file. null if absent.
+ *  Uses line-by-line scanning instead of new RegExp(userInput) to avoid
+ *  regex-injection / incomplete-escaping concerns. */
 export function frontmatterField(path, field) {
   const text = readFileSync(path, 'utf-8');
   if (!text.startsWith('---\n')) return null;
-  const re = new RegExp(`^${escapeRegex(field)}:\\s*(.+)$`, 'm');
-  const m = text.match(re);
-  if (!m) return null;
-  return m[1].trim();
-}
-
-function escapeRegex(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const lines = text.slice(4).split('\n');
+  for (const line of lines) {
+    if (line === '---') break;
+    const colonIdx = line.indexOf(':');
+    if (colonIdx < 0) continue;
+    const key = line.slice(0, colonIdx).trim();
+    if (key === field) return line.slice(colonIdx + 1).trim();
+  }
+  return null;
 }
 
 /** Spawn a process with an explicit argv (never a shell string). */
