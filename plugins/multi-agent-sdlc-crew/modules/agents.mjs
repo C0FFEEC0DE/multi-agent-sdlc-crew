@@ -55,8 +55,9 @@ export function canonicalizeSubagentLabel(raw, aliases = {}) {
   if (n.length > 128) n = n.slice(0, 128);
   n = n.replace(/[\s_]/g, '-');
   n = n.replace(/[^a-z0-9.-]/g, '-');
-  n = n.replace(/^-+/, '').replace(/-+$/, '');
-  n = n.replace(/-+/g, '-');
+  // Collapse consecutive dashes and trim leading/trailing dashes
+  // (split/filter/join avoids /-+/g regex flagged by CodeQL js/polynomial-redos).
+  n = n.split('-').filter(Boolean).join('-');
   if (!n) return '';
   for (const [canonical, list] of Object.entries(aliases)) {
     if (Array.isArray(list) && list.includes(n)) return canonical;
