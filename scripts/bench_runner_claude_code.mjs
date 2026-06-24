@@ -422,6 +422,25 @@ function escapeRegex(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// Build the machine-readable dispatch-contract marker injected into the ROOT
+// benchmark prompt only. The plugin's UserPromptSubmit classifier parses this
+// (workflow.mjs parseDispatchContractMarker) so a tiny task can require exactly
+// the listed specialist(s) instead of the category-default role set. Root-only
+// by construction: buildPrompt runs once for the root prompt, never for a
+// subagent, so a specialist cannot recursively re-dispatch itself.
+export function dispatchContractMarker(task) {
+  const c = task?.dispatch_contract;
+  if (!c) return '';
+  const mode = c.mode;
+  if (mode !== 'observed' && mode !== 'enforced' && mode !== 'standard') return '';
+  const roles = Array.isArray(c.required_agents)
+    ? c.required_agents.filter((a) => typeof a === 'string' && a).map((a) => String(a).toLowerCase())
+    : [];
+  if (!roles.length) return '';
+  const rootOnly = c.root_only === false ? '' : 'root_only; ';
+  return `BENCHMARK_DISPATCH_CONTRACT: ${rootOnly}mode=${mode}; roles=${roles.join(',')}`;
+}
+
 // ---------- prompt builder ----------
 export function buildPrompt(task, verificationLabel) {
   const successCriteria = (task.success_criteria || []).map((i) => `- ${i}`).join('\n');
@@ -435,6 +454,13 @@ export function buildPrompt(task, verificationLabel) {
     `Workflow override: treat this as a ${category} workflow, not a review-only workflow. ` +
     'Implementation and file edits are in scope when the task asks for them. ' +
     'Do not reinterpret this as a review task just because the final summary must include review outcome.';
+  const dispatchContractBlock = dispatchContractMarker(task);
+  const dispatchContractNote = dispatchContractBlock
+    ? '\n\nDispatch contract discipline:\n'
+      + '- Your first substantive action must be launching the required specialist via the Agent tool (a real SubagentStart).\n'
+      + '- Do not Edit, Write, or MultiEdit any file before that specialist has started.\n'
+      + '- The specialist owns the substantive work; you coordinate, verify, and report.'
+    : '';
   const executionDisciplineNote =
     'Keep the run terse and execution-first. ' +
     'Start the first required handoff immediately, avoid filler planning prose, and spend turns on edits, tests, and required specialist handoffs.';
@@ -505,7 +531,7 @@ ${executionDisciplineNote}
 ${fixtureLayoutNote}
 
 ${workflowOverride}
-
+${dispatchContractBlock}
 Task metadata:
 - id: ${task.id}
 - workflow_category: ${category}
@@ -538,7 +564,7 @@ Example footer:
 Verification status: passed - ${verificationLabel} completed successfully.
 Review outcome: done - changes were reviewed before completion.
 Remaining risks: none
-${requiredUsedAgentNote}${transcriptContractNote}
+${requiredUsedAgentNote}${transcriptContractNote}${dispatchContractNote}
 `;
 }
 
@@ -860,7 +886,10 @@ function inferUsedAgentAliasesFromResultText(resultText, labelMap) {
   return aliases;
 }
 
-export function extractUsedAgentAliases(debugLogText, payload = null, { resultText = '' } = {}, labelMap = null) {
+// Aliases backed by a real SubagentStart hook event (or its Recorded subagent
+// handoff echo) captured in the debug log. Only these satisfy a strict
+// observed-dispatch contract; prose claims and transcript launch-text do not.
+function hookSourceAliases(debugLogText, labelMap = null) {
   const aliases = [];
   const seen = new Set();
   const patterns = [
@@ -871,14 +900,20 @@ export function extractUsedAgentAliases(debugLogText, payload = null, { resultTe
     const re = new RegExp(pattern.source, 'g');
     let m;
     while ((m = re.exec(debugLogText || '')) !== null) {
-      const rawLabel = m[1];
-      const alias = canonicalizeSubagentLabel(rawLabel, labelMap);
+      const alias = canonicalizeSubagentLabel(m[1], labelMap);
       if (alias && !seen.has(alias)) {
         seen.add(alias);
         aliases.push(alias);
       }
     }
   }
+  return aliases;
+}
+
+export function extractUsedAgentAliases(debugLogText, payload = null, { resultText = '' } = {}, labelMap = null) {
+  const hook = hookSourceAliases(debugLogText, labelMap);
+  const seen = new Set(hook);
+  const aliases = hook.slice();
   for (const alias of inferUsedAgentAliasesFromTranscript(payload, labelMap)) {
     if (!seen.has(alias)) {
       seen.add(alias);
@@ -892,6 +927,52 @@ export function extractUsedAgentAliases(debugLogText, payload = null, { resultTe
     }
   }
   return aliases;
+}
+
+// Split agent-usage evidence into disjoint sources so a strict observed
+// dispatch contract can be enforced against real SubagentStart events while
+// keeping prose "Handoff evidence:" claims and transcript launch-text as
+// diagnostics only.
+//   hook       — SubagentStart / Recorded subagent handoff (real dispatch)
+//   transcript — launch-like lines inferred from the structured transcript
+//   claimed    — "Handoff evidence: @…" or prose in the final result text
+// `byAlias` maps each alias to the source(s) it appeared in, for reporting.
+export function extractUsedAgentEvidence(debugLogText, payload = null, { resultText = '' } = {}, labelMap = null) {
+  const hook = hookSourceAliases(debugLogText, labelMap);
+  const transcript = inferUsedAgentAliasesFromTranscript(payload, labelMap);
+  const claimed = inferUsedAgentAliasesFromResultText(resultText, labelMap);
+  const byAlias = {};
+  for (const alias of new Set([...hook, ...transcript, ...claimed])) {
+    byAlias[alias] = {
+      hook: hook.includes(alias),
+      transcript: transcript.includes(alias),
+      claimed: claimed.includes(alias),
+    };
+  }
+  return { hook, transcript, claimed, byAlias };
+}
+
+// Resolve the benchmark dispatch contract mode declared on a task.
+//   'standard' — legacy: credited union of hook+transcript+claimed (default)
+//   'observed' — strict: only a real SubagentStart counts as dispatch
+//   'enforced' — hard harness guard forces dispatch (see Stage 5)
+export function resolveDispatchMode(task) {
+  const mode = task?.dispatch_contract?.mode;
+  if (mode === 'enforced') return 'enforced';
+  if (mode === 'observed') return 'observed';
+  return 'standard';
+}
+
+// For observed/enforced dispatch modes, only a real SubagentStart (the hook
+// source) counts toward satisfying required_used_agents; prose "Handoff
+// evidence:" claims and transcript launch-text do not. Under standard mode the
+// legacy union (hook + transcript + claimed) is still credited, preserving
+// existing behavior for tasks without a dispatch_contract.
+export function effectiveUsedAliasesForEnforcement(dispatchMode, usedAgentAliases, observedAgentAliases) {
+  if (dispatchMode === 'observed' || dispatchMode === 'enforced') {
+    return Array.isArray(observedAgentAliases) ? observedAgentAliases : [];
+  }
+  return Array.isArray(usedAgentAliases) ? usedAgentAliases : [];
 }
 
 export function transcriptContractHints(task) {
@@ -1349,6 +1430,9 @@ export function buildTaskSummary(args) {
     `Required assistant transcript scanned: ${args.requiredTranscriptScanned}`,
     `Required assistant transcript misses: ${args.requiredTranscriptMisses.length ? args.requiredTranscriptMisses.join('; ') : 'none'}`,
     `Used agent aliases: ${args.usedAgentAliases.length ? args.usedAgentAliases.join(', ') : 'none'}`,
+    `Observed agent aliases (hook): ${args.observedAgentAliases && args.observedAgentAliases.length ? args.observedAgentAliases.join(', ') : 'none'}`,
+    `Claimed agent aliases (text): ${args.claimedAgentAliases && args.claimedAgentAliases.length ? args.claimedAgentAliases.join(', ') : 'none'}`,
+    `Dispatch mode: ${args.dispatchMode || 'standard'}`,
     `Missing required used agents: ${args.requiredUsedAgentMisses.length ? args.requiredUsedAgentMisses.join(', ') : 'none'}`,
     `Missing required used agent groups: ${formatAgentGroupMisses(args.requiredUsedAgentGroupMisses)}`,
     `stdout bytes: ${Buffer.byteLength(args.rawJson || '', 'utf-8')}`,
@@ -1420,6 +1504,10 @@ export function buildResult(args) {
     required_transcript_scanned: args.requiredTranscriptScanned,
     required_transcript_pattern_misses: args.requiredTranscriptMisses,
     used_agent_aliases: args.usedAgentAliases,
+    observed_agent_aliases: args.observedAgentAliases,
+    claimed_agent_aliases: args.claimedAgentAliases,
+    agent_evidence_by_alias: args.agentEvidenceByAlias,
+    dispatch_mode: args.dispatchMode,
     missing_required_used_agents: args.missingRequiredUsedAgents,
     missing_required_used_agent_groups: args.missingRequiredUsedAgentGroups,
     fatal_error: args.fatalError,
@@ -1957,8 +2045,20 @@ export function main() {
   const docPatternHits = forbiddenDocPatternHits(task, after, changedFiles);
   const [transcriptScanned, transcriptPatternHits] = forbiddenTranscriptPatternHits(task, payload, { resultText });
   const usedAgentAliases = extractUsedAgentAliases(debugLogText, payload, { resultText }, labelMap);
-  const missingRequiredUsedAgents = requiredUsedAgentMisses(task, usedAgentAliases, labelMap);
-  const missingRequiredUsedAgentGroups = requiredUsedAgentGroupMisses(task, usedAgentAliases, labelMap);
+  const agentEvidence = extractUsedAgentEvidence(debugLogText, payload, { resultText }, labelMap);
+  const observedAgentAliases = agentEvidence.hook;
+  // Claimed = textual claims (transcript launch-text + prose "Handoff evidence:")
+  // MINUS any alias that has a real SubagentStart hook. A real dispatch is
+  // "observed", not "claimed"; removing it keeps observed and claimed a clean
+  // partition (observed ∪ claimed == usedAgentAliases).
+  const claimedSet = new Set([...agentEvidence.transcript, ...agentEvidence.claimed]);
+  for (const alias of agentEvidence.hook) claimedSet.delete(alias);
+  const claimedAgentAliases = Array.from(claimedSet);
+  const agentEvidenceByAlias = agentEvidence.byAlias;
+  const dispatchMode = resolveDispatchMode(task);
+  const enforceUsed = effectiveUsedAliasesForEnforcement(dispatchMode, usedAgentAliases, observedAgentAliases);
+  const missingRequiredUsedAgents = requiredUsedAgentMisses(task, enforceUsed, labelMap);
+  const missingRequiredUsedAgentGroups = requiredUsedAgentGroupMisses(task, enforceUsed, labelMap);
 
   const recoveryMode = completedTaskRecoveryMode({
     exitCode,
@@ -2075,6 +2175,10 @@ export function main() {
     usedAgentAliases,
     missingRequiredUsedAgents,
     missingRequiredUsedAgentGroups,
+    observedAgentAliases,
+    claimedAgentAliases,
+    agentEvidenceByAlias,
+    dispatchMode,
     fatalError,
     failures,
   });
@@ -2107,6 +2211,9 @@ export function main() {
       usedAgentAliases,
       requiredUsedAgentMisses: missingRequiredUsedAgents,
       requiredUsedAgentGroupMisses: missingRequiredUsedAgentGroups,
+      observedAgentAliases,
+      claimedAgentAliases,
+      dispatchMode,
     }),
   );
   if (fatalError) writeText(join(OUTPUT_DIR, 'runner-error.txt'), fatalError + '\n');

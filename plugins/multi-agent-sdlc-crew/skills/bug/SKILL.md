@@ -1,11 +1,41 @@
 ---
 name: bug
-description: Run a focused bug-hunting session with the Bugbuster agent — dispatches @bugbuster for root-cause investigation and the smallest credible fix path.
+description: Use when a failure exists but the root cause is not obvious — dispatches the Bugbuster in an isolated forked subagent for root-cause investigation and the smallest credible fix path.
+agent: Bugbuster
+context: fork
+disable-model-invocation: true
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+  - Edit
+  - Write
+  - Bash(pytest:*)
+  - Bash(npm test:*)
+  - Bash(make test:*)
+  - Bash(uv run pytest:*)
+paths:
+  - "src/**"
+  - "lib/**"
+  - "scripts/**"
+  - "plugins/**"
+  - "**/*.py"
+  - "**/*.mjs"
+  - "**/*.js"
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "tests/**"
+  - "test/**"
+  - "**/test_*.py"
+  - "**/*_test.py"
+  - "package.json"
+  - "pyproject.toml"
+  - "pytest.ini"
 ---
 
 # /bug
 
-**This command invokes @bugbuster agent.**
+**This command is now a skill that invokes @bugbuster agent.**
 
 Run a focused bug-hunting session with the Bugbuster agent.
 
@@ -26,7 +56,7 @@ The @bugbuster agent will:
 2. Narrow the likely root-cause area
 3. Compare hypotheses against the code
 4. Suggest or implement the smallest credible fix path when task scope allows it
-5. Call out verification needed after the fix
+5. Run or request verification after the fix
 
 ## Important
 - Prefer root cause over symptom-level patching

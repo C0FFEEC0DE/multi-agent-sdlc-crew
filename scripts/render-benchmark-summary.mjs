@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // render-benchmark-summary: render a summary.json as markdown.
 // Node port of scripts/render-benchmark-summary.sh — no jq, no Bash.
-import { isMain, readJsonPreserving, pct, truncateCell, listOrDash } from './bench/lib.mjs';
+import { isMain, readJsonPreserving, pct, truncateCell, listOrDash, taskFunctionalFailures, dispatchLineReport } from './bench/lib.mjs';
+import { summaryFunctionalPassesGate } from './assert-benchmark-summary.mjs';
 
 function verificationStatus(t) {
   if (t.verification_required === true) {
@@ -23,6 +24,13 @@ function recoveryStatus(t) {
   if (t.max_turns_recovered === true) return 'max-turns';
   if (t.recovered_nonzero_exit === true) return 'recovered';
   return 'none';
+}
+function dispatchLineDetail(report, verbs) {
+  if (report.status === 'no-observed-tasks') return 'no observed-mode tasks this run';
+  if (report.status === 'no-enforced-tasks') return 'no enforced-mode tasks (Stage 5 not wired)';
+  if (report.status === 'passed') return `${report.passed}/${report.total} ${report.mode} tasks ${verbs.past}`;
+  const ids = report.failedTaskIds.length ? ` — ${report.failedTaskIds.join(', ')}` : '';
+  return `${report.failed}/${report.total} ${report.mode} tasks did NOT ${verbs.base}${ids}`;
 }
 
 function taskRows(ids, paths) {
@@ -61,6 +69,23 @@ export function renderSummary(summary) {
   lines.push(`| Recovered tasks | ${t.recovered_tasks} |`);
   lines.push(`| Summary repaired tasks | ${t.summary_repaired} |`);
   lines.push(`| Median runtime (s) | ${summary.median_runtime_seconds} |`);
+
+  // Stage 6 gate-line split: surface functional (merge-blocking) vs the
+  // dispatch-observed / dispatch-enforced capability signals so a red
+  // dispatch line cannot be confused with a functional regression (and vice
+  // versa). The assert-benchmark-summary step is the merge-blocking authority;
+  // this block mirrors its three named lines for the GitHub step summary.
+  const functionalOk = summaryFunctionalPassesGate(summary);
+  const observed = dispatchLineReport(summary, 'observed');
+  const enforced = dispatchLineReport(summary, 'enforced');
+  lines.push('', '### Gate lines', '',
+    '| Line | Status | Detail |',
+    '| --- | --- | --- |',
+    `| functional (merge-blocking) | \`${functionalOk ? 'passed' : 'failed'}\` | fix + verification + review/docs/structure |`,
+    `| dispatch-observed | \`${observed.status}\` | ${dispatchLineDetail(observed, { past: 'called the Agent tool', base: 'call the Agent tool' })} |`,
+    `| dispatch-enforced | \`${enforced.status}\` | ${dispatchLineDetail(enforced, { past: 'dispatched after the hard guard', base: 'dispatch after the hard guard' })} |`,
+    '',
+    '> dispatch-observed / dispatch-enforced are visible, non-blocking capability signals. A red dispatch line is an honest model-capability signal, not a functional regression.');
 
   if ((t.unexecuted_tasks ?? 0) > 0) {
     lines.push('', `> Note: ${t.unexecuted_tasks} selected task(s) did not execute. These are the primary resume candidates after a fail-fast stop.`);

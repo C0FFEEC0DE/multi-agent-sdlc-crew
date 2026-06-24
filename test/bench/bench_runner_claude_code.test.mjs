@@ -28,6 +28,11 @@ import {
   extractResultPayload,
   extractResultText,
   extractUsedAgentAliases,
+  extractUsedAgentEvidence,
+  resolveDispatchMode,
+  dispatchContractMarker,
+  effectiveUsedAliasesForEnforcement,
+  requiredUsedAgentMisses,
   isRetryableProviderError,
   isOllama429,
   parseAffordableMaxTokens,
@@ -105,6 +110,124 @@ test('extractUsedAgentAliases accepts explicit and established handoff evidence'
     extractUsedAgentAliases('', null, { resultText }, labelMap).sort(),
     ['a', 'dbg', 'doc', 'm'],
   );
+});
+
+test('extractUsedAgentEvidence separates real dispatch (hook) from prose claims', () => {
+  const labelMap = { bug: 'bug', bugbuster: 'bug', t: 't', tester: 't' };
+  // No SubagentStart in the debug log — only a prose "Handoff evidence:" claim.
+  const debugLogText = '';
+  const resultText = 'Handoff evidence: @bug fixed divide-by-zero.\nVerification status: passed';
+  const evidence = extractUsedAgentEvidence(debugLogText, null, { resultText }, labelMap);
+  // Strict observed source must be empty: no real SubagentStart fired.
+  assert.deepEqual(evidence.hook, []);
+  // The prose claim is still captured as a diagnostic, not as dispatch proof.
+  assert.deepEqual(evidence.claimed.sort(), ['bug']);
+  assert.equal(evidence.byAlias.bug.hook, false);
+  assert.equal(evidence.byAlias.bug.claimed, true);
+
+  // A real SubagentStart in the debug log populates the hook source only.
+  const debugWithHook = 'Hook SubagentStart:bug (scope: fix division)';
+  const evidence2 = extractUsedAgentEvidence(debugWithHook, null, { resultText }, labelMap);
+  assert.deepEqual(evidence2.hook, ['bug']);
+  assert.equal(evidence2.byAlias.bug.hook, true);
+  assert.equal(evidence2.byAlias.bug.claimed, true);
+
+  // dispatch_contract selects the benchmark dispatch mode; absent = standard.
+  assert.equal(resolveDispatchMode({}), 'standard');
+  assert.equal(resolveDispatchMode({ dispatch_contract: { mode: 'observed' } }), 'observed');
+  assert.equal(resolveDispatchMode({ dispatch_contract: { mode: 'enforced' } }), 'enforced');
+});
+
+test('observed/claimed partition mirrors main() wiring: hook is observed, text claims exclude hook', () => {
+  const labelMap = { bug: 'bug', bugbuster: 'bug', t: 't', tester: 't' };
+  // Real SubagentStart for @bug; prose also claims @bug and @t (no hook for @t).
+  const debugLogText = 'Hook SubagentStart:bug (scope: fix division)';
+  const resultText = 'Handoff evidence: @bug fixed it.\n@t verified the regression.';
+  const evidence = extractUsedAgentEvidence(debugLogText, null, { resultText }, labelMap);
+  // Mirror the derivation in main() (bench_runner_claude_code.mjs ~line 2010-2018).
+  const observedAgentAliases = evidence.hook;
+  const claimedSet = new Set([...evidence.transcript, ...evidence.claimed]);
+  for (const alias of evidence.hook) claimedSet.delete(alias);
+  const claimedAgentAliases = Array.from(claimedSet);
+  const usedAgentAliases = extractUsedAgentAliases(debugLogText, null, { resultText }, labelMap);
+  // Observed = real dispatch only.
+  assert.deepEqual(observedAgentAliases, ['bug']);
+  // A hook-backed alias must NOT leak into claimed (the union-dup bug).
+  assert.ok(!claimedAgentAliases.includes('bug'), 'hook alias leaked into claimed');
+  // A prose-only alias is captured as claimed.
+  assert.ok(claimedAgentAliases.includes('t'), 'prose-only alias missing from claimed');
+  // observed ∪ claimed == used (clean partition, no double-counting).
+  assert.deepEqual(
+    [...observedAgentAliases, ...claimedAgentAliases].sort(),
+    usedAgentAliases.sort(),
+  );
+});
+
+test('dispatchContractMarker builds the root-only contract line', () => {
+  assert.equal(dispatchContractMarker({}), '');
+  assert.equal(dispatchContractMarker({ dispatch_contract: { mode: 'bogus', required_agents: ['bug'] } }), '');
+  assert.equal(
+    dispatchContractMarker({ dispatch_contract: { mode: 'observed', required_agents: ['bug'], root_only: true } }),
+    'BENCHMARK_DISPATCH_CONTRACT: root_only; mode=observed; roles=bug',
+  );
+  // root_only defaults to true when omitted.
+  assert.equal(
+    dispatchContractMarker({ dispatch_contract: { mode: 'enforced', required_agents: ['t', 'cr'] } }),
+    'BENCHMARK_DISPATCH_CONTRACT: root_only; mode=enforced; roles=t,cr',
+  );
+  // root_only: false omits the flag.
+  assert.equal(
+    dispatchContractMarker({ dispatch_contract: { mode: 'observed', required_agents: ['bug'], root_only: false } }),
+    'BENCHMARK_DISPATCH_CONTRACT: mode=observed; roles=bug',
+  );
+});
+
+test('buildPrompt injects the dispatch-contract marker into the root prompt only when declared', () => {
+  const withContract = buildPrompt(
+    baseTask({ dispatch_contract: { mode: 'observed', required_agents: ['bug'], root_only: true } }),
+    'pytest',
+  );
+  assert.ok(withContract.includes('BENCHMARK_DISPATCH_CONTRACT: root_only; mode=observed; roles=bug'), withContract);
+  // Absent contract -> no marker line.
+  const without = buildPrompt(baseTask({}), 'pytest');
+  assert.ok(!without.includes('BENCHMARK_DISPATCH_CONTRACT'), 'unexpected marker in prompt without contract');
+});
+
+test('buildPrompt emits dispatch-contract discipline only when a contract is declared', () => {
+  const withContract = buildPrompt(
+    baseTask({ dispatch_contract: { mode: 'observed', required_agents: ['bug'], root_only: true } }),
+    'pytest',
+  );
+  assert.ok(withContract.includes('Dispatch contract discipline:'), withContract);
+  assert.ok(withContract.includes('first substantive action must be launching the required specialist'), withContract);
+  assert.ok(withContract.includes('Do not Edit, Write, or MultiEdit any file before that specialist has started'), withContract);
+  const without = buildPrompt(baseTask({}), 'pytest');
+  assert.ok(!without.includes('Dispatch contract discipline:'), 'discipline note leaked into prompt without contract');
+});
+
+test('effectiveUsedAliasesForEnforcement: standard credits union, observed/enforced use hook only', () => {
+  const union = ['bug', 't'];
+  const hook = ['bug'];
+  assert.deepEqual(effectiveUsedAliasesForEnforcement('standard', union, hook), union);
+  assert.deepEqual(effectiveUsedAliasesForEnforcement('observed', union, hook), hook);
+  assert.deepEqual(effectiveUsedAliasesForEnforcement('enforced', union, hook), hook);
+});
+
+test('strict observed mode rejects claimed-only dispatch and accepts a real hook', () => {
+  const labelMap = { bug: 'bug', bugbuster: 'bug' };
+  const task = { required_used_agents: ['bug'], dispatch_contract: { mode: 'observed', required_agents: ['bug'] } };
+  const claimedOnlyText = 'Handoff evidence: @bug fixed it.';
+  // No SubagentStart: hook source empty, but prose claims @bug.
+  const evidence = extractUsedAgentEvidence('', null, { resultText: claimedOnlyText }, labelMap);
+  const union = extractUsedAgentAliases('', null, { resultText: claimedOnlyText }, labelMap);
+  const observed = effectiveUsedAliasesForEnforcement('observed', union, evidence.hook);
+  assert.deepEqual(observed, []);
+  assert.deepEqual(requiredUsedAgentMisses(task, observed, labelMap), ['bug']);
+  // A real SubagentStart satisfies the strict contract.
+  const evidence2 = extractUsedAgentEvidence('Hook SubagentStart:bug (scope: fix)', null, { resultText: claimedOnlyText }, labelMap);
+  const observed2 = effectiveUsedAliasesForEnforcement('observed', ['bug'], evidence2.hook);
+  assert.deepEqual(observed2, ['bug']);
+  assert.deepEqual(requiredUsedAgentMisses(task, observed2, labelMap), []);
 });
 
 test('buildAgentLabelMap reads plugin agents into an alias map', () => {
@@ -454,7 +577,8 @@ test('buildResult replicates the full result.json schema with correct types', ()
     'first_permission_denial', 'forbidden_doc_pattern_hits',
     'transcript_scanned', 'forbidden_transcript_pattern_hits',
     'required_transcript_scanned', 'required_transcript_pattern_misses',
-    'used_agent_aliases', 'missing_required_used_agents',
+    'used_agent_aliases', 'observed_agent_aliases', 'claimed_agent_aliases',
+    'agent_evidence_by_alias', 'dispatch_mode', 'missing_required_used_agents',
     'missing_required_used_agent_groups', 'fatal_error', 'failures',
   ];
   assert.deepEqual(Object.keys(result).sort(), [...expectedKeys].sort());

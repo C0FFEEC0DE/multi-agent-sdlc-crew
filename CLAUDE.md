@@ -58,7 +58,7 @@ Transcript fallback also recognizes slash-skill loads, agent launch lines like `
 - `docs/benchmarking.md` — benchmark architecture, slot-gate mechanism, local usage, and required GitHub setup
 - `plugins/multi-agent-sdlc-crew/references/agent-contracts.md` — contract matrix for benchmark/hook layers per agent role
 
-Plugin skills under `plugins/multi-agent-sdlc-crew/skills/` use YAML frontmatter for routing/tool constraints. Agent-backed skills (`design`, `docs`, `refactor`, `review`, `test`) carry the full dispatch contract; command skills (`bug`, `debug`, `explore`, `manager`) are minimal name+description entry points.
+Plugin skills under `plugins/multi-agent-sdlc-crew/skills/` use YAML frontmatter for routing/tool constraints. Agent-backed skills (`bug`, `design`, `docs`, `refactor`, `review`, `test`) carry the full dispatch contract; command skills (`debug`, `explore`, `manager`) are minimal name+description entry points.
 
 ## Repository Automation
 

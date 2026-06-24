@@ -454,34 +454,49 @@ jobs:
             cat bench-output/benchmark-report.md
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Enforce subagent smoke gate
+      - name: Enforce subagent smoke functional gate
         shell: bash
-        # Blocking + honest: this step asserts that every selected benchmark
-        # task's live-model run passed, including required_subagent dispatch
-        # (assert-benchmark-summary.mjs requires passed === tasks, no
-        # tool_failures / policy_violations / unresolved_tasks). The plumbing
-        # (runner invocation, --plugin-dir loading, hook firing, transcript /
-        # result parsing) is separately gated by the shard jobs above — a shard
-        # failure red-flags the workflow regardless of this step. This step is
-        # the ONLY gate on model behavior, so it MUST report its real exit
-        # status: a masked-green behavior gate is worthless as a regression
-        # detector. It was previously `continue-on-error: true`, which made
-        # GitHub report a failed assert as `conclusion: success` — so CI stayed
-        # green while the model was actually failing 9/11 smoke tasks.
-        #
-        # Current state (glm-5.2:cloud under the plugin runtime): the model does
-        # the work inline and writes @a / @e / @t / @dbg / @m in prose WITHOUT
-        # calling the Agent tool, so used_agent_aliases is empty and the tasks
-        # fail required_used_agents_missing. The detection pipeline is correct
-        # — the code-reviewer task passes with a real @cr dispatch, proving
-        # plumbing works; the model simply under-delegates for most task types.
-        # This is model behavior, not a plugin bug, but the gate is intentionally
-        # blocking so the behavior signal stays honest: CI is red until the
-        # model dispatches reliably or dispatch-forcing / dispatch-tolerant task
-        # variants land. Artifacts still upload via the `if: always()` step
+        # Stage 6 gate-line split. assert-benchmark-summary.mjs now reports
+        # three explicitly named lines and exits non-zero ONLY on the
+        # merge-blocking functional line (fix + verification + review/docs +
+        # structural execution coverage):
+        #   - functional         : merge-blocking. Drives this step's exit code.
+        #   - dispatch-observed  : the model itself called the Agent tool
+        #                           (real SubagentStart). Visible, NON-blocking
+        #                           capability signal — printed to step output
+        #                           and the rendered summary, never masked or
+        #                           "repaired" through final text. A red
+        #                           dispatch-observed line is an honest model
+        #                           capability signal, not a CI failure.
+        #   - dispatch-enforced  : separate line for the hard-guard harness
+        #                           (Stage 5, not yet wired -> n/a).
+        # The plumbing (runner invocation, --plugin-dir loading, hook firing,
+        # transcript / result parsing) is separately gated by the shard jobs
+        # above. This step is the ONLY gate on model behavior, so it MUST report
+        # its real functional exit status: a masked-green gate is worthless as a
+        # regression detector (the prior `continue-on-error: true` made GitHub
+        # report a failed assert as `conclusion: success`). dispatch-observed
+        # stays visible-and-honest but non-blocking so functional progress (the
+        # model fixing the bug with passing pytest) is not hidden behind the
+        # dispatch signal. Artifacts still upload via the `if: always()` step
         # below, so failed-run debug logs remain available for triage.
         run: |
           node scripts/assert-benchmark-summary.mjs bench-output/summary.json
+
+      - name: Report dispatch-observed capability signal
+        if: always()
+        shell: bash
+        # Always surface the dispatch-observed line in the step summary so the
+        # honest capability signal stays visible whether or not the functional
+        # gate passed. This step never fails the workflow — it only renders the
+        # already-computed gate lines from summary.json into the job summary.
+        run: |
+          if [ -f bench-output/summary.json ]; then {
+            echo "## Dispatch capability signal"
+            echo ""
+            node scripts/render-benchmark-summary.mjs bench-output/summary.json | sed -n '/^### Gate lines/,/^### /p' | sed '$d' | sed '/^> Note:/d'
+          } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload subagent smoke artifacts
         if: always()

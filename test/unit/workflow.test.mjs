@@ -7,7 +7,7 @@ import {
   classifyPrompt, taskTypeRequiresImplementationSummary,
   taskTypeRequiresSpecialistHandoffs, loopBlockFields, loopBlockCount,
   recordLoopBlock, clearLoopBlockPatch, userPromptResetPatch,
-  sessionBackgroundManagerPending, STOP_SAFE_HINT,
+  sessionBackgroundManagerPending, STOP_SAFE_HINT, parseDispatchContractMarker,
 } from '../../plugins/multi-agent-sdlc-crew/modules/workflow.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -63,6 +63,29 @@ test('stop-safe hint appears on non-plan-only gated contexts', () => {
 test('plan-only context omits the stop-safe hint', () => {
   const r = classifyPrompt(loadPrompt('user_prompt_models_manager_plan_only'));
   assert.ok(!r.contextMessage.includes('If a later reply'));
+});
+
+test('classifyPrompt: dispatch-contract marker overrides category-default roles', () => {
+  const prompt = 'Workflow override: treat this as a bugfix workflow, not a review-only workflow.\n'
+    + 'BENCHMARK_DISPATCH_CONTRACT: root_only; mode=observed; roles=bug\n'
+    + 'Task: fix the divide-by-zero in calculator.py.';
+  const r = classifyPrompt(prompt);
+  // Category still classified (for docs/verification gating)...
+  assert.equal(r.taskType, 'bugfix');
+  // ...but required roles come from the marker only; any-of groups cleared.
+  assert.deepEqual(r.requiredSubagents, ['bug']);
+  assert.deepEqual(r.requiredSubagentAnyOf, []);
+  assert.ok(r.contextMessage.includes('Required specialist handoff before completion: @bug'), r.contextMessage);
+  assert.ok(r.contextMessage.includes('do not add category-default'), r.contextMessage);
+});
+
+test('parseDispatchContractMarker parses well-formed markers and rejects malformed ones', () => {
+  assert.equal(parseDispatchContractMarker('nothing here'), null);
+  assert.equal(parseDispatchContractMarker('BENCHMARK_DISPATCH_CONTRACT: root_only; mode=observed; roles='), null);
+  const m = parseDispatchContractMarker('BENCHMARK_DISPATCH_CONTRACT: root_only; mode=enforced; roles=t,cr');
+  assert.deepEqual(m, { rootOnly: true, mode: 'enforced', roles: ['t', 'cr'] });
+  const m2 = parseDispatchContractMarker('BENCHMARK_DISPATCH_CONTRACT: mode=observed; roles=Bug');
+  assert.deepEqual(m2, { rootOnly: false, mode: 'observed', roles: ['bug'] });
 });
 
 // --- task type predicates --------------------------------------------------

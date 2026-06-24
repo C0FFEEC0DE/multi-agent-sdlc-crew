@@ -2,11 +2,11 @@
 // plugins/multi-agent-sdlc-crew/skills/<name>/SKILL.md.
 //
 // There are two skill shapes:
-//  - Agent-backed skills (design, docs, refactor, review, test): full
+//  - Agent-backed skills (bug, design, docs, refactor, review, test): full
 //    frontmatter — name, description, agent, context: fork,
 //    disable-model-invocation: true, non-empty allowed-tools, non-empty
 //    paths. The `agent` value must match a known plugin agent name or alias.
-//  - Command skills (bug, debug, explore, manager): MINIMAL — only name +
+//  - Command skills (debug, explore, manager): MINIMAL — only name +
 //    description. They must NOT declare agent/context/allowed-tools/paths/
 //    disable-model-invocation.
 //

@@ -80,3 +80,47 @@ test('task status table row matches jq byte-for-byte', () => {
   assert.match(out, /\| `feature-manager-no-agent-choice` \| `failed` \| 14.18 \| `failed` \| `done` \| `updated` \| calculator.py, test_calculator.py, README.md \| `timeout` \| `retry` \| verification_failed, required_used_agents_missing \|/);
   assert.match(out, /> Note: only 2 of 3 selected tasks executed./);
 });
+
+test('render summary surfaces the Stage 6 gate-line split', () => {
+  const s = baseSummary();
+  s.totals = { ...s.totals, configured_tasks: 2, selected_tasks: 2, executed_tasks: 2, tasks: 2, passed: 0, clean_passed: 0, completed: 2 };
+  s.rates = { ...s.rates, task_pass_rate: 0, execution_coverage_rate: 1 };
+  s.median_runtime_seconds = 12;
+  // Two observed-mode tasks: fix + pytest correct (functional OK) but the model
+  // never called the Agent tool (dispatch-observed FAILED, honest signal).
+  s.tasks = [
+    { task_id: 'subagent-bugbuster-zero-division-lite', status: 'failed', dispatch_mode: 'observed', runtime_seconds: 10, verification_required: true, tests_run: true, tests_passed: true, review_required: false, review_present: false, docs_required: false, docs_updated: false, recovered_nonzero_exit: false, timeout_recovered: false, max_turns_recovered: false, summary_repaired_by: 'none', changed_files: ['calc.py'], failures: ['required_used_agents_missing'] },
+    { task_id: 'subagent-tester-regression-lite', status: 'failed', dispatch_mode: 'observed', runtime_seconds: 14, verification_required: true, tests_run: true, tests_passed: true, review_required: false, review_present: false, docs_required: false, docs_updated: false, recovered_nonzero_exit: false, timeout_recovered: false, max_turns_recovered: false, summary_repaired_by: 'none', changed_files: ['test_calc.py'], failures: ['required_used_agents_missing'] },
+  ];
+  const out = renderSummary(s);
+  assert.match(out, /### Gate lines/);
+  assert.match(out, /\| functional \(merge-blocking\) \| `passed` \|/);
+  assert.match(out, /\| dispatch-observed \| `failed` \| 2\/2 observed tasks did NOT call the Agent tool — subagent-bugbuster-zero-division-lite, subagent-tester-regression-lite \|/);
+  assert.match(out, /subagent-bugbuster-zero-division-lite/);
+  assert.match(out, /\| dispatch-enforced \| `no-enforced-tasks` \|/);
+  assert.match(out, /non-blocking capability signals/);
+});
+
+test('render CLI shows functional=passed for an observed-dispatch-failure-only summary (JSONNum coercion)', () => {
+  // Reproduces the HIGH bug from code review: render-benchmark-summary.mjs
+  // reads via readJsonPreserving, which wraps numbers in JSONNum objects. The
+  // functional gate's `===` comparisons must coerce with Number() or the
+  // rendered functional line always shows `failed` even when the assert CLI
+  // correctly exits 0. This test exercises the CLI path (runCli), not the
+  // in-memory renderSummary path with plain JS numbers.
+  const d = mkdtempSync(join(tmpdir(), 'rs-cli-'));
+  const s = baseSummary();
+  s.totals = { ...s.totals, configured_tasks: 2, selected_tasks: 2, executed_tasks: 2, tasks: 2, passed: 0, clean_passed: 0, completed: 2, policy_violations: 0 };
+  s.rates = { ...s.rates, task_pass_rate: 0, execution_coverage_rate: 1 };
+  s.median_runtime_seconds = 12;
+  s.tasks = [
+    { task_id: 'subagent-bugbuster-zero-division-lite', status: 'failed', dispatch_mode: 'observed', runtime_seconds: 10, verification_required: true, tests_run: true, tests_passed: true, review_required: false, review_present: false, docs_required: false, docs_updated: false, recovered_nonzero_exit: false, timeout_recovered: false, max_turns_recovered: false, summary_repaired_by: 'none', changed_files: ['calc.py'], failures: ['required_used_agents_missing'] },
+    { task_id: 'subagent-tester-regression-lite', status: 'failed', dispatch_mode: 'observed', runtime_seconds: 14, verification_required: true, tests_run: true, tests_passed: true, review_required: false, review_present: false, docs_required: false, docs_updated: false, recovered_nonzero_exit: false, timeout_recovered: false, max_turns_recovered: false, summary_repaired_by: 'none', changed_files: ['test_calc.py'], failures: ['required_used_agents_missing'] },
+  ];
+  const f = join(d, 'summary.json');
+  writeFileSync(f, JSON.stringify(s));
+  const r = runCli(f);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /\| functional \(merge-blocking\) \| `passed` \|/);
+  assert.match(r.stdout, /\| dispatch-observed \| `failed` \|/);
+});

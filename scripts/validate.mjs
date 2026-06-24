@@ -210,13 +210,13 @@ function checkAgentFrontmatter() {
 // ---------- skill frontmatter (plugin two-shape model) ----------
 // The plugin ships skills as nested dirs: skills/<name>/SKILL.md. There are two
 // shapes, enforced here so they cannot silently drift:
-//   - Agent-backed skills (design, docs, refactor, review, test) declare the
-//     full agent-dispatch contract: name, description, agent, context: fork,
+//   - Agent-backed skills (bug, design, docs, refactor, review, test) declare
+//     the full agent-dispatch contract: name, description, agent, context: fork,
 //     disable-model-invocation: true, non-empty allowed-tools, non-empty paths.
 //     The `agent` value must match a known plugin agent name or alias.
-//   - Command skills (bug, debug, explore, manager) are minimal: name +
-//     description only. They must NOT carry agent/context/allowed-tools/paths
-//     (that would make them a third, ambiguous shape).
+//   - Command skills (debug, explore, manager) are minimal: name + description
+//     only. They must NOT carry agent/context/allowed-tools/paths (that would
+//     make them a third, ambiguous shape).
 function checkSkillFrontmatter() {
   console.log('--- Checking skill frontmatter ---');
   const skillsDir = join(REPO_ROOT, 'plugins', 'multi-agent-sdlc-crew', 'skills');
@@ -300,14 +300,14 @@ function checkSkillFrontmatter() {
 
 // ---------- slash command inventory ----------
 // In the plugin model the slash commands ARE the bundled skills: each
-// skills/<name>/SKILL.md is invocable as /<name>. The 5 agent-backed skills are
-// the "skill" subset; the 4 command skills complete the 9-command inventory.
+// skills/<name>/SKILL.md is invocable as /<name>. The 6 agent-backed skills are
+// the "skill" subset; the 3 command skills complete the 9-command inventory.
 function checkSlashCommandInventory() {
   console.log('--- Checking slash command inventory ---');
   const COMMAND_NAMES = ['manager', 'explore', 'bug', 'debug', 'design', 'test', 'refactor', 'review', 'docs'];
   const COMMAND_ALIASES = ['m', 'e', 'bug', 'dbg', 'a', 't', 'a', 'cr', 'doc'];
   const EXPECTED_COMMANDS = COMMAND_NAMES.slice();
-  const EXPECTED_SKILLS = ['design', 'docs', 'refactor', 'review', 'test'];
+  const EXPECTED_SKILLS = ['bug', 'design', 'docs', 'refactor', 'review', 'test'];
   const aliasFor = (name) => {
     const i = COMMAND_NAMES.indexOf(name);
     return i >= 0 ? COMMAND_ALIASES[i] : '';
@@ -556,6 +556,33 @@ function checkBenchmarkTasks() {
     for (const a of (task.required_used_agent_groups || []).flat()) {
       if (!EXPECTED_SUBAGENT_ALIASES.includes(a))
         reportError(`Benchmark task references unknown required_used_agent_groups alias '${a}': ${tf}`);
+    }
+
+    // Optional dispatch_contract: when present it must be well-formed and its
+    // required_agents must be known aliases, so runner and hook contracts
+    // cannot silently drift (Stage 3 of the dispatch-stabilization plan).
+    if (Object.prototype.hasOwnProperty.call(task, 'dispatch_contract')) {
+      const dc = task.dispatch_contract || {};
+      const dcMode = dc.mode;
+      if (dcMode !== 'observed' && dcMode !== 'enforced' && dcMode !== 'standard') {
+        reportError(`Benchmark task '${taskId}' has invalid dispatch_contract.mode '${dcMode}' (expected observed|enforced|standard): ${tf}`);
+      }
+      if (dc.root_only !== undefined && typeof dc.root_only !== 'boolean') {
+        reportError(`Benchmark task '${taskId}' dispatch_contract.root_only must be boolean: ${tf}`);
+      }
+      const dcRoles = dc.required_agents;
+      if (!Array.isArray(dcRoles) || !dcRoles.length) {
+        reportError(`Benchmark task '${taskId}' dispatch_contract.required_agents must be a non-empty array: ${tf}`);
+      } else {
+        for (const a of dcRoles) {
+          if (!EXPECTED_SUBAGENT_ALIASES.includes(a))
+            reportError(`Benchmark task '${taskId}' dispatch_contract references unknown alias '${a}': ${tf}`);
+        }
+        const rua = task.required_used_agents || [];
+        const sameSet = rua.length === dcRoles.length && dcRoles.every((a) => rua.includes(a));
+        if (!sameSet)
+          reportError(`Benchmark task '${taskId}' dispatch_contract.required_agents must match required_used_agents: ${tf}`);
+      }
     }
 
     if (pathStr.includes('/bench/tasks/subagents/')) {

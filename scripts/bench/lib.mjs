@@ -300,3 +300,70 @@ export function frontmatterField(path, field) {
 export function runSync(cmd, argv, opts = {}) {
   return spawnSync(cmd, argv, { encoding: 'utf-8', ...opts });
 }
+
+// ---------- benchmark gate-line split ----------
+// Stage 6 of the subagent-dispatch stabilization plan splits the CI result
+// into three explicitly named lines:
+//   - functional         : fix + verification + review/docs/structure correct
+//                           (merge-blocking)
+//   - dispatch-observed  : the model itself called the Agent tool
+//                           (visible, non-blocking capability signal)
+//   - dispatch-enforced  : the model called the Agent tool after a hard guard
+//                           (separate line; Stage 5, not yet wired)
+//
+// A task's `failures` list mixes functional failures with dispatch failures.
+// `required_used_agents_missing` / `required_used_agent_groups_missing` are the
+// dispatch failure codes. Whether they belong to a dispatch line (excluded from
+// functional) or to the functional line (kept) depends on the task's
+// `dispatch_mode`:
+//   - observed : dispatch is hook-only strict; a dispatch failure is the
+//                honest "model did not call the Agent tool" capability signal
+//                -> excluded from functional, counted on dispatch-observed.
+//   - enforced : dispatch is forced by the harness; a dispatch failure belongs
+//                on the separate dispatch-enforced line -> excluded from
+//                functional.
+//   - standard : dispatch is union-credited (a prose claim satisfies it), so a
+//                dispatch failure means the model did not even claim the role
+//                -> a real functional gap, kept in functional.
+
+export const DISPATCH_LINE_FAILURES = new Set([
+  'required_used_agents_missing',
+  'required_used_agent_groups_missing',
+]);
+
+/** Failures that count toward the functional line for a task. */
+export function taskFunctionalFailures(task) {
+  const failures = Array.isArray(task && task.failures) ? task.failures : [];
+  const mode = task && task.dispatch_mode;
+  if (mode === 'observed' || mode === 'enforced') {
+    return failures.filter((f) => !DISPATCH_LINE_FAILURES.has(f));
+  }
+  return failures.slice();
+}
+
+/** Failures that count toward the named dispatch line (`observed`|`enforced`).
+ *  Empty for tasks not in that mode. */
+export function taskDispatchLineFailures(task, mode) {
+  if (!task || task.dispatch_mode !== mode) return [];
+  const failures = Array.isArray(task.failures) ? task.failures : [];
+  return failures.filter((f) => DISPATCH_LINE_FAILURES.has(f));
+}
+
+/** Report for a named dispatch line.
+ *  status: 'passed' | 'failed' | `no-${mode}-tasks` (when no task uses it). */
+export function dispatchLineReport(summary, mode) {
+  const tasks = (Array.isArray(summary && summary.tasks) ? summary.tasks : [])
+    .filter((t) => t && t.dispatch_mode === mode);
+  if (tasks.length === 0) {
+    return { mode, status: `no-${mode}-tasks`, total: 0, passed: 0, failed: 0, failedTaskIds: [] };
+  }
+  const failedTasks = tasks.filter((t) => taskDispatchLineFailures(t, mode).length > 0);
+  return {
+    mode,
+    status: failedTasks.length === 0 ? 'passed' : 'failed',
+    total: tasks.length,
+    passed: tasks.length - failedTasks.length,
+    failed: failedTasks.length,
+    failedTaskIds: failedTasks.map((t) => t.task_id).filter(Boolean),
+  };
+}

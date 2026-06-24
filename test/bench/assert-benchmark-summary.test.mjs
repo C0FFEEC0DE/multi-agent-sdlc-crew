@@ -5,7 +5,8 @@ import { writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { summaryPassesGate } from '../../scripts/assert-benchmark-summary.mjs';
+import { summaryPassesGate, summaryFunctionalPassesGate, renderGateLines } from '../../scripts/assert-benchmark-summary.mjs';
+import { dispatchLineReport, taskFunctionalFailures, taskDispatchLineFailures } from '../../scripts/bench/lib.mjs';
 
 const REPO = join(import.meta.dirname, '..', '..');
 const SCRIPT = join(REPO, 'scripts', 'assert-benchmark-summary.mjs');
@@ -91,4 +92,117 @@ test('summary repaired ceiling fails when over', () => {
 });
 test('both ceilings set pass', () => {
   assert.equal(summaryPassesGate(summary({ totals: { recovered_tasks: 1, summary_repaired: 1 } }), { maxRecoveredTasks: '2', maxSummaryRepairedTasks: '2' }), true);
+});
+
+// ---------- Stage 6 gate-line split (functional / dispatch-observed / dispatch-enforced) ----------
+
+// A summary whose only failing tasks are observed-mode dispatch failures:
+// the functional line passes (the fix + pytest are correct), dispatch-observed
+// fails (honest capability signal). This is the glm-5.2:cloud under-delegation
+// shape — functional progress must not be masked by the dispatch signal.
+function taskWith(id, mode, failures) {
+  return { task_id: id, status: failures.length ? 'failed' : 'passed', dispatch_mode: mode, failures };
+}
+function summaryWithTasks(tasks) {
+  const s = summary();
+  s.totals.configured_tasks = tasks.length;
+  s.totals.executed_tasks = tasks.length;
+  s.totals.tasks = tasks.length;
+  s.totals.passed = tasks.filter((t) => t.status === 'passed').length;
+  s.totals.tool_failures = tasks.filter((t) => t.status !== 'passed').length;
+  s.totals.unresolved_tasks = tasks.filter((t) => t.status !== 'passed').length;
+  s.tasks = tasks;
+  return s;
+}
+
+test('observed dispatch failure does not fail the functional gate', () => {
+  const s = summaryWithTasks([
+    taskWith('bug-lite', 'observed', ['required_used_agents_missing']),
+    taskWith('tester-lite', 'observed', ['required_used_agent_groups_missing']),
+  ]);
+  assert.equal(summaryFunctionalPassesGate(s), true);
+  assert.equal(taskFunctionalFailures(s.tasks[0]).length, 0);
+  assert.equal(taskDispatchLineFailures(s.tasks[0], 'observed').length, 1);
+});
+
+test('observed dispatch failure is reported as a failed dispatch-observed line', () => {
+  const s = summaryWithTasks([
+    taskWith('bug-lite', 'observed', ['required_used_agents_missing']),
+  ]);
+  const obs = dispatchLineReport(s, 'observed');
+  assert.equal(obs.status, 'failed');
+  assert.equal(obs.failed, 1);
+  assert.deepEqual(obs.failedTaskIds, ['bug-lite']);
+});
+
+test('a real functional failure on an observed task fails the functional gate', () => {
+  const s = summaryWithTasks([
+    taskWith('bug-lite', 'observed', ['verification_failed', 'required_used_agents_missing']),
+  ]);
+  assert.equal(summaryFunctionalPassesGate(s), false);
+  // dispatch failure is still partitioned out of functional failures
+  assert.deepEqual(taskFunctionalFailures(s.tasks[0]), ['verification_failed']);
+});
+
+test('standard-mode dispatch failure stays in the functional line (union-credited)', () => {
+  const s = summaryWithTasks([
+    taskWith('review-task', 'standard', ['required_used_agents_missing']),
+  ]);
+  assert.equal(summaryFunctionalPassesGate(s), false);
+  assert.deepEqual(taskFunctionalFailures(s.tasks[0]), ['required_used_agents_missing']);
+  // standard-mode tasks do not appear on the dispatch-observed line
+  assert.equal(dispatchLineReport(s, 'observed').status, 'no-observed-tasks');
+});
+
+test('enforced-mode dispatch failure is excluded from functional, counted on its own line', () => {
+  const s = summaryWithTasks([
+    taskWith('bug-forced', 'enforced', ['required_used_agents_missing']),
+  ]);
+  assert.equal(summaryFunctionalPassesGate(s), true);
+  const enf = dispatchLineReport(s, 'enforced');
+  assert.equal(enf.status, 'failed');
+  assert.equal(enf.failed, 1);
+});
+
+test('no observed tasks -> dispatch-observed line is n/a', () => {
+  const s = summaryWithTasks([taskWith('review-task', 'standard', [])]);
+  assert.equal(dispatchLineReport(s, 'observed').status, 'no-observed-tasks');
+  assert.equal(dispatchLineReport(s, 'enforced').status, 'no-enforced-tasks');
+});
+
+test('renderGateLines labels the three named lines', () => {
+  const s = summaryWithTasks([
+    taskWith('bug-lite', 'observed', ['required_used_agents_missing']),
+  ]);
+  const text = renderGateLines(true, dispatchLineReport(s, 'observed'), dispatchLineReport(s, 'enforced'));
+  assert.match(text, /- functional: PASSED \(merge-blocking\)/);
+  assert.match(text, /- dispatch-observed: FAILED — 1\/1 observed tasks did NOT call the Agent tool/);
+  assert.match(text, /bug-lite/);
+  assert.match(text, /- dispatch-enforced: n\/a \(no enforced-mode tasks; Stage 5 not wired\)/);
+});
+
+test('CLI exits 0 when only dispatch-observed fails (functional passes)', () => {
+  const d = mkdtempSync(join(tmpdir(), 'assert-'));
+  const f = join(d, 'summary.json');
+  writeFileSync(f, JSON.stringify(summaryWithTasks([
+    taskWith('bug-lite', 'observed', ['required_used_agents_missing']),
+    taskWith('tester-lite', 'observed', ['required_used_agents_missing']),
+  ])));
+  const r = runCli(f);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /functional: PASSED/);
+  assert.match(r.stdout, /dispatch-observed: FAILED/);
+  assert.match(r.stdout, /honest capability signal/);
+});
+
+test('CLI exits 1 when the functional gate fails', () => {
+  const d = mkdtempSync(join(tmpdir(), 'assert-'));
+  const f = join(d, 'summary.json');
+  writeFileSync(f, JSON.stringify(summaryWithTasks([
+    taskWith('bug-lite', 'observed', ['verification_failed', 'required_used_agents_missing']),
+  ])));
+  const r = runCli(f);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /functional gate FAILED/);
+  assert.match(r.stdout, /functional: FAILED/);
 });

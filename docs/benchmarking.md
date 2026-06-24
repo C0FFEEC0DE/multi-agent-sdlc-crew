@@ -62,6 +62,113 @@ Recommended transcript regression coverage:
 
 The subagent smoke suite under `bench/tasks/subagents/smoke/*.json` keeps one canary task per canonical alias for PR-time coverage. Tasks that still validate transcript shape are expected to carry the shared footer markers `Outcome:`, `Changed files:` or `No files changed:`, `Verification status:`, and `Remaining risks:` or `Next step:` so role prompts, hook contracts, and runner assertions stay aligned.
 
+## Agent-Dispatch Evidence Split
+
+The runner resolves agent-usage evidence from three disjoint sources so a strict observed-dispatch contract can be layered in without changing the legacy pass/fail behavior:
+
+- **hook** — real `SubagentStart` events and `Recorded subagent handoff: @alias` echoes captured in the effective debug log. Only these count as genuine dispatch (`hookSourceAliases`).
+- **transcript** — launch-like lines inferred from the structured session transcript (`inferUsedAgentAliasesFromTranscript`).
+- **claimed** — `Handoff evidence: @alias ...` markers and prose `@alias` patterns in the final result text (`inferUsedAgentAliasesFromResultText`).
+
+`extractUsedAgentEvidence` returns these as disjoint sets plus a `byAlias` map; `extractUsedAgentAliases` returns their union (unchanged legacy behavior used by pass/fail).
+
+Per-task `result.json` gains four additive fields (existing fields are unchanged):
+
+- `observed_agent_aliases` — hook source only (real dispatch).
+- `claimed_agent_aliases` — textual claims (transcript + claimed) **minus** any alias that has a real hook, so an alias proved by a `SubagentStart` is counted as observed, not claimed. `observed` and `claimed` form a clean partition: `observed ∪ claimed == used_agent_aliases`.
+- `agent_evidence_by_alias` — per-alias `{hook, transcript, claimed}` booleans.
+- `dispatch_mode` — `'standard' | 'observed' | 'enforced'`.
+
+`task-summary.txt` gains corresponding lines: `Observed agent aliases (hook):`, `Claimed agent aliases (text):`, and `Dispatch mode:`.
+
+`dispatch_mode` is resolved by `resolveDispatchMode(task)` from `task.dispatch_contract.mode`:
+
+- **`standard`** (default, absent) — credits the union of hook + transcript + claimed. Pass/fail behavior is unchanged from the legacy contract.
+- **`observed`** — strict: only a real `SubagentStart` (the hook source) satisfies `required_used_agents`; prose `Handoff evidence:` claims and transcript launch-text do **not**. `effectiveUsedAliasesForEnforcement` returns `observed_agent_aliases` (hook-only) instead of the union, so a role mentioned only in prose still triggers `required_used_agents_missing`.
+- **`enforced`** — parsed and surfaced identically to `observed` for pass/fail, but reserved for a later harness guard (Stage 5) that would force dispatch via a `PreToolUse` hook. No task declares it yet and no extra harness guard is wired beyond the observed-mode check.
+
+Under `observed`/`enforced`, the runner's `requiredUsedAgentMisses` is fed `enforceUsed` (hook-only aliases), so `classifyTaskFailures` fails the task when a required role has no real `SubagentStart`. Under `standard` the union is still credited unchanged. The `observed_*` / `claimed_*` / `agent_evidence_by_alias` fields remain diagnostic in all modes; the strict wiring only narrows which aliases count toward `required_used_agents_missing`.
+
+## Dispatch Contract Marker
+
+The `dispatch_contract` task field lets a benchmark task declare an exact specialist contract so the runner and the plugin hook agree on a single required-role set instead of the category defaults. It is optional; tasks without it keep the legacy behavior.
+
+Shape (validated by `scripts/validate.mjs`):
+
+```json
+"dispatch_contract": {
+  "mode": "observed",
+  "required_agents": ["bug"],
+  "root_only": true
+}
+```
+
+- **`mode`** — one of `standard` | `observed` | `enforced` (see the evidence-split semantics above).
+- **`required_agents`** — canonical alias list; the validator requires it to be a non-empty array of known aliases and to match `required_used_agents` exactly (same set), so the runner field and the contract field cannot drift apart.
+- **`root_only`** — boolean; the runner always emits the marker as `root_only` because `buildPrompt` runs once for the root prompt and never for a subagent, so a specialist cannot recursively re-dispatch itself.
+
+The runner's `dispatchContractMarker(task)` builds a single line from those fields:
+
+```text
+BENCHMARK_DISPATCH_CONTRACT: root_only; mode=observed; roles=bug
+```
+
+`buildPrompt` injects it into the root benchmark prompt only. The plugin's `UserPromptSubmit` classifier (`parseDispatchContractMarker` / `RE_DISPATCH_CONTRACT` in `modules/workflow.mjs`) parses that marker and, when present, **overrides the category-default required roles**: it sets `requiredSubagents` to exactly the listed role(s), clears `required_subagent_any_of` (the any-of groups), and emits a contract-specific context message. This resolves the conflict where a tiny bugfix task was forced to also dispatch `@t`/`@cr`/one-of-`@e|@a` by category classification even though the runner only asks for one specialist.
+
+The marker does **not** override `docs_required`; that flag still follows category classification. A bugfix task that changes behavior still needs `docs_required: false` set explicitly if it should not be gated on a docs update.
+
+When a task declares a `dispatch_contract`, `buildPrompt` also appends a **"Dispatch contract discipline"** note to the root prompt: the first substantive action must be launching the required specialist via the Agent tool (a real `SubagentStart`); the root agent must not `Edit`/`Write`/`MultiEdit` any file before that specialist starts; and the specialist owns the substantive work while the root coordinates, verifies, and reports. This is **advisory prompt discipline only** — there is no harness `PreToolUse` guard enforcing it yet (that is the not-yet-shipped Stage 5 `enforced` mode). Today the hard gate is the `observed`-mode evidence check, which fails the task when a required role has no real `SubagentStart`.
+
+Two smoke tasks now declare `observed` contracts (both `root_only: true`):
+
+- `bench/tasks/subagents/smoke/subagent-bugbuster-zero-division-lite.json` — `mode: observed`, `required_agents: ["bug"]`.
+- `bench/tasks/subagents/smoke/subagent-tester-regression-lite.json` — `mode: observed`, `required_agents: ["t"]`.
+
+## CI Gate-Line Split (functional / dispatch-observed / dispatch-enforced)
+
+The smoke benchmark gate used to be one monolithic pass/fail: `passed === tasks && tool_failures === 0 && unresolved_tasks === 0`. Under that rule a model that did the fix inline with passing `pytest` but never dispatched (the `glm-5.2:cloud` under-delegation case) failed the whole CI on `required_used_agents_missing`, hiding real functional progress behind the dispatch signal. Stage 6 of the dispatch-stabilization plan splits the gate into three explicitly named lines so functional progress stays visible (and mergeable) while the dispatch capability signal stays honestly visible.
+
+The three lines:
+
+- **`functional`** — fix + verification + review/docs + structural execution coverage (`configured_tasks > 0`, `executed_tasks === configured_tasks`, `tasks === executed_tasks`, `policy_violations === 0`, and every task has no functional failures). This is the **MERGE-BLOCKING** check: `assert-benchmark-summary.mjs` exits non-zero only on this line.
+- **`dispatch-observed`** — whether the model itself called the Agent tool (a real `SubagentStart`, the hook source from the [Agent-Dispatch Evidence Split](#agent-dispatch-evidence-split)) on `observed`-mode tasks. This is a **VISIBLE, NON-BLOCKING** capability signal. It is never masked or "repaired" through final text; a red `dispatch-observed` line is an honest model-capability signal, not a CI failure.
+- **`dispatch-enforced`** — separate line for the hard-guard harness (Stage 5, not yet wired). With no `enforced`-mode tasks in the suite it reports `n/a (no enforced-mode tasks; Stage 5 not wired)`.
+
+### How it is computed
+
+A task's `failures` list mixes functional failures with dispatch failures. The dispatch failure codes are `required_used_agents_missing` and `required_used_agent_groups_missing` (the set `DISPATCH_LINE_FAILURES` in `scripts/bench/lib.mjs`). The split:
+
+- For `observed`/`enforced`-mode tasks, the dispatch failure codes are **excluded** from the functional line and **counted on their own dispatch line**. A dispatch-failed task still has `status: 'failed'` and depresses the legacy `passed`/`tool_failures`/`unresolved_tasks` totals, which is exactly why the functional line no longer reads those totals — it re-derives pass/fail per task from `taskFunctionalFailures(task)`.
+- For `standard`-mode tasks, dispatch is union-credited (a prose claim satisfies it — see [Dispatch Contract Marker](#dispatch-contract-marker)), so a dispatch failure there means the model did not even claim the role. That is a real functional gap, so the dispatch failure **stays in the functional line** for `standard` tasks.
+
+Shared logic in `scripts/bench/lib.mjs`:
+
+- `taskFunctionalFailures(task)` — failures for the functional line (dispatch codes excluded for `observed`/`enforced`, kept for `standard`).
+- `taskDispatchLineFailures(task, mode)` — failures for the named dispatch line; empty for tasks not in that mode.
+- `dispatchLineReport(summary, mode)` — `{ status: 'passed' | 'failed' | 'no-${mode}-tasks', total, passed, failed, failedTaskIds }`.
+
+Merge-blocking authority in `scripts/assert-benchmark-summary.mjs`:
+
+- `summaryFunctionalPassesGate(summary, opts)` — the functional gate the CLI actually enforces.
+- `renderGateLines(functionalOk, observed, enforced)` — the three plain-text lines printed to CI step output.
+
+Rendering in `scripts/render-benchmark-summary.mjs`: a `### Gate lines` markdown block is rendered into `benchmark-report.md` and the GitHub step summary, mirroring the assert step's three named lines with a note that dispatch lines are non-blocking capability signals.
+
+### Where it shows up in CI
+
+In `.github/workflows/behavior-benchmark-subagents-smoke.yml`:
+
+- **`Enforce subagent smoke functional gate`** (blocking) — runs `node scripts/assert-benchmark-summary.mjs bench-output/summary.json`, which prints all three gate lines and exits non-zero only when the functional line fails.
+- **`Report dispatch-observed capability signal`** (`if: always()`) — renders the `### Gate lines` block into the job summary so the honest dispatch signal stays visible whether or not functional passed. The `if: always()` ensures the capability signal is published even on a red functional gate.
+
+### Backward-compat caveat
+
+The old strict `summaryPassesGate(summary, opts)` (`passed === tasks`, `tool_failures === 0`, `unresolved_tasks === 0`, plus optional recovery/repair caps) is still exported from `scripts/assert-benchmark-summary.mjs` for callers that want the strict all-checks option, but the CLI no longer uses it — `main()` calls `summaryFunctionalPassesGate` instead. If you import `summaryPassesGate` directly, note that it is still polluted by dispatch-line failures on `observed`/`enforced` tasks and will fail a run that the functional gate passes.
+
+## Agent-Backed Skill Taxonomy
+
+The `/bug` skill is now **agent-backed**: like `/test`, `/design`, `/docs`, `/refactor`, and `/review`, it declares `agent: Bugbuster`, `context: fork`, `disable-model-invocation: true`, and a scoped `allowed-tools`/`paths` set, so invoking it dispatches the Bugbuster in an isolated forked subagent rather than running inline. The agent-backed skill set is therefore `bug, design, docs, refactor, review, test`; the command skills (minimal name+description entry points, no agent dispatch) are `debug, explore, manager`. This matters for benchmark dispatch contracts because the `bug` alias now resolves to a real `SubagentStart` against the Bugbuster, the same way `test` resolves to the Tester.
+
 ## Hook Test Layers
 
 Hook behavior is covered by a single Node runner, `node scripts/test-hooks.mjs`
@@ -102,11 +209,11 @@ Agent and slash-skill changes are mapped through the frontmatter declared in `pl
 
 ## Slot-Gate Mechanism
 
-Concurrent benchmark runs are limited by a two-slot gate enforced through `scripts/wait-for-benchmark-slot.py`. This prevents multiple workflow dispatches from overloading shared CI runners.
+Concurrent benchmark runs are limited by a two-slot gate enforced through `scripts/wait-for-benchmark-slot.mjs`. This prevents multiple workflow dispatches from overloading shared CI runners.
 
 **How it works:**
 
-- `wait-for-benchmark-slot.py` polls a dedicated GitHub API endpoint (or a comparable availability check) until a slot opens, or exits immediately if one is already free.
+- `wait-for-benchmark-slot.mjs` polls a dedicated GitHub API endpoint (or a comparable availability check) until a slot opens, or exits immediately if one is already free.
 - The gate allows a maximum of **2 concurrent benchmark runs** at any time.
 - When the gate is occupied, the script waits and retries at a fixed interval until a slot becomes available.
 

@@ -17,6 +17,13 @@ const RE_PLAN_ONLY = /(plan only|only plan|plan-only|только план|то�
 const RE_OVERRIDE = /workflow override: treat this as a (feature|bugfix|refactor|review|docs|support|other) workflow/i;
 const RE_WORKFLOW_CATEGORY = /workflow_category:\s*(feature|bugfix|refactor|review|docs|support|other)/i;
 
+// Machine-readable dispatch contract injected by the benchmark runner into the
+// ROOT prompt only (see bench_runner_claude_code.mjs dispatchContractMarker).
+// When present, the plugin requires exactly the listed specialist(s) instead of
+// the category-default role set, so a tiny task is not forced to also dispatch
+// @t/@cr/one-of groups that the runner does not ask for.
+const RE_DISPATCH_CONTRACT = /BENCHMARK_DISPATCH_CONTRACT:\s*(root_only;)?\s*mode=(observed|enforced|standard);\s*roles=([A-Za-z0-9_,-]+)/i;
+
 const RE_MODEL_TERMS = /(model|models|llm|ollama|openrouter|qwen|llama|deepseek|mistral|claude|gpt|gemini|command r|модел|модели|модель)/iu;
 const RE_QUESTION_TERMS = /(which|what|recommend|recommendation|compare|best|better|vs|versus|open source|opensource|closed model|api|creative|creativity|style|storytelling|какую|какой|посовет|совет|рекоменд|сравн|лучш|выбрат|подскажи|подбери|нужн|креатив|стиль|сторител|иде[йи])/iu;
 const RE_EXCLUSION_TERMS = /(feature|implement|add support|integrat|new capability|фич|добав|интеграц|подключ|fix|bug|defect|баг|ошиб|исправ|refactor|rename|cleanup|tech debt|рефактор|почист|переимен|review|audit|ревью|аудит|проверь|docs|readme|document|док|ридми)/iu;
@@ -34,6 +41,20 @@ const TASK_TYPES = ['feature', 'bugfix', 'refactor', 'review', 'docs', 'support'
 
 function uniq(arr) {
   return [...new Set(arr)];
+}
+
+/**
+ * Parse a BENCHMARK_DISPATCH_CONTRACT marker from a prompt. Returns
+ * { rootOnly, mode, roles } (roles lowercased canonical aliases) or null when
+ * no marker is present. Pure; no I/O.
+ */
+export function parseDispatchContractMarker(text) {
+  if (typeof text !== 'string') return null;
+  const m = text.match(RE_DISPATCH_CONTRACT);
+  if (!m) return null;
+  const roles = String(m[3]).split(',').map((r) => r.trim().toLowerCase()).filter(Boolean);
+  if (!roles.length) return null;
+  return { rootOnly: Boolean(m[1]), mode: String(m[2]).toLowerCase(), roles };
 }
 
 /**
@@ -141,6 +162,21 @@ export function classifyPrompt(prompt) {
   }
 
   if (contextMessage) contextMessage = buildContextMessage(taskType, managerMode, contextMessage);
+
+  // A benchmark dispatch contract (root-only marker) overrides the
+  // category-default required roles: require exactly the listed specialist(s)
+  // and clear any-of groups, so runner and hook agree on a single contract.
+  const dispatchContract = parseDispatchContractMarker(text);
+  if (dispatchContract) {
+    requiredSubagents = dispatchContract.roles;
+    requiredSubagentAnyOf = [];
+    const roles = dispatchContract.roles.map((r) => '@' + r).join(', ');
+    contextMessage =
+      `Benchmark dispatch contract active (mode=${dispatchContract.mode}, root_only). ` +
+      `Required specialist handoff before completion: ${roles}. ` +
+      `Only the listed role(s) satisfy the contract; do not add category-default specialist handoffs. ` +
+      `Run verification after changes and report changed files and remaining risks before stopping.${STOP_SAFE_HINT}`;
+  }
 
   return {
     taskType,
