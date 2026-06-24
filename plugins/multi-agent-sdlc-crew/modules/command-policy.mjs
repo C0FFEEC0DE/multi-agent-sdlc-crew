@@ -123,10 +123,17 @@ const RE_RM = new RegExp(`(^|${LB})rm\\s`);
 // Token-based flag detection — avoids polynomial regex backtracking
 // (CodeQL: js/polynomial-redos). Extracts dash-prefixed tokens from the
 // normalized command and checks character membership with .includes().
-/** Extract flag chars from a single dash-prefixed token (e.g. "-rf" → "rf"). */
+/** Extract flag chars from a single dash-prefixed token (e.g. "-rf" → "rf").
+ *  Uses char-by-char scanning instead of regex to avoid ReDoS alerts. */
 function flagChars(token) {
-  const m = token.match(/^-+([a-z0-9-]+)/);
-  return m ? m[1].replace(/-/g, '') : '';
+  let i = 0;
+  while (i < token.length && token[i] === '-') i++;
+  let out = '';
+  for (; i < token.length; i++) {
+    const c = token[i];
+    if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) out += c;
+  }
+  return out;
 }
 /** Split a normalized command into whitespace-separated tokens. */
 function tokensOf(norm) {
