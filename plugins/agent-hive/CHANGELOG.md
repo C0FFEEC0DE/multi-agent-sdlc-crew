@@ -84,7 +84,7 @@ contract in `docs/specs/claude-code-plugin-node-migration.md`.
   with kebab-case canonical names; legacy persona aliases retained only in
   `assets/aliases.json` for transcript compatibility (no packaged symlinks).
   Skills under `skills/<name>/SKILL.md` with namespaced invocation
-  (`/multi-agent-sdlc-crew:review`). Workflow documents moved into `references/`
+  (`/agent-hive:review`). Workflow documents moved into `references/`
   as on-demand skill references.
 - **Optional Node status line.** `scripts/statusline.mjs` reads one JSON object
   from stdin and prints `<cwd basename> | <model display name> | <output style>`.

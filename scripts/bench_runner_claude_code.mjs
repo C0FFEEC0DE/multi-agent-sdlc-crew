@@ -35,16 +35,16 @@ const TASK_FILE = process.env.BENCH_TASK_FILE ? resolve(process.env.BENCH_TASK_F
 const WORKDIR = process.env.BENCH_WORKDIR ? resolve(process.env.BENCH_WORKDIR) : '';
 const OUTPUT_DIR = process.env.BENCH_OUTPUT_DIR ? resolve(process.env.BENCH_OUTPUT_DIR) : '';
 
-// The multi-agent-sdlc-crew plugin is the single source of truth for agent
+// The agent-hive plugin is the single source of truth for agent
 // aliases and agent frontmatter (the legacy claudecfg/ tree was removed).
 const PLUGIN_DIR = REPO_ROOT
-  ? join(REPO_ROOT, 'plugins', 'multi-agent-sdlc-crew')
+  ? join(REPO_ROOT, 'plugins', 'agent-hive')
   : '';
 const ALIASES_JSON = REPO_ROOT
-  ? join(REPO_ROOT, 'plugins', 'multi-agent-sdlc-crew', 'assets', 'aliases.json')
+  ? join(REPO_ROOT, 'plugins', 'agent-hive', 'assets', 'aliases.json')
   : '';
 const AGENTS_DIR = REPO_ROOT
-  ? join(REPO_ROOT, 'plugins', 'multi-agent-sdlc-crew', 'agents')
+  ? join(REPO_ROOT, 'plugins', 'agent-hive', 'agents')
   : '';
 
 const CLAUDE_BIN = envOrDefault('CLAUDE_BIN', 'claude');
@@ -68,7 +68,7 @@ const REQUIRED_SUMMARY_PREFIXES = [
 // ---------- aliases / agent label map ----------
 function loadAliasesJson(repoRoot) {
   const mapping = {};
-  const aliasesPath = join(repoRoot, 'plugins', 'multi-agent-sdlc-crew', 'assets', 'aliases.json');
+  const aliasesPath = join(repoRoot, 'plugins', 'agent-hive', 'assets', 'aliases.json');
   if (existsSync(aliasesPath)) {
     const data = JSON.parse(readFileSync(aliasesPath, 'utf-8'));
     for (const [canonical, variants] of Object.entries(data)) {
@@ -140,7 +140,7 @@ function globDirMd(dir) {
 
 export function buildAgentLabelMap(repoRoot) {
   const mapping = { ...loadAliasesJson(repoRoot) };
-  const agentsDir = join(repoRoot, 'plugins', 'multi-agent-sdlc-crew', 'agents');
+  const agentsDir = join(repoRoot, 'plugins', 'agent-hive', 'agents');
   for (const path of globDirMd(agentsDir)) {
     const alias = frontmatterField(path, 'alias');
     if (!alias) continue;
@@ -521,7 +521,7 @@ export function buildPrompt(task, verificationLabel) {
 
   return `You are running in a tiny benchmark repository fixture.
 
-Complete the task in the current working directory using the multi-agent-sdlc-crew Claude Code plugin (loaded via --plugin-dir).
+Complete the task in the current working directory using the agent-hive Claude Code plugin (loaded via --plugin-dir).
 Use tools normally. Make only the changes needed for this task. Do not do release or deploy work.
 If behavior changes, update docs. ${verificationHint}
 Leave the workspace changes in place for artifact collection.

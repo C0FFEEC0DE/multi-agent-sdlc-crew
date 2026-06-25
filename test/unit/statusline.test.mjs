@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatStatusLine } from '../../plugins/multi-agent-sdlc-crew/scripts/statusline.mjs';
+import { formatStatusLine } from '../../plugins/agent-hive/scripts/statusline.mjs';
 
 test('normal payload: dir | model | style', () => {
   const out = formatStatusLine({

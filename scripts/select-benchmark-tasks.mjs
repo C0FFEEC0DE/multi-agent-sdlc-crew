@@ -16,11 +16,11 @@ export const PRIORITY_PROFILES = {};
 // manifest, plugin manifest, or bundled alias map) is a global behavior change
 // that should re-run the whole behavior smoke suite.
 export const GLOBAL_BEHAVIOR_PREFIXES = [
-  'plugins/multi-agent-sdlc-crew/modules/',
-  'plugins/multi-agent-sdlc-crew/hooks/hooks.json',
-  'plugins/multi-agent-sdlc-crew/.claude-plugin/plugin.json',
-  'plugins/multi-agent-sdlc-crew/assets/aliases.json',
-  'plugins/multi-agent-sdlc-crew/package.json',
+  'plugins/agent-hive/modules/',
+  'plugins/agent-hive/hooks/hooks.json',
+  'plugins/agent-hive/.claude-plugin/plugin.json',
+  'plugins/agent-hive/assets/aliases.json',
+  'plugins/agent-hive/package.json',
   'scripts/assert-benchmark-summary.mjs',
   'scripts/bench/lib.mjs',
   'scripts/bench_runner_claude_code.mjs',
@@ -56,10 +56,10 @@ export const SKILL_TO_ALIAS = {};
 export function tasksRoot() { return join(config.repoRoot, 'bench', 'tasks'); }
 
 // The agent/skill source-of-truth moved from claudecfg/ to the bundled plugin.
-// Plugin agents are flat: plugins/multi-agent-sdlc-crew/agents/<name>.md.
-// Plugin skills are nested: plugins/multi-agent-sdlc-crew/skills/<skill>/SKILL.md.
-function pluginAgentsDir() { return join(config.repoRoot, 'plugins', 'multi-agent-sdlc-crew', 'agents'); }
-function pluginSkillsDir() { return join(config.repoRoot, 'plugins', 'multi-agent-sdlc-crew', 'skills'); }
+// Plugin agents are flat: plugins/agent-hive/agents/<name>.md.
+// Plugin skills are nested: plugins/agent-hive/skills/<skill>/SKILL.md.
+function pluginAgentsDir() { return join(config.repoRoot, 'plugins', 'agent-hive', 'agents'); }
+function pluginSkillsDir() { return join(config.repoRoot, 'plugins', 'agent-hive', 'skills'); }
 
 export function buildAgentFileMap() {
   const mapping = {};
@@ -157,8 +157,8 @@ export { FileNotFoundError };
 
 export function impactedAgents(changedFiles) {
   const aliases = new Set();
-  const AGENTS_PREFIX = 'plugins/multi-agent-sdlc-crew/agents/';
-  const SKILLS_PREFIX = 'plugins/multi-agent-sdlc-crew/skills/';
+  const AGENTS_PREFIX = 'plugins/agent-hive/agents/';
+  const SKILLS_PREFIX = 'plugins/agent-hive/skills/';
   for (const changed of changedFiles) {
     const parts = changed.split(/[\\/]/);
     const name = parts[parts.length - 1];

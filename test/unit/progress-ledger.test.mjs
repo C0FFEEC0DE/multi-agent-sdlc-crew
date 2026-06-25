@@ -1,5 +1,5 @@
 // Tests the durable progress-ledger re-injection on PostCompact via the
-// plugin's Node hook dispatcher (plugins/multi-agent-sdlc-crew/modules/
+// plugin's Node hook dispatcher (plugins/agent-hive/modules/
 // hook-dispatcher.mjs). Ported from the legacy shell-based
 // tests/test_progress_ledger.py, which exercised the removed
 // claudecfg/hooks/post-compact.sh. The ledger is re-injected as
@@ -13,7 +13,7 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 
 const REPO = join(import.meta.dirname, '..', '..');
-const PLUGIN = join(REPO, 'plugins', 'multi-agent-sdlc-crew');
+const PLUGIN = join(REPO, 'plugins', 'agent-hive');
 const DISPATCHER = join(PLUGIN, 'modules', 'hook-dispatcher.mjs');
 
 function freshDir(label) {

@@ -5,11 +5,11 @@ import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { statePaths, appendEvent, loadState } from '../../plugins/multi-agent-sdlc-crew/modules/state.mjs';
+import { statePaths, appendEvent, loadState } from '../../plugins/agent-hive/modules/state.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
-const dispatcher = join(root, 'plugins', 'multi-agent-sdlc-crew', 'modules', 'hook-dispatcher.mjs');
+const dispatcher = join(root, 'plugins', 'agent-hive', 'modules', 'hook-dispatcher.mjs');
 const fixtures = join(root, 'test', 'hooks', 'fixtures');
 const cases = JSON.parse(readFileSync(join(root, 'test', 'hooks', 'cases.json'), 'utf8'));
 

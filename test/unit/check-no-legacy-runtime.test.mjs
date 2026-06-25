@@ -8,8 +8,8 @@ import { tmpdir } from 'node:os';
 
 function makeTree(root) {
   // Clean Node-only plugin runtime + a Node script under scripts/ (no .py).
-  mkdirSync(join(root, 'plugins', 'multi-agent-sdlc-crew', 'scripts'), { recursive: true });
-  writeFileSync(join(root, 'plugins', 'multi-agent-sdlc-crew', 'scripts', 'statusline.mjs'), '// node\n');
+  mkdirSync(join(root, 'plugins', 'agent-hive', 'scripts'), { recursive: true });
+  writeFileSync(join(root, 'plugins', 'agent-hive', 'scripts', 'statusline.mjs'), '// node\n');
   mkdirSync(join(root, 'scripts'), { recursive: true });
   writeFileSync(join(root, 'scripts', 'lint.mjs'), '// node\n');
 }
@@ -37,7 +37,7 @@ test('fails when a stray .sh is placed under plugins/', () => {
   const root = freshRoot();
   try {
     makeTree(root);
-    writeFileSync(join(root, 'plugins', 'multi-agent-sdlc-crew', 'legacy.sh'), '#!/bin/bash\nexit 0\n');
+    writeFileSync(join(root, 'plugins', 'agent-hive', 'legacy.sh'), '#!/bin/bash\nexit 0\n');
     const r = checkNoLegacyRuntime(root);
     assert.equal(r.ok, false);
     assert.ok(r.offenses.some((o) => o.includes('legacy.sh') && o.includes('plugin runtime')));
@@ -50,7 +50,7 @@ test('fails when a stray .py appears under plugins/', () => {
   const root = freshRoot();
   try {
     makeTree(root);
-    writeFileSync(join(root, 'plugins', 'multi-agent-sdlc-crew', 'helper.py'), 'print(1)\n');
+    writeFileSync(join(root, 'plugins', 'agent-hive', 'helper.py'), 'print(1)\n');
     const r = checkNoLegacyRuntime(root);
     assert.equal(r.ok, false);
     assert.ok(r.offenses.some((o) => o.includes('helper.py')));

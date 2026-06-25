@@ -1,6 +1,6 @@
 # Plugin architecture
 
-`multi-agent-sdlc-crew` is self-contained inside this plugin directory. Claude
+`agent-hive` is self-contained inside this plugin directory. Claude
 Code loads the manifest, then every hook invokes the shared Node entry point at
 `modules/hook-dispatcher.mjs`.
 

@@ -1,7 +1,7 @@
 # Plugin threat model
 
 A focused, honest threat model for the
-`multi-agent-sdlc-crew` Claude Code plugin. It covers what the plugin's Node.js
+`agent-hive` Claude Code plugin. It covers what the plugin's Node.js
 hook runtime does, the boundaries it enforces, and the risks that remain. It is
 written for a reviewer, not for marketing: where a guarantee is bounded, the
 bound is stated.
@@ -120,7 +120,7 @@ plugin README, "Privacy & telemetry").
 
 The runtime makes **no network calls** and sends **nothing** off the local machine.
 All state is local under `${CLAUDE_PLUGIN_DATA}` or project-provided paths. This
-was verified by scanning `plugins/multi-agent-sdlc-crew/modules/` and `scripts/`
+was verified by scanning `plugins/agent-hive/modules/` and `scripts/`
 for network primitives: no `fetch`, `http`/`https`/`net`/`dns`/`undici` imports, no
 `child_process` usage in the runtime (the only `child_process` reference is in the
 off-runtime `plugin-install-smoke.mjs` validator, which uses `spawnSync` with an

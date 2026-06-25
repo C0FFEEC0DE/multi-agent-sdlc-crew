@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import {
   safeSessionId, statePaths, ensureStateDir, appendEvent, readEvents,
   reducer, writeSnapshot, readSnapshot, loadState, trimEvents, DEFAULT_STATE,
-} from '../../plugins/multi-agent-sdlc-crew/modules/state.mjs';
+} from '../../plugins/agent-hive/modules/state.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const workerScript = join(here, 'parallel-writer-worker.mjs');

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseHookInput } from '../../plugins/multi-agent-sdlc-crew/modules/hook-input.mjs';
+import { parseHookInput } from '../../plugins/agent-hive/modules/hook-input.mjs';
 
 test('valid JSON: extracts common fields', () => {
   const r = parseHookInput(JSON.stringify({

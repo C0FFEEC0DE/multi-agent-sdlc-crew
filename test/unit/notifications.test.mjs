@@ -8,8 +8,8 @@ import {
   notificationPayload, instructionsLoadedPayload, preCompactPayload,
   postCompactPayload, configChangePayload, sessionEndPayload,
   DEFAULT_LOG_MAX_BYTES,
-} from '../../plugins/multi-agent-sdlc-crew/modules/notifications.mjs';
-import { timestampUtc } from '../../plugins/multi-agent-sdlc-crew/modules/util.mjs';
+} from '../../plugins/agent-hive/modules/notifications.mjs';
+import { timestampUtc } from '../../plugins/agent-hive/modules/util.mjs';
 
 // --- timestampUtc (regression for the getUTCMonth typo) -------------------
 

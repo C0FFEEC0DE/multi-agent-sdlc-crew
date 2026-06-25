@@ -11,7 +11,7 @@ import { readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const pluginDir = 'plugins/multi-agent-sdlc-crew';
+const pluginDir = 'plugins/agent-hive';
 const modulesDir = join(pluginDir, 'modules');
 const dispatcher = join(modulesDir, 'hook-dispatcher.mjs');
 const hooksJson = join(pluginDir, 'hooks', 'hooks.json');

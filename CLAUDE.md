@@ -1,6 +1,6 @@
 # Project Context
 
-This repository ships the `multi-agent-sdlc-crew` Claude Code plugin (`plugins/multi-agent-sdlc-crew/`) — a hook-gated SDLC profile with a platform-independent Node ESM hook runtime and benchmark-driven agent regression coverage.
+This repository ships the `agent-hive` Claude Code plugin (`plugins/agent-hive/`) — a hook-gated SDLC profile with a platform-independent Node ESM hook runtime and benchmark-driven agent regression coverage.
 
 ## Profile
 
@@ -26,10 +26,10 @@ This profile is hook-gated:
 Install the plugin from a local checkout:
 
 ```bash
-claude plugin install ./plugins/multi-agent-sdlc-crew
+claude plugin install ./plugins/agent-hive
 ```
 
-See `plugins/multi-agent-sdlc-crew/README.md` for requirements, configuration, and the optional status line.
+See `plugins/agent-hive/README.md` for requirements, configuration, and the optional status line.
 
 ## Commands
 
@@ -53,12 +53,12 @@ Transcript fallback also recognizes slash-skill loads, agent launch lines like `
 
 ## Docs
 
-- `plugins/multi-agent-sdlc-crew/README.md` — plugin quick reference: requirements, installation, configuration, status line, privacy
-- `plugins/multi-agent-sdlc-crew/references/subagent-driven-development.md` — the SDD workflow and reference docs
+- `plugins/agent-hive/README.md` — plugin quick reference: requirements, installation, configuration, status line, privacy
+- `plugins/agent-hive/references/subagent-driven-development.md` — the SDD workflow and reference docs
 - `docs/benchmarking.md` — benchmark architecture, slot-gate mechanism, local usage, and required GitHub setup
-- `plugins/multi-agent-sdlc-crew/references/agent-contracts.md` — contract matrix for benchmark/hook layers per agent role
+- `plugins/agent-hive/references/agent-contracts.md` — contract matrix for benchmark/hook layers per agent role
 
-Plugin skills under `plugins/multi-agent-sdlc-crew/skills/` use YAML frontmatter for routing/tool constraints. Agent-backed skills (`bug`, `design`, `docs`, `refactor`, `review`, `test`) carry the full dispatch contract; command skills (`debug`, `explore`, `manager`) are minimal name+description entry points.
+Plugin skills under `plugins/agent-hive/skills/` use YAML frontmatter for routing/tool constraints. Agent-backed skills (`bug`, `design`, `docs`, `refactor`, `review`, `test`) carry the full dispatch contract; command skills (`debug`, `explore`, `manager`) are minimal name+description entry points.
 
 ## Repository Automation
 

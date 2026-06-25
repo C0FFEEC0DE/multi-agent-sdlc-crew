@@ -5,11 +5,11 @@ import { readFileSync, writeFileSync, existsSync, mkdtempSync, rmSync } from 'no
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { resolveLogRoot } from '../../plugins/multi-agent-sdlc-crew/modules/util.mjs';
+import { resolveLogRoot } from '../../plugins/agent-hive/modules/util.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
-const dispatcher = join(root, 'plugins', 'multi-agent-sdlc-crew', 'modules', 'hook-dispatcher.mjs');
+const dispatcher = join(root, 'plugins', 'agent-hive', 'modules', 'hook-dispatcher.mjs');
 
 function run(event, stdin, dataRoot, env = {}) {
   return spawnSync(process.execPath, [dispatcher, '--event', event], {

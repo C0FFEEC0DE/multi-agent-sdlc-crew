@@ -21,7 +21,7 @@ You should receive an initial response within 72 hours. Please allow reasonable
 time for a fix before public disclosure.
 
 This reporting path and the 72-hour initial-response target are consistent with the
-repository-root [`SECURITY.md`](https://github.com/C0FFEEC0DE/multi-agent-sdlc-crew/blob/main/SECURITY.md).
+repository-root [`SECURITY.md`](https://github.com/C0FFEEC0DE/agent-hive/blob/main/SECURITY.md).
 
 ## Scope
 

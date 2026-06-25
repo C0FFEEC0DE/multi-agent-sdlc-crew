@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import {
   progressLedgerPath, truncateUtf8, readLedgerForInjection,
   buildPostCompactContext, resolveLedgerMaxBytes, DEFAULT_LEDGER_MAX_BYTES,
-} from '../../plugins/multi-agent-sdlc-crew/modules/ledger.mjs';
+} from '../../plugins/agent-hive/modules/ledger.mjs';
 
 // --- resolveLedgerMaxBytes ------------------------------------------------
 

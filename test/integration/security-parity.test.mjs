@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
-const dispatcher = join(root, 'plugins', 'multi-agent-sdlc-crew', 'modules', 'hook-dispatcher.mjs');
+const dispatcher = join(root, 'plugins', 'agent-hive', 'modules', 'hook-dispatcher.mjs');
 
 function run(event, toolInput, env = {}, matcher = null) {
   const args = [dispatcher, '--event', event];

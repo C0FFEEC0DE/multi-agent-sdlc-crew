@@ -18,7 +18,7 @@ export function timestampUtc(d = new Date()) {
 export function resolveDataRoot(env = process.env, home = homedir()) {
   const explicit = env.CLAUDE_PLUGIN_DATA;
   if (explicit && typeof explicit === 'string') return explicit;
-  return join(home, '.claude', 'plugins', 'data', 'multi-agent-sdlc-crew');
+  return join(home, '.claude', 'plugins', 'data', 'agent-hive');
 }
 
 /**
@@ -29,7 +29,7 @@ export function resolveDataRoot(env = process.env, home = homedir()) {
 export function resolvePluginRoot(env = process.env) {
   const explicit = env.CLAUDE_PLUGIN_ROOT;
   if (explicit && typeof explicit === 'string') return explicit;
-  return join(homedir(), '.claude', 'plugins', 'multi-agent-sdlc-crew');
+  return join(homedir(), '.claude', 'plugins', 'agent-hive');
 }
 
 /**

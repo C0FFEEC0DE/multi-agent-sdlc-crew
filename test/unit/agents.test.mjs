@@ -6,10 +6,10 @@ import {
   loadAliases, canonicalizeSubagentLabel, extractSubagentLabel, extractSubagentScope,
   inferStartedRolesFromTranscript, effectiveStartedRoles, formatSubagentList,
   formatSubagentGroup, GENERIC_TYPES,
-} from '../../plugins/multi-agent-sdlc-crew/modules/agents.mjs';
+} from '../../plugins/agent-hive/modules/agents.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const pluginRoot = join(here, '..', '..', 'plugins', 'multi-agent-sdlc-crew');
+const pluginRoot = join(here, '..', '..', 'plugins', 'agent-hive');
 const aliases = loadAliases(pluginRoot);
 const transcripts = join(here, '..', '..', 'test', 'hooks', 'fixtures', 'transcripts');
 import { readFileSync } from 'node:fs';

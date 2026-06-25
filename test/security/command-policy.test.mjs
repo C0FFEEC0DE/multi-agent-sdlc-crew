@@ -4,7 +4,7 @@
 // every deny reason must contain the spec §6 substring.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyCommand, resolveMode, normalizeCommand, permissionDeniedOutcome, isBenchmarkCi, CODE } from '../../plugins/multi-agent-sdlc-crew/modules/command-policy.mjs';
+import { classifyCommand, resolveMode, normalizeCommand, permissionDeniedOutcome, isBenchmarkCi, CODE } from '../../plugins/agent-hive/modules/command-policy.mjs';
 import { CORPUS, expandExpectations } from './command-policy.corpus.mjs';
 
 // --- full corpus -----------------------------------------------------------
@@ -129,7 +129,7 @@ test('cross-shell: named-target recursive delete is allowed (narrow targeting)',
 
 test('command-policy module never imports child_process or spawns a shell', async () => {
   const src = await import('node:fs').then((fs) => fs.readFileSync(
-    new URL('../../plugins/multi-agent-sdlc-crew/modules/command-policy.mjs', import.meta.url), 'utf8'));
+    new URL('../../plugins/agent-hive/modules/command-policy.mjs', import.meta.url), 'utf8'));
   // Check actual import/require statements, not the header comment which says
   // "no child_process" by design.
   assert.ok(!/import\s+.*child_process|from\s+['"]node:child_process|require\s*\(\s*['"]child_process/.test(src), 'must not import child_process');

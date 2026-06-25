@@ -1,8 +1,8 @@
-# multi-agent-sdlc-crew
+# agent-hive
 
-[![Repository Checks](https://github.com/C0FFEEC0DE/multi-agent-sdlc-crew/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/C0FFEEC0DE/multi-agent-sdlc-crew/actions/workflows/validate.yml)
-[![Hook Contracts](https://github.com/C0FFEEC0DE/multi-agent-sdlc-crew/actions/workflows/hooks-test.yml/badge.svg?branch=main)](https://github.com/C0FFEEC0DE/multi-agent-sdlc-crew/actions/workflows/hooks-test.yml)
-[![Security Checks](https://github.com/C0FFEEC0DE/multi-agent-sdlc-crew/actions/workflows/security-scan.yml/badge.svg?branch=main)](https://github.com/C0FFEEC0DE/multi-agent-sdlc-crew/actions/workflows/security-scan.yml)
+[![Repository Checks](https://github.com/C0FFEEC0DE/agent-hive/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/C0FFEEC0DE/agent-hive/actions/workflows/validate.yml)
+[![Hook Contracts](https://github.com/C0FFEEC0DE/agent-hive/actions/workflows/hooks-test.yml/badge.svg?branch=main)](https://github.com/C0FFEEC0DE/agent-hive/actions/workflows/hooks-test.yml)
+[![Security Checks](https://github.com/C0FFEEC0DE/agent-hive/actions/workflows/security-scan.yml/badge.svg?branch=main)](https://github.com/C0FFEEC0DE/agent-hive/actions/workflows/security-scan.yml)
 
 A **hook-gated SDLC profile for Claude Code**: a platform-independent Node hook
 runtime enforces a discover → design → implement → verify → review → docs flow,
@@ -19,10 +19,10 @@ plugin.
 Install the plugin from a local checkout:
 
 ```bash
-claude plugin install ./plugins/multi-agent-sdlc-crew
+claude plugin install ./plugins/agent-hive
 ```
 
-Restart Claude Code. See `plugins/multi-agent-sdlc-crew/README.md` for
+Restart Claude Code. See `plugins/agent-hive/README.md` for
 requirements, configuration, the optional status line, and legacy-migration
 notes (if you previously installed the old `~/.claude` profile via `./install.sh`).
 
@@ -40,7 +40,7 @@ flowchart LR
     G -->|all pass| H[Done]
 ```
 
-Full diagram and the pieces: [`plugins/multi-agent-sdlc-crew/references/architecture.md`](plugins/multi-agent-sdlc-crew/references/architecture.md).
+Full diagram and the pieces: [`plugins/agent-hive/references/architecture.md`](plugins/agent-hive/references/architecture.md).
 
 ## Agents
 
@@ -96,15 +96,15 @@ These are the documented entry points; the hooks enforce the actual handoff and 
 - **`effortLevel`:** defaults to `medium` (lower spend); raise to `high` for hard design/verify/judge stages.
 - **Safety:** `permissions.deny` blocks `sudo`, `mkfs`, `dd`, `rm -rf /`, `rm -rf ~`, force-push, and secret reads. Auto-execution only inside project folders.
 - **Observability:** `Notification` and other runtime events log to `~/.claude/logs/*.jsonl` (rotated at 1 MB).
-- See [`plugins/multi-agent-sdlc-crew/references/token-cost.md`](plugins/multi-agent-sdlc-crew/references/token-cost.md) for the full spend story.
+- See [`plugins/agent-hive/references/token-cost.md`](plugins/agent-hive/references/token-cost.md) for the full spend story.
 
 ## Docs
 
-- [`plugins/multi-agent-sdlc-crew/README.md`](plugins/multi-agent-sdlc-crew/README.md) — plugin cheatsheet
-- [`plugins/multi-agent-sdlc-crew/references/architecture.md`](plugins/multi-agent-sdlc-crew/references/architecture.md) — how the hooks fit together
-- [`plugins/multi-agent-sdlc-crew/references/token-cost.md`](plugins/multi-agent-sdlc-crew/references/token-cost.md) — minimal token spend
+- [`plugins/agent-hive/README.md`](plugins/agent-hive/README.md) — plugin cheatsheet
+- [`plugins/agent-hive/references/architecture.md`](plugins/agent-hive/references/architecture.md) — how the hooks fit together
+- [`plugins/agent-hive/references/token-cost.md`](plugins/agent-hive/references/token-cost.md) — minimal token spend
 - [`docs/benchmarking.md`](docs/benchmarking.md) — benchmark setup, including `make bench-precheck` to reproduce the smoke precheck locally without a model
-- [`plugins/multi-agent-sdlc-crew/references/agent-contracts.md`](plugins/multi-agent-sdlc-crew/references/agent-contracts.md) — agent contracts
+- [`plugins/agent-hive/references/agent-contracts.md`](plugins/agent-hive/references/agent-contracts.md) — agent contracts
 
 ## Contributing
 
