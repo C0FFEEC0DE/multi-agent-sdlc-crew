@@ -45,7 +45,11 @@ import {
   buildResult,
   __setSpawnSync,
   runVerification,
+  runClaude,
+  completedTaskRecoveryMode,
+  classifyTaskFailures,
 } from '../../scripts/bench_runner_claude_code.mjs';
+import { taskFunctionalFailures } from '../../scripts/bench/lib.mjs';
 
 const REPO = join(import.meta.dirname, '..', '..');
 const PLUGIN_AGENTS = join(REPO, 'plugins', 'agent-hive', 'agents');
@@ -658,4 +662,184 @@ test('main writes result.json + summary files for a stub env (no real claude)', 
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
+});
+
+// Regression for PR #4 CI red: the enforced-mode architect smoke task was marked
+// failed (merge-blocking the functional gate) solely by a "spawnSync claude
+// ETIMEDOUT" that Node's spawnSync sets as res.error.code='ETIMEDOUT' on timeout.
+// runClaude used to throw that raw error (caught as an unrecovered "Claude runner
+// exception", exitCode 0) even though the task had completed and verified before
+// the kill. The fix raises TimeoutExpired so the existing recovery machinery
+// suppresses fatalError for a completed+verified task.
+
+test('runClaude raises TimeoutExpired for a spawnSync timeout (res.error ETIMEDOUT)', () => {
+  const tmp = makeTempDir();
+  __setSpawnSync(() => ({
+    // Node spawnSync timeout shape: res.error.code 'ETIMEDOUT', signal set,
+    // status null, and partial stdout captured before the kill.
+    error: Object.assign(new Error('spawnSync claude ETIMEDOUT'), { code: 'ETIMEDOUT' }),
+    signal: 'SIGTERM',
+    status: null,
+    stdout: '{"type":"result","result":"partial"}',
+    stderr: '',
+  }));
+  try {
+    assert.throws(
+      () => runClaude('prompt', join(tmp, 'debug.log'), join(tmp, 'stderr.log'), {}, {
+        claudeBin: 'claude', modelName: 'm', pluginDir: tmp, workdir: tmp, timeoutSeconds: 5,
+      }),
+      (err) => err.name === 'TimeoutExpired' && /Claude timed out after 5s\./.test(err.message),
+    );
+  } finally {
+    __setSpawnSync(null);
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a signal-only kill (no res.error) still raises TimeoutExpired', () => {
+  const tmp = makeTempDir();
+  __setSpawnSync(() => ({
+    error: undefined,
+    signal: 'SIGTERM',
+    status: null,
+    stdout: '',
+    stderr: '',
+  }));
+  try {
+    assert.throws(
+      () => runClaude('prompt', join(tmp, 'debug.log'), join(tmp, 'stderr.log'), {}, {
+        claudeBin: 'claude', modelName: 'm', pluginDir: tmp, workdir: tmp, timeoutSeconds: 7,
+      }),
+      (err) => err.name === 'TimeoutExpired',
+    );
+  } finally {
+    __setSpawnSync(null);
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('recovered spawnSync timeout does not merge-block the functional gate', () => {
+  // Post-fix contract: a process killed mid-run after the work was done
+  // (completed + verified + summary repaired) is a recovered timeout, not a
+  // functional failure. fatalError and the nonzero exit code are suppressed by
+  // recovery; only the dispatch-line code (required_used_agents_missing)
+  // remains, and for an enforced-mode task that is excluded from the functional
+  // line (counted on the non-blocking dispatch-enforced line instead).
+  const args = {
+    exitCode: 124,
+    fatalError: 'Claude timed out after 300s.',
+    completed: true,
+    verificationRequired: true,
+    testsRun: true,
+    testsPassed: true,
+    verificationSummaryPresent: true,
+    reviewRequired: false,
+    reviewPresent: true,
+    risksPresent: true,
+    docsRequired: false,
+    docsUpdated: false,
+    category: 'refactor',
+    nonDocChangedFiles: ['reporter.mjs'],
+    docPatternHits: [],
+    transcriptPatternHits: [],
+    effectiveTranscriptMisses: [],
+    missingRequiredUsedAgents: ['a'],
+    missingRequiredUsedAgentGroups: [],
+    payloadHardStop: false,
+  };
+  assert.equal(completedTaskRecoveryMode(args), 'timeout');
+  const recoveredNonzeroExit = true; // recoveryMode !== 'none'
+  const failures = classifyTaskFailures({ ...args, recoveredNonzeroExit });
+  assert.ok(!failures.includes(args.fatalError), 'fatalError suppressed by recovery');
+  assert.ok(!failures.some((f) => f.startsWith('claude_exit_code=')), 'nonzero exit suppressed by recovery');
+  assert.deepEqual(failures, ['required_used_agents_missing']);
+  // The functional line excludes the dispatch code for enforced mode -> gate passes.
+  assert.equal(taskFunctionalFailures({ dispatch_mode: 'enforced', failures }).length, 0);
+});
+
+// Regression for the latent class the completeness review surfaced: a task that
+// fully completed + verified + had its summary repaired despite a process-level
+// fatalError at exitCode 0 (claude exited 0 but emitted empty/malformed stdout,
+// OR spawnSync hit a non-timeout error like maxBuffer after the work was done).
+// completedTaskRecoveryMode must mark these recovered so classifyTaskFailures
+// suppresses fatalError and the merge-blocking functional gate stays green.
+// Without the runner_exception branch these would merge-block on fatalError alone.
+
+function recoveredProcessErrorArgs(fatalError) {
+  return {
+    exitCode: 0,
+    fatalError,
+    completed: true,
+    verificationRequired: true,
+    testsRun: true,
+    testsPassed: true,
+    verificationSummaryPresent: true,
+    reviewRequired: false,
+    reviewPresent: true,
+    risksPresent: true,
+    docsRequired: false,
+    docsUpdated: false,
+    category: 'refactor',
+    nonDocChangedFiles: ['reporter.mjs'],
+    docPatternHits: [],
+    transcriptPatternHits: [],
+    effectiveTranscriptMisses: [],
+    missingRequiredUsedAgents: ['a'],
+    missingRequiredUsedAgentGroups: [],
+    payloadHardStop: false,
+  };
+}
+
+test('recovered empty-stdout fatalError (exitCode 0) does not merge-block', () => {
+  const args = recoveredProcessErrorArgs('Claude output JSON is missing or empty.');
+  assert.equal(completedTaskRecoveryMode(args), 'runner_exception');
+  const failures = classifyTaskFailures({ ...args, recoveredNonzeroExit: true });
+  assert.ok(!failures.includes(args.fatalError), 'fatalError suppressed by recovery');
+  assert.deepEqual(failures, ['required_used_agents_missing']);
+  assert.equal(taskFunctionalFailures({ dispatch_mode: 'enforced', failures }).length, 0);
+});
+
+test('recovered maxBuffer runner-exception (exitCode 0) does not merge-block', () => {
+  // NOTE: a real maxBuffer kill sets res.signal, so runClaude routes it through
+  // TimeoutExpired -> exitCode 124 -> the timeout recovery branch, NOT this one.
+  // This test pins the runner_exception branch's handling of a non-timeout
+  // "Claude runner exception: ..." fatalError at exitCode 0 using a synthetic
+  // string; the actual maxBuffer path is covered by the timeout tests above.
+  const args = recoveredProcessErrorArgs('Claude runner exception: spawnSync claude maxBuffer length exceeded');
+  assert.equal(completedTaskRecoveryMode(args), 'runner_exception');
+  const failures = classifyTaskFailures({ ...args, recoveredNonzeroExit: true });
+  assert.ok(!failures.includes(args.fatalError), 'fatalError suppressed by recovery');
+  assert.deepEqual(failures, ['required_used_agents_missing']);
+  assert.equal(taskFunctionalFailures({ dispatch_mode: 'enforced', failures }).length, 0);
+});
+
+test('a nonzero (non-timeout) exit is NOT recovered even when completed+verified', () => {
+  // Conservative boundary: exitCode !== 0 (and not 124 timeout / max_turns) is
+  // left unrecovered. A persistent nonzero claude exit after retries is a
+  // stronger failure signal and must stay merge-blocking.
+  const args = { ...recoveredProcessErrorArgs('Claude runner exception: spawnSync claude ENOENT'), exitCode: 1 };
+  assert.equal(completedTaskRecoveryMode(args), 'none');
+  const failures = classifyTaskFailures({ ...args, recoveredNonzeroExit: false });
+  assert.ok(failures.includes(args.fatalError), 'fatalError kept');
+  assert.ok(failures.includes('claude_exit_code=1'), 'nonzero exit kept');
+});
+
+test('a non-completed task with exitCode 0 + fatalError is NOT recovered', () => {
+  // Guard: recovery only applies when the task actually completed + verified.
+  // A task that did not complete (no changes) stays red on fatalError.
+  const args = { ...recoveredProcessErrorArgs('Claude output JSON is missing or empty.'), completed: false };
+  assert.equal(completedTaskRecoveryMode(args), 'none');
+  const failures = classifyTaskFailures({ ...args, recoveredNonzeroExit: false });
+  assert.ok(failures.includes(args.fatalError), 'fatalError kept when not recovered');
+  assert.ok(failures.includes('workspace_changed=false'));
+});
+
+test('a verified-but-failing task with exitCode 0 + fatalError is NOT recovered', () => {
+  // Guard: recovery only applies when verification passed. A task whose tests
+  // failed stays red on fatalError + verification_failed.
+  const args = { ...recoveredProcessErrorArgs('Claude output JSON is invalid.'), testsPassed: false };
+  assert.equal(completedTaskRecoveryMode(args), 'none');
+  const failures = classifyTaskFailures({ ...args, recoveredNonzeroExit: false });
+  assert.ok(failures.includes(args.fatalError));
+  assert.ok(failures.includes('verification_failed'));
 });

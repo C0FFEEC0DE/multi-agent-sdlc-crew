@@ -1157,6 +1157,26 @@ export function completedTaskRecoveryMode(args) {
   if (args.docPatternHits.length) return 'none';
   if (args.exitCode === 124 && args.fatalError.startsWith('Claude timed out after ')) return 'timeout';
   if (args.payloadSubtype === 'error_max_turns') return 'max_turns';
+  // The task fully completed and verified despite a lingering process-level
+  // fatalError at exitCode 0. Two sub-cases reach here:
+  //  (a) claude RAN and exited 0 but emitted empty/malformed stdout
+  //      ("Claude output JSON is missing/invalid/empty") — the work was done
+  //      (files changed) and verification passed, so this is a recovered
+  //      reporting failure, not a functional failure.
+  //  (b) spawnSync threw a non-timeout error before/without claude producing
+  //      output (ENOENT/EACCES/... -> fatalError "Claude runner exception: ..."),
+  //      exitCode stays 0. Recovering these is parity with the timeout/max_turns
+  //      envelope; see Remaining-risks note on the exitCode-0 conflation.
+  // (ERR_CHILD_PROCESS_STDIO_MAXBUFFER is NOT here: a maxBuffer kill sets
+  // res.signal, so runClaude's timedOut clause raises TimeoutExpired -> exitCode
+  // 124 -> recovered via the timeout branch above, not this one.)
+  // Every completion/verification/review/docs guard above already passed, so the
+  // fatalError is a recovered process error. Without this branch it would stay
+  // in failures[] and merge-block the functional gate — the same bug class as
+  // the recovered spawnSync timeout, on a path the timeout fix never touches.
+  // (exitCode !== 0 is intentionally left unrecovered: a persistent nonzero
+  // claude exit after retries is a stronger signal and stays conservative.)
+  if (args.exitCode === 0 && args.fatalError) return 'runner_exception';
   return 'none';
 }
 
@@ -1567,14 +1587,26 @@ export function runClaude(prompt, debugLogPath, stderrLogPath, opts = {}, ctx = 
       env,
       maxBuffer: 64 * 1024 * 1024,
     });
-    if (res.error) throw res.error;
     const stdout = res.stdout || '';
     const stderr = res.stderr || '';
     writeText(stderrLogPath, stderr);
-    if (res.status === null && res.signal) {
-      // Killed by timeout/signal — mirror Python TimeoutExpired propagation.
-      throw new TimeoutExpired(timeoutSeconds, stdout, stderr);
-    }
+    // spawnSync reports an elapsed `timeout` option by setting res.error with
+    // code 'ETIMEDOUT' (and res.signal, res.status null) — and because res.error
+    // is truthy, a bare `if (res.error) throw res.error` would fire here and raise
+    // the raw Node error verbatim. That is misclassified downstream as an
+    // unrecovered "Claude runner exception: spawnSync claude ETIMEDOUT"
+    // (exitCode stays 0), so completedTaskRecoveryMode returns 'none' and
+    // classifyTaskFailures keeps fatalError — merge-blocking the functional gate
+    // even when the task had already completed and verification passed before
+    // the kill (observed on PR #4's enforced-mode architect task). Detect the
+    // timeout first and raise TimeoutExpired so the existing exitCode=124 ->
+    // recoveryMode='timeout' -> recoveredNonzeroExit -> fatalError-suppressed
+    // machinery treats a mid-run kill as recoverable. The signal-without-status
+    // case (a non-timeout signal kill) is folded in for parity with the prior
+    // explicit check.
+    const timedOut = (res.error && res.error.code === 'ETIMEDOUT') || (res.status === null && res.signal);
+    if (timedOut) throw new TimeoutExpired(timeoutSeconds, stdout, stderr);
+    if (res.error) throw res.error;
     completed = { status: res.status, stdout, stderr };
     if (res.status !== 0 && isOllama429(stderr)) {
       if (attempt < OLLAMA_429_MAX_RETRIES) {
@@ -2083,6 +2115,12 @@ export function main() {
   });
   const timeoutRecovered = recoveryMode === 'timeout';
   const maxTurnsRecovered = recoveryMode === 'max_turns';
+  // Surfaced as summary field `recovered_nonzero_exit`. Despite the legacy name,
+  // this now means "recovered from ANY process-level error" — a nonzero claude
+  // exit (timeout/max_turns) OR an exit-0 transport failure (runner_exception:
+  // claude ran with empty/malformed stdout, or a spawn-level ENOENT/EACCES). All
+  // downstream consumers treat it as a boolean "was recovered" flag, so an
+  // exit-0 task with recovered_nonzero_exit=true is not a contradiction.
   const recoveredNonzeroExit = recoveryMode !== 'none';
   const effectiveTranscriptMisses = effectiveRequiredTranscriptMisses(requiredTranscriptMisses, {
     recoveredNonzeroExit,
