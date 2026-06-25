@@ -104,7 +104,7 @@ These are the documented entry points; the hooks enforce the actual handoff and 
 - [`plugins/multi-agent-sdlc-crew/README.md`](plugins/multi-agent-sdlc-crew/README.md) — plugin cheatsheet
 - [`plugins/multi-agent-sdlc-crew/references/architecture.md`](plugins/multi-agent-sdlc-crew/references/architecture.md) — how the hooks fit together
 - [`plugins/multi-agent-sdlc-crew/references/token-cost.md`](plugins/multi-agent-sdlc-crew/references/token-cost.md) — minimal token spend
-- [`docs/benchmarking.md`](docs/benchmarking.md) — benchmark setup
+- [`docs/benchmarking.md`](docs/benchmarking.md) — benchmark setup, including `make bench-precheck` to reproduce the smoke precheck locally without a model
 - [`plugins/multi-agent-sdlc-crew/references/agent-contracts.md`](plugins/multi-agent-sdlc-crew/references/agent-contracts.md) — agent contracts
 
 ## Contributing

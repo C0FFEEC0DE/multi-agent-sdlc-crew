@@ -298,6 +298,48 @@ For cheap synthetic checks without the real agent:
 node scripts/run-benchmark.mjs --output-dir /tmp/claude-bench-mock --mode mock
 ```
 
+## Local precheck
+
+The **Behavior Benchmark Subagents Smoke Precheck** CI job (the `precheck` job
+in `.github/workflows/behavior-benchmark-subagents-smoke.yml`) selects which
+subagent smoke tasks to run before spending model credits. `scripts/bench-precheck.mjs`
+reproduces that job locally — it is a thin orchestrator that drives the exact
+same Node CLIs the CI uses (`collect-benchmark-changes`, `select-benchmark-tasks`,
+`build-benchmark-matrix`, and, for resume modes, `find-failed-benchmark-run` /
+`download-benchmark-summary`), so local and CI selection stay byte-identical. No
+selection logic is duplicated. It is deterministic and needs **no model or
+token** — it only reads the git diff and the task files.
+
+```bash
+# Default: mirrors a pull_request against main — collects changed files,
+# selects the subagent smoke tasks those changes touch, validates task/fixture
+# alignment, builds the 3-shard matrix, and prints a ready-to-run command:
+make bench-precheck
+
+# Run the whole suite regardless of what changed (skip the validator step):
+make bench-precheck BENCH_PRECHECK_FLAGS='--selection-mode all --no-validators'
+
+# Or invoke directly:
+node scripts/bench-precheck.mjs
+```
+
+The precheck writes scratch files under `BENCH_OUTPUT_DIR` (default
+`/tmp/claude-bench`, cleaned by `make clean`): `.bench-changed-files.txt`,
+`.bench-selected-tasks.txt`, and per-shard `.bench-selected-tasks.shardN.txt`.
+It then prints the local equivalent of the CI matrix job — one `make bench-smoke`
+command per shard (or a single combined run):
+
+```
+make bench-smoke BENCH_TASK_LIST='/tmp/claude-bench/.bench-selected-tasks.shard1.txt'
+```
+
+Copy that command and run it with your Ollama / Claude Code env vars exported
+(see *Local Usage* above) to execute the selected canaries against a real model.
+`--selection-mode=resume`/`auto-resume` additionally resolve a prior failed run
+via `gh` and need a `GITHUB_TOKEN` plus network, exactly as in CI; `auto-resume`
+falls back to `changed` when no failed run is found in the last 72 hours. Run
+`node scripts/bench-precheck.mjs --help` for the full flag set.
+
 ## Re-running only failed tasks
 
 A full smoke rerun re-executes every canary task and spends Ollama credits on

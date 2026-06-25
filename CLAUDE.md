@@ -73,6 +73,8 @@ All benchmark workflows opt into **Node.js 24** via `FORCE_JAVASCRIPT_ACTIONS_TO
 
 Agent-level regressions are covered by the smoke suite under `bench/tasks/subagents/smoke/` with focused canary tasks for each canonical specialist role plus extra workflow-shape coverage. The repository validator enforces shared subagent footer markers inside benchmark tasks so prompt, benchmark, and hook contracts cannot silently drift apart.
 
+The smoke precheck (the CI `precheck` job's task selection + matrix build, with no model spend) is runnable locally via `make bench-precheck` (`scripts/bench-precheck.mjs`), which drives the same Node CLIs CI uses so selection stays byte-identical. See `docs/benchmarking.md` → *Local precheck*.
+
 OpenRouter-backed Claude Code is configured via repository secrets/variables. See `docs/benchmarking.md`.
 
 ## Test Commands

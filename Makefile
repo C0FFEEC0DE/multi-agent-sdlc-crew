@@ -22,7 +22,7 @@ ifneq ($(strip $(BENCH_TASK_LABEL)),)
 BENCH_LABEL_ARGS = --task-label '$(BENCH_TASK_LABEL)'
 endif
 
-.PHONY: all lint hooks test node-test cov validate clean bench-mock bench-smoke bench-command bench-assert bench-report bench-rerun-failed
+.PHONY: all lint hooks test node-test cov validate clean bench-mock bench-smoke bench-command bench-assert bench-report bench-rerun-failed bench-precheck
 
 # Default: lint + test + hook contract tests.
 all: lint test hooks
@@ -103,6 +103,17 @@ bench-command:
 
 bench-assert:
 	node scripts/assert-benchmark-summary.mjs '$(BENCH_OUTPUT_DIR)/summary.json'
+
+# Local replica of the "Behavior Benchmark Subagents Smoke Precheck" CI job:
+# collect changed files, select subagent smoke tasks, validate task/fixture
+# alignment, build the shard matrix, and print a ready-to-run `make bench-smoke`
+# command for the selected tasks. Deterministic (no model/token needed).
+# Pass extra flags through BENCH_PRECHECK_FLAGS, e.g.
+#   make bench-precheck BENCH_PRECHECK_FLAGS='--selection-mode=all --no-validators'
+bench-precheck:
+	node scripts/bench-precheck.mjs \
+		--output-dir '$(BENCH_OUTPUT_DIR)' \
+		$(BENCH_PRECHECK_FLAGS)
 
 bench-report:
 	@cat '$(BENCH_OUTPUT_DIR)/benchmark-report.md'

@@ -71,6 +71,11 @@ permissions:
   actions: read
 
 jobs:
+  # Local equivalent: `make bench-precheck` / `scripts/bench-precheck.mjs`
+  # reproduces this job on a workstation — it drives the same Node CLIs
+  # (collect-benchmark-changes, select-benchmark-tasks, build-benchmark-matrix,
+  # find-failed-benchmark-run, download-benchmark-summary) with no model/token,
+  # so local and CI selection stay byte-identical. See docs/benchmarking.md.
   precheck:
     name: Behavior Benchmark Subagents Smoke Precheck
     runs-on: ubuntu-latest
